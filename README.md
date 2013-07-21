@@ -1,7 +1,7 @@
 SECD machine
 ============
 
-This is a loose implementation of [SECD machine](http://en.wikipedia.org/wiki/SECD) and a simplest Scheme-to-SECD compiler, which is self-hosted.
+This is a loose implementation of [SECD machine](http://en.wikipedia.org/wiki/SECD) and a simplest self-hosted Scheme-to-SECD compiler.
 
 The design is mostly inspired by detailed description in _Functional programming: Application and Implementation_ by Peter Henderson and his LispKit.
 
@@ -20,7 +20,7 @@ The machine's state is represented as tuple of 4 lists:
 * D for dump (stack): it's for storing S/E/C that must be restored later
 
 Boolean values are now `#t` and NIL.
-Only C int types are supported as integers
+Only C `int` types are supported as integers
 The current opcode set and the operational semantics is:
 
     ADD, SUB, MUL, DIV, REM
@@ -53,9 +53,9 @@ The current opcode set and the operational semantics is:
 Memory is managed using reference counting at the moment, a simple optional garbage collection is on my TODO-list.
 
 Values are persistant, immutable and shared.
-
 `READ`/`PRINT` are implemented as built-in commands in C code.
-There are some functions which are implemented in C for efficiency:
+
+There are some functions implemented in C for efficiency:
 - `append`: is heavily used by the compiler;
 - `list`: see above;
 - `null?`, `number?`, `symbol?`: may be implemented in native code only;
@@ -75,6 +75,8 @@ $ ./secd < tests/test_fact.secd
 
 # read from file first, then from the stdin
 $ cat tests/test_io.secd - | ./secd
+# or
+$ ./secd tests/test_io.secd
 1
 (Looks like an atom)
 ^D
@@ -86,9 +88,9 @@ See `tests/` directory for more examples of closures/recursion/IO in SECD codes.
 Scheme compiler: scm2secd.scm
 -----------------------------
 
-This file a simplest compiler from Scheme to SECD code, written in Scheme. It is written in a quite limited subset of Scheme (even without `define`, using `let`/`letrec` instead). Also there's *no* support for tail-recursion optimization yet, that's why it is not strictly a Scheme in the meaning of RnRS. Also, it supports very limited set of types (`symbol`s, `number`s and `list`s: no vectors, bytestrings, chars, strings, etc).
+This file a simplest compiler from Scheme to SECD code. It is written in a quite limited subset of Scheme (even without `define`, using `let`/`letrec` instead). Also there's *no* support for tail-recursion optimization yet, that's why it is not strictly a Scheme in the meaning of RnRS. Also, it supports very limited set of types (`symbol`s, `number`s and `list`s: no vectors, bytestrings, chars, strings, etc).
 
-The compiler is self-hosted and can be bootstrapped using its compiled SECD code in `scm2secd.secd`:
+The compiler is self-hosted and can be bootstrapped using its pre-compiled SECD code in `scm2secd.secd`:
 
 ```bash
 # self-bootstrapping:
@@ -102,7 +104,7 @@ $ mzscheme -f scm2secd.scm <scm2secd.scm >scm2secd.secd
 Due to limitations of SECD code described by P.Henderson, `eval` can't be implemented now (TODO: add command `LDFS`, LoaD Function from Stack).
 Use such way of evaluating Scheme:
 ```bash
-$ ./secd scm2secd.secd <tests/append.scm | ./secd
+$ cat tests/append.scm | ./secd scm2secd.secd | ./secd
 (1 2 3 4 5 6)
 ```
 
