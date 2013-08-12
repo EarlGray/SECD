@@ -52,7 +52,7 @@ The current opcode set and the operational semantics is:
 
 Memory is managed using reference counting at the moment, a simple optional garbage collection is on my TODO-list.
 
-Values are persistant, immutable and shared.
+Values are persistent, immutable and shared.
 `READ`/`PRINT` are implemented as built-in commands in C code.
 
 There are some functions implemented in C for efficiency:
