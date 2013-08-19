@@ -140,6 +140,8 @@ struct secd  {
 #if TAILRECURSION
     bool tlrec;
 #endif
+    size_t used_stack;
+    size_t free_cells;
 };
 
 
@@ -340,6 +342,7 @@ cell_t *pop_free(secd_t *secd) {
 
     secd->free = list_next(cell);
     memdebugf("NEW [%ld]\n", cell_index(cell));
+    -- secd->free_cells;
 
     cell->type = (intptr_t)secd;
     return cell;
@@ -352,6 +355,7 @@ void push_free(cell_t *c) {
     c->type = (intptr_t)secd | CELL_CONS;
     c->as.cons.cdr = secd->free;
     secd->free = c;
+    ++ secd->free_cells;
     memdebugf("FREE[%ld]\n", cell_index(c));
 }
 
@@ -993,6 +997,34 @@ cell_t *secdf_eofp(secd_t *secd, cell_t *args) {
     return to_bool(secd, str_eq(symname(arg1), EOF_OBJ));
 }
 
+cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
+    ctrldebugf("secdf_ctl\n");
+    cell_t *arg1 = list_head(args);
+
+    if (atom_type(arg1) == ATOM_SYM) {
+        if (str_eq(symname(arg1), "free")) {
+            printf("SECDCTL: Available cells: %lu\n", secd->free_cells);
+        } else if (str_eq(symname(arg1), "env")) {
+            print_env(secd);
+        } else if (str_eq(symname(arg1), "help")) {
+            printf("SECDCTL: options are 'help', 'env', 'free'\n");
+        }
+    }
+    return args; 
+}
+
+cell_t *secdf_mkclos(secd_t *secd, cell_t *args) {
+    ctrldebugf("secdf_mkclos\n");
+    cell_t *arg1 = list_head(args);
+    assert(is_cons(arg1), "secdf_mkclos: not a list\n");
+
+    cell_t *cons2 = new_cons(secd, arg1, secd->nil);
+    cell_t *cons1 = new_cons(secd, secd->nil, cons2);
+    cell_t *clos = new_cons(secd, cons1, secd->env);
+
+    return clos;
+}
+
 #define INIT_SYM(name) {    \
     .type = CELL_ATOM,      \
     .as.atom = {            \
@@ -1106,6 +1138,8 @@ const cell_t nullp_sym  = INIT_SYM("null?");
 const cell_t nump_sym   = INIT_SYM("number?");
 const cell_t symp_sym   = INIT_SYM("symbol?");
 const cell_t eofp_sym   = INIT_SYM("eof-object?");
+const cell_t debug_sym  = INIT_SYM("secdctl");
+const cell_t mkclos_sym = INIT_SYM("make-closure");
 
 const cell_t list_func  = INIT_FUNC(secdf_list);
 const cell_t append_func = INIT_FUNC(secdf_append);
@@ -1114,6 +1148,8 @@ const cell_t nullp_func = INIT_FUNC(secdf_null);
 const cell_t nump_func  = INIT_FUNC(secdf_nump);
 const cell_t symp_func  = INIT_FUNC(secdf_symp);
 const cell_t eofp_func  = INIT_FUNC(secdf_eofp);
+const cell_t debug_func = INIT_FUNC(secdf_ctl);
+const cell_t mkclos_fun = INIT_FUNC(secdf_mkclos);
 
 const struct {
     const cell_t *sym;
@@ -1127,6 +1163,8 @@ const struct {
     { &symp_sym,    &symp_func },
     { &copy_sym,    &copy_func  },
     { &eofp_sym,    &eofp_func  },
+    { &debug_sym,   &debug_func  },
+    { &mkclos_sym,  &mkclos_fun },
 
     { NULL,         NULL } // must be last
 };
@@ -1497,6 +1535,9 @@ secd_t * init_secd(secd_t *secd) {
     secd->free = secd->data;
     secd->stack = secd->dump =  secd->nil;
     secd->control = secd->env =  secd->nil;
+
+    secd->free_cells = N_CELLS - 1;
+    secd->used_stack = 0;
 
 #if TAILRECURSION
     secd->tlrec = false;

@@ -107,8 +107,9 @@
       ((eq? hd 'quit)
         '(STOP))
       (else
-        (append (compile-bindings tl)
-                (list 'LD hd 'AP)))
+        (let ((compiled-head 
+                (if (atom? hd) (list 'LD hd) (compile hd))))
+         (append (compile-bindings tl) compiled-head '(AP))))
     ))))
 
 (compile (lambda (s)
