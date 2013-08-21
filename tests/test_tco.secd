@@ -13,7 +13,7 @@
             LDC 1  LD n  SUB
             CONS
             LD fact
-            APT
+            AP
             JOIN)
        RTN))
  CONS
@@ -22,4 +22,5 @@
  LDF ((fact)
       (LDC ()  LDC 1 CONS  LDC 6  CONS
        LD fact  AP RTN))
-RAP)
+RAP
+STOP)

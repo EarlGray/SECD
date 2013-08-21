@@ -60,6 +60,8 @@ There are some functions implemented in C for efficiency:
 - `list`: see above;
 - `null?`, `number?`, `symbol?`: may be implemented in native code only;
 
+*Tail-recursion*: added tail-recursive calls optimization. Semantics: TODO
+
 How to run
 ----------
 
@@ -88,7 +90,7 @@ See `tests/` directory for more examples of closures/recursion/IO in SECD codes.
 Scheme compiler: scm2secd.scm
 -----------------------------
 
-This file a simplest compiler from Scheme to SECD code. It is written in a quite limited subset of Scheme (even without `define`, using `let`/`letrec` instead). Also there's *no* support for tail-recursion optimization yet, that's why it is not strictly a Scheme in the meaning of RnRS. Also, it supports very limited set of types (`symbol`s, `number`s and `list`s: no vectors, bytestrings, chars, strings, etc).
+This file a simplest compiler from Scheme to SECD code. It is written in a quite limited subset of Scheme (even without `define`, using `let`/`letrec` instead). It supports very limited set of types (`symbol`s, `number`s and `list`s: no vectors, bytestrings, chars, strings, etc).
 
 The compiler is self-hosted and can be bootstrapped using its pre-compiled SECD code in `scm2secd.secd`:
 
@@ -101,21 +103,25 @@ $ guile -s scm2secd.scm <scm2secd.scm >scm2secd.secd
 $ mzscheme -f scm2secd.scm <scm2secd.scm >scm2secd.secd
 ```
 
-Due to limitations of SECD code described by P.Henderson, `eval` can't be implemented now (TODO: add command `LDFS`, LoaD Function from Stack).
-Use such way of evaluating Scheme:
+Scheme expression and files may be evaluated this way:
 ```bash
 $ cat tests/append.scm | ./secd scm2secd.secd | ./secd
+```
+
+Then bootstrap a REPL (it is not portable and can not be run in other interpreters):
+```bash
+$ ./secd scm2secd.secd <repl.scm >repl.secd
+$ ./secd repl.secd
+> (append '(1 2 3) '(4 5 6))
 (1 2 3 4 5 6)
 ```
 
 TODO
 ----
-- `LDFS`: LoaD Function from Stack, to implement `eval`;
 - `AP n`: treat n values on top of the stack as arguments for a function call instead of always creating a list.
 - Is there a way to make `cond` forms less nested?
 - support for more Scheme types: `bytestring`, `string` (list of chars?), `port`;
 - make symbol storage: quick access (balanced binary search tree or hashtable?), reuse string resources;
-- tail-call optimization.
 - optional garbage-collector, compare RefCount and GC speed.
 - LLVM backend?
 

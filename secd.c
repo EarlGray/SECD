@@ -21,8 +21,7 @@
 #define CTRLDEBUG   0
 #define ENVDEBUG    0
 
-#define TAILRECURSION 0
-// tail recursion does not work properly at the moment
+#define TAILRECURSION 1
 
 #if (MEMDEBUG)
 # define memdebugf(...) printf(__VA_ARGS__)
@@ -137,9 +136,7 @@ struct secd  {
     cell_t *nil;        // pointer
 
     cell_t *global_env;
-#if TAILRECURSION
-    bool tlrec;
-#endif
+
     size_t used_stack;
     size_t free_cells;
 };
@@ -708,12 +705,8 @@ cell_t *secd_sel(secd_t *secd) {
 
     cell_t *joinb = secd->control;
     secd->control = share_cell(cond ? thenb : elseb);
-#if TAILRECURSION
-    if (!secd->tlrec)
-        push_dump(secd, joinb);
-#else
+
     push_dump(secd, joinb);
-#endif
 
     drop_cell(thenb); drop_cell(elseb); drop_cell(joinb);
     return secd->control;
@@ -740,11 +733,34 @@ cell_t *secd_ldf(secd_t *secd) {
 }
 
 #if TAILRECURSION
-static bool tail_recursive(cell_t *control) {
-    if (is_nil(control)) return false;
-    cell_t *nextop = get_car(control);
-    if (atom_type(nextop) != ATOM_SYM) return false;
-    return str_eq("RTN", nextop->as.atom.as.sym.data);
+/* returns a new dump for tail-recursive call
+ * or NULL if no LCO
+ */
+static cell_t * tail_recursive(cell_t *control, cell_t *dump) {
+    if (is_nil(control))
+        return NULL;
+
+    cell_t *nextop = list_head(control);
+    if (atom_type(nextop) != ATOM_SYM)
+        return NULL;
+
+    if (str_eq("RTN", symname(nextop))) {
+        return dump;
+    } else if (str_eq("JOIN", symname(nextop))) {
+        cell_t *join = list_head(dump);
+        return tail_recursive(join, list_next(dump));
+    } else if (str_eq("CONS", symname(nextop))) {
+        /* a situation of CONS CAR - it is how `begin` implemented */
+        cell_t *nextcontrol = list_next(control);
+        cell_t *afternext = list_head(nextcontrol);
+        if (atom_type(afternext) != ATOM_SYM || !str_eq("CAR", symname(afternext)))
+            return NULL;
+        return tail_recursive(list_next(nextcontrol), dump);
+    }
+
+    /* all other commands (except DUM, which must have RAP after it)
+     * mess with the stack. TCO's not possible: */
+    return NULL;
 }
 #endif
 
@@ -764,7 +780,7 @@ cell_t *secd_ap(secd_t *secd) {
         secd_nativefunc_t native = (secd_nativefunc_t)func->as.atom.as.ptr;
         cell_t *result = push_stack(secd, native(secd, argvals));
 
-        drop_cell(func); drop_cell(argvals);
+        drop_cell(closure); drop_cell(argvals);
         return result;
     }
 
@@ -772,33 +788,31 @@ cell_t *secd_ap(secd_t *secd) {
     cell_t *control = get_car(list_next(func));
 
 #if TAILRECURSION
-    if (!tail_recursive(secd->control)) {
+    cell_t *new_dump = tail_recursive(secd->control, secd->dump);
+    if (new_dump) {
+        //printf("secd_ap: tail-recursive\n");
+
+        cell_t *dump = secd->dump;
+        secd->dump = share_cell(new_dump);
+        drop_cell(dump);
+    } else {
+#endif
         push_dump(secd, secd->control);
         push_dump(secd, secd->env);
         push_dump(secd, secd->stack);
+#if TAILRECURSION
     }
-#if CTRLDEBUG
-    else ctrldebugf("secd_ap: tail-recursive\n");
-#endif
-#else
-    push_dump(secd, secd->control);
-    push_dump(secd, secd->env);
-    push_dump(secd, secd->stack);
 #endif
 
-    cell_t *frame = new_cons(secd, argnames, argvals);
-#if CTRLDEBUG
-    printf("new frame: \n"); print_cell(frame);
-    printf(" argnames: \n"); printc(argnames);
-    printf(" argvals : \n"); printc(argvals);
-#endif
+    drop_cell(secd->stack);
     secd->stack = secd->nil;
+
+    cell_t *frame = new_cons(secd, argnames, argvals);
     secd->env = share_cell(new_cons(secd, frame, newenv));
-    //print_env(secd);
+
     secd->control = share_cell(control);
 
     drop_cell(closure); drop_cell(argvals);
-
     return control;
 }
 
@@ -822,9 +836,6 @@ cell_t *secd_rtn(secd_t *secd) {
     drop_cell(top); drop_cell(prevstack);
     drop_cell(prevenv); drop_cell(prevcontrol);
 
-#if TAILRECURSION
-    secd->tlrec = false;
-#endif
     return top;
 }
 
@@ -1010,7 +1021,7 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
             printf("SECDCTL: options are 'help', 'env', 'free'\n");
         }
     }
-    return args; 
+    return args;
 }
 
 cell_t *secdf_mkclos(secd_t *secd, cell_t *args) {
@@ -1478,7 +1489,7 @@ cell_t *sexp_read(secd_t *secd, secd_parser_t *p) {
         return new_symbol(secd, EOF_OBJ);
       case '\'':
         inp = sexp_read(secd, p);
-        inp = new_cons(secd, new_symbol(secd, "quote"), 
+        inp = new_cons(secd, new_symbol(secd, "quote"),
                              new_cons(secd, inp, secd->nil));
         break;
       default:
@@ -1539,9 +1550,6 @@ secd_t * init_secd(secd_t *secd) {
     secd->free_cells = N_CELLS - 1;
     secd->used_stack = 0;
 
-#if TAILRECURSION
-    secd->tlrec = false;
-#endif
     return secd;
 }
 
