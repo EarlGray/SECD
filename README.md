@@ -112,12 +112,15 @@ Then bootstrap a REPL (it is not portable and can not be run in other interprete
 ```bash
 $ ./secd scm2secd.secd <repl.scm >repl.secd
 $ ./secd repl.secd
+```scheme
 > (append '(1 2 3) '(4 5 6))
 (1 2 3 4 5 6)
 ```
 
 TODO
 ----
+- `define`, interpreter environment!
+- dot-lists;
 - `AP n`: treat n values on top of the stack as arguments for a function call instead of always creating a list.
 - Is there a way to make `cond` forms less nested?
 - support for more Scheme types: `bytestring`, `string` (list of chars?), `port`;
@@ -125,4 +128,9 @@ TODO
 - optional garbage-collector, compare RefCount and GC speed.
 - LLVM backend?
 
+Optimization:
+- don't look up opcodes on its execution;
+- tail-recursion/purity analysis on LDF when possible;
+- fast symbol lookup;
+- remove JOIN/RTN/LD/LDC?
 
