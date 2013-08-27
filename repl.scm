@@ -123,8 +123,13 @@
     (else (compile-form s)))))
 
 ;; this is not portable:
-(eval (lambda (s)
-  ((make-closure (append (compile s) '(RTN))))))
+(make-closure (lambda (s)
+  (let ((compiled (append (compile s) '(RTN)))
+        (env (interaction-environment)))
+    (cons (list '() compiled) env))))
+
+(eval (lambda (sexp)
+  ((make-closure sexp))))
 
 (repl (lambda () 
     (let ((inp (read)))

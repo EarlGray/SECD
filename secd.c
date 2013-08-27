@@ -1024,16 +1024,9 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
     return args;
 }
 
-cell_t *secdf_mkclos(secd_t *secd, cell_t *args) {
-    ctrldebugf("secdf_mkclos\n");
-    cell_t *arg1 = list_head(args);
-    assert(is_cons(arg1), "secdf_mkclos: not a list\n");
-
-    cell_t *cons2 = new_cons(secd, arg1, secd->nil);
-    cell_t *cons1 = new_cons(secd, secd->nil, cons2);
-    cell_t *clos = new_cons(secd, cons1, secd->env);
-
-    return clos;
+cell_t *secdf_getenv(secd_t *secd, cell_t *args) {
+    ctrldebugf("secdf_getenv\n");
+    return secd->env;
 }
 
 #define INIT_SYM(name) {    \
@@ -1110,31 +1103,28 @@ const struct {
     const cell_t *val;
 } global_binding[] = {
     // opcodes: for information, not to be called
+    { &add_sym,     &add_func },
+    { &ap_sym,      &ap_func  },
     { &atom_sym,    &atom_func },
-    { &cons_sym,    &cons_func },
     { &car_sym,     &car_func },
     { &cdr_sym,     &cdr_func },
-
-    { &add_sym,     &add_func },
-    { &sub_sym,     &sub_func },
-    { &mul_sym,     &mul_func },
+    { &cons_sym,    &cons_func },
     { &div_sym,     &div_func },
-    { &rem_sym,     &rem_func },
-    { &leq_sym,     &leq_func },
-
-    { &eq_sym,      &eq_func  },
-    { &ldc_sym,     &ldc_func },
-    { &ld_sym,      &ld_func  },
-
-    { &sel_sym,     &sel_func },
-    { &join_sym,    &join_func },
-    { &ldf_sym,     &ldf_func },
-    { &ap_sym,      &ap_func  },
-    { &rtn_sym,     &rtn_func },
     { &dum_sym,     &dum_func },
+    { &eq_sym,      &eq_func  },
+    { &join_sym,    &join_func },
+    { &ld_sym,      &ld_func  },
+    { &ldc_sym,     &ldc_func },
+    { &ldf_sym,     &ldf_func },
+    { &leq_sym,     &leq_func },
+    { &mul_sym,     &mul_func },
+    { &print_sym,   &print_func },
     { &rap_sym,     &rap_func },
     { &read_sym,    &read_func},
-    { &print_sym,   &print_func },
+    { &rem_sym,     &rem_func },
+    { &rtn_sym,     &rtn_func },
+    { &sel_sym,     &sel_func },
+    { &sub_sym,     &sub_func },
 
     // symbols
     { &t_sym,       &t_sym    },
@@ -1150,7 +1140,7 @@ const cell_t nump_sym   = INIT_SYM("number?");
 const cell_t symp_sym   = INIT_SYM("symbol?");
 const cell_t eofp_sym   = INIT_SYM("eof-object?");
 const cell_t debug_sym  = INIT_SYM("secdctl");
-const cell_t mkclos_sym = INIT_SYM("make-closure");
+const cell_t env_sym    = INIT_SYM("interaction-environment");
 
 const cell_t list_func  = INIT_FUNC(secdf_list);
 const cell_t append_func = INIT_FUNC(secdf_append);
@@ -1160,7 +1150,7 @@ const cell_t nump_func  = INIT_FUNC(secdf_nump);
 const cell_t symp_func  = INIT_FUNC(secdf_symp);
 const cell_t eofp_func  = INIT_FUNC(secdf_eofp);
 const cell_t debug_func = INIT_FUNC(secdf_ctl);
-const cell_t mkclos_fun = INIT_FUNC(secdf_mkclos);
+const cell_t getenv_fun = INIT_FUNC(secdf_getenv);
 
 const struct {
     const cell_t *sym;
@@ -1175,7 +1165,7 @@ const struct {
     { &copy_sym,    &copy_func  },
     { &eofp_sym,    &eofp_func  },
     { &debug_sym,   &debug_func  },
-    { &mkclos_sym,  &mkclos_fun },
+    { &env_sym,     &getenv_fun },
 
     { NULL,         NULL } // must be last
 };
