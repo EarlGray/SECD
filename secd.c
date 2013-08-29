@@ -343,7 +343,7 @@ inline static cell_t *drop_cell(cell_t *c) {
  *  Cell memory management
  */
 
-index_t search_global_bindings(cell_t *sym);
+index_t search_opcode_table(cell_t *sym);
 bool is_control_compiled(cell_t *control);
 cell_t *compile_control_path(secd_t *secd, cell_t *control);
 
@@ -791,7 +791,7 @@ cell_t *secd_ap(secd_t *secd) {
         // control has not been compiled yet
         cell_t *compiled = compile_control_path(secd, control);
         assert(compiled, "secd_ap: failed to compile callee");
-        control = share_cell(compiled);
+        control = compiled;
     }
 
 #if TAILRECURSION
@@ -869,6 +869,13 @@ cell_t *secd_rap(secd_t *secd) {
     cell_t *func = get_car(closure);
     cell_t *argnames = get_car(func);
     cell_t *control = get_car(list_next(func));
+
+    if (! is_control_compiled( control )) {
+        // control has not been compiled yet
+        cell_t *compiled = compile_control_path(secd, control);
+        assert(compiled, "secd_rap: failed to compile callee");
+        control = compiled;
+    }
 
     push_dump(secd, secd->control);
     push_dump(secd, get_cdr(secd->env));
@@ -1119,7 +1126,7 @@ const struct {
     const cell_t *sym;
     const cell_t *val;
     int args;       // takes 'args' control cells after the opcode
-} global_binding[] = {
+} opcode_table[] = {
     // opcodes: for information, not to be called
     // keep symbols sorted properly
     { &add_sym,     &add_func,  0},
@@ -1149,13 +1156,13 @@ const struct {
     { NULL,         NULL,       0}
 };
 
-index_t search_global_bindings(cell_t *sym) {
+index_t search_opcode_table(cell_t *sym) {
     index_t a = 0;
     index_t b = 0;
-    while (global_binding[b].sym) ++b;
+    while (opcode_table[b].sym) ++b;
     while (a != b) {
         index_t c = (a + b) / 2;
-        int ord = str_cmp( symname(sym), symname(global_binding[c].sym));
+        int ord = str_cmp( symname(sym), symname(opcode_table[c].sym));
         if (ord == 0) return c;
         if (ord < 0) b = c;
         else a = c;
@@ -1177,10 +1184,10 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control) {
             return NULL;
         }
 
-        index_t opind = search_global_bindings(opcode);
+        index_t opind = search_opcode_table(opcode);
         assert(opind >= 0, "Opcode not found: %s", symname(opcode))
 
-        cell_t *new_cmd = new_clone(secd, global_binding[opind].val);
+        cell_t *new_cmd = new_clone(secd, opcode_table[opind].val);
         cell_t *cc = new_cons(secd, new_cmd, secd->nil);
         if (not_nil(compcursor)) {
             compcursor->as.cons.cdr = share_cell(cc);
@@ -1191,7 +1198,7 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control) {
         cursor = list_next(cursor);
 
         cell_t *new_tail;
-        if (global_binding[opind].args > 0) {
+        if (opcode_table[opind].args > 0) {
             if (new_cmd->as.atom.as.op.fun == &secd_sel) {
                 cell_t *thenb = compile_control_path(secd, list_head(cursor));
                 new_tail = new_cons(secd, thenb, secd->nil);
@@ -1220,7 +1227,7 @@ bool is_control_compiled(cell_t *control) {
 }
 
 #if TAILRECURSION
-/* 
+/*
  * returns a new dump for a tail-recursive call
  * or NULL if no Tail Call Optimization.
  */
@@ -1301,17 +1308,6 @@ void fill_global_env(secd_t *secd) {
     cell_t *vallist = secd->nil;
 
     cell_t *env = new_cons(secd, secd->nil, secd->nil);
-
-    /*
-    for (i = 0; global_binding[i].sym; ++i) {
-        cell_t *sym = new_clone(secd, global_binding[i].sym);
-        cell_t *val = new_clone(secd, global_binding[i].val);
-        val->as.atom.as.op.sym = sym;
-        sym->nref = val->nref = DONT_FREE_THIS;
-        symlist = new_cons(secd, sym, symlist);
-        vallist = new_cons(secd, val, vallist);
-    }
-    */
 
     for (i = 0; native_functions[i].sym; ++i) {
         cell_t *sym = new_clone(secd, native_functions[i].sym);
@@ -1686,8 +1682,6 @@ void run_secd(secd_t *secd) {
         cell_t *ret = callee(secd);
         assertv(ret, "run: Instruction failed\n");
         drop_cell(op);
-
-        //ctrldebugf("Stack:\n"); print_list(secd->stack);
     }
 }
 
