@@ -112,7 +112,7 @@
         '(STOP))
       (else
         (let ((compiled-head 
-                (if (atom? hd) (list 'LD hd) (compile hd))))
+                (if (symbol? hd) (list 'LD hd) (compile hd))))
          (append (compile-bindings tl) compiled-head '(AP))))
     ))))
 

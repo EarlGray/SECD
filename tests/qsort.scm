@@ -33,8 +33,8 @@
                                 (quicksort (cadr r))))))))))
   )
   (let
-    ((inp (read)))
+    ;((inp (read)))
     ;; for testing:
-    ;((inp '(50 12 32 87 13 45 64 31 11 99 73)))
+    ((inp '(50 12 32 87 13 64 28 10 79 35 22 83 20 92 21 45 64 31 11 99 73)))
       (display (quicksort inp))
     ))

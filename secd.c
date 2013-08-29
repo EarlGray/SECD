@@ -23,6 +23,14 @@
 
 #define TAILRECURSION 1
 
+#ifdef CASESENSITIVE
+# define str_eq(s1, s2)  !strcmp(s1, s2)
+# define str_cmp(s1, s2) strcmp(s1, s2)
+#else
+# define str_eq(s1, s2) !strcasecmp(s1, s2)
+# define str_cmp(s1, s2) strcasecmp(s1, s2)
+#endif
+
 #if (MEMDEBUG)
 # define memdebugf(...) printf(__VA_ARGS__)
 # if (MEMTRACE)
@@ -47,11 +55,8 @@
 # define envdebugf(...)
 #endif
 
-#ifdef CASESENSITIVE
-# define str_eq(s1, s2)  !strcmp(s1, s2)
-#else
-# define str_eq(s1, s2) !strcasecmp(s1, s2)
-#endif
+#define __unused __attribute__((unused))
+
 
 #define EOF_OBJ     "#<eof>"
 
@@ -64,7 +69,7 @@ typedef enum { false, true } bool;
 
 typedef  struct secd    secd_t;
 typedef  struct cell    cell_t;
-typedef  unsigned long  index_t;
+typedef  long  index_t;
 
 typedef  struct atom  atom_t;
 typedef  struct cons  cons_t;
@@ -95,6 +100,11 @@ struct atom {
             size_t size;
             const char *data;
         } sym;
+
+        struct {
+            secd_opfunc_t fun;
+            cell_t *sym;
+        } op;
 
         void *ptr;
     } as;
@@ -215,7 +225,7 @@ void print_atom(const cell_t *c) {
     switch (atom_type(c)) {
       case ATOM_INT: printf("INT(%d)", c->as.atom.as.num); break;
       case ATOM_SYM: printf("SYM(%s)", c->as.atom.as.sym.data); break;
-      case ATOM_FUNC: printf("BUILTIN(%p)", c->as.atom.as.ptr); break;
+      case ATOM_FUNC: printf("BUILTIN(%p)", c->as.atom.as.op.fun); break;
       case NOT_AN_ATOM: printf("ERROR(not an atom)");
     }
 }
@@ -224,7 +234,7 @@ void sexp_print_atom(const cell_t *c) {
     switch (atom_type(c)) {
       case ATOM_INT: printf("%d", c->as.atom.as.num); break;
       case ATOM_SYM: printf("%s", c->as.atom.as.sym.data); break;
-      case ATOM_FUNC: printf("#*%p", c->as.atom.as.ptr); break;
+      case ATOM_FUNC: printf("#*%p", c->as.atom.as.op.fun); break;
       case NOT_AN_ATOM: printf("???");
     }
 }
@@ -332,6 +342,10 @@ inline static cell_t *drop_cell(cell_t *c) {
 /*
  *  Cell memory management
  */
+
+index_t search_global_bindings(cell_t *sym);
+bool is_control_compiled(cell_t *control);
+cell_t *compile_control_path(secd_t *secd, cell_t *control);
 
 cell_t *pop_free(secd_t *secd) {
     cell_t *cell = secd->free;
@@ -466,6 +480,11 @@ cell_t *pop_stack(secd_t *secd) {
 cell_t *set_control(secd_t *secd, cell_t *opcons) {
     assert(is_cons(opcons),
            "set_control: failed, not a cons at [%ld]\n", cell_index(opcons));
+    if (! is_control_compiled(opcons)) {
+        opcons = compile_control_path(secd, opcons);
+        assert(opcons, "set_control: failed to compile control path");
+        //sexp_print(opcons);
+    }
     return (secd->control = share_cell(opcons));
 }
 
@@ -567,7 +586,7 @@ bool atom_eq(const cell_t *a1, const cell_t *a2) {
     switch (atype1) {
       case ATOM_INT: return (a1->as.atom.as.num == a2->as.atom.as.num);
       case ATOM_SYM: return (!strcasecmp(symname(a1), symname(a2)));
-      case ATOM_FUNC: return (a1->as.atom.as.ptr == a2->as.atom.as.ptr);
+      case ATOM_FUNC: return (a1->as.atom.as.op.fun == a2->as.atom.as.op.fun);
       default: errorf("atom_eq([%ld], [%ld]): don't know how to handle type %d\n",
                        cell_index(a1), cell_index(a2), atype1);
     }
@@ -721,11 +740,20 @@ cell_t *secd_join(secd_t *secd) {
     return (secd->control = share_cell(joinb));
 }
 
+
+
 cell_t *secd_ldf(secd_t *secd) {
     ctrldebugf("LDF\n");
 
     cell_t *func = pop_control(secd);
     assert(func, "secd_ldf: failed to get the control path");
+
+    cell_t *body = list_head(list_next(func));
+    if (! is_control_compiled(body)) {
+        cell_t *compiled = compile_control_path(secd, body);
+        assert(compiled, "secd_ldf: failed to compile possible callee");
+        func->as.cons.cdr->as.cons.car = share_cell(compiled);
+    }
 
     cell_t *closure = new_cons(secd, func, secd->env);
     drop_cell(func);
@@ -733,35 +761,7 @@ cell_t *secd_ldf(secd_t *secd) {
 }
 
 #if TAILRECURSION
-/* returns a new dump for tail-recursive call
- * or NULL if no LCO
- */
-static cell_t * tail_recursive(cell_t *control, cell_t *dump) {
-    if (is_nil(control))
-        return NULL;
-
-    cell_t *nextop = list_head(control);
-    if (atom_type(nextop) != ATOM_SYM)
-        return NULL;
-
-    if (str_eq("RTN", symname(nextop))) {
-        return dump;
-    } else if (str_eq("JOIN", symname(nextop))) {
-        cell_t *join = list_head(dump);
-        return tail_recursive(join, list_next(dump));
-    } else if (str_eq("CONS", symname(nextop))) {
-        /* a situation of CONS CAR - it is how `begin` implemented */
-        cell_t *nextcontrol = list_next(control);
-        cell_t *afternext = list_head(nextcontrol);
-        if (atom_type(afternext) != ATOM_SYM || !str_eq("CAR", symname(afternext)))
-            return NULL;
-        return tail_recursive(list_next(nextcontrol), dump);
-    }
-
-    /* all other commands (except DUM, which must have RAP after it)
-     * mess with the stack. TCO's not possible: */
-    return NULL;
-}
+static cell_t * new_dump_if_tailrec(cell_t *control, cell_t *dump);
 #endif
 
 cell_t *secd_ap(secd_t *secd) {
@@ -777,7 +777,7 @@ cell_t *secd_ap(secd_t *secd) {
         assert(argvals, "secd_ap: native(NULL)");
         assert(is_cons(argvals), "secd_ap: a list expected");
 
-        secd_nativefunc_t native = (secd_nativefunc_t)func->as.atom.as.ptr;
+        secd_nativefunc_t native = (secd_nativefunc_t)func->as.atom.as.op.fun;
         cell_t *result = push_stack(secd, native(secd, argvals));
 
         drop_cell(closure); drop_cell(argvals);
@@ -787,8 +787,15 @@ cell_t *secd_ap(secd_t *secd) {
     cell_t *argnames = get_car(func);
     cell_t *control = get_car(list_next(func));
 
+    if (! is_control_compiled( control )) {
+        // control has not been compiled yet
+        cell_t *compiled = compile_control_path(secd, control);
+        assert(compiled, "secd_ap: failed to compile callee");
+        control = share_cell(compiled);
+    }
+
 #if TAILRECURSION
-    cell_t *new_dump = tail_recursive(secd->control, secd->dump);
+    cell_t *new_dump = new_dump_if_tailrec(secd->control, secd->dump);
     if (new_dump) {
         //printf("secd_ap: tail-recursive\n");
 
@@ -875,6 +882,7 @@ cell_t *secd_rap(secd_t *secd) {
 #endif
     newenv->as.cons.car = share_cell(frame);
 
+    drop_cell(secd->env);
     secd->stack = secd->nil;
     secd->env = share_cell(newenv);
     //print_env(secd);
@@ -913,7 +921,8 @@ cell_t *secd_print(secd_t *secd) {
  * Some native functions
  */
 
-cell_t *secdf_list(secd_t *secd, cell_t *args) {
+
+cell_t *secdf_list(secd_t __unused *secd, cell_t *args) {
     ctrldebugf("secdf_list\n");
     return args;
 }
@@ -1024,30 +1033,36 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
     return args;
 }
 
-cell_t *secdf_getenv(secd_t *secd, cell_t *args) {
+cell_t *secdf_getenv(secd_t *secd, cell_t __unused *args) {
     ctrldebugf("secdf_getenv\n");
     return secd->env;
 }
 
 #define INIT_SYM(name) {    \
     .type = CELL_ATOM,      \
+    .nref = DONT_FREE_THIS, \
     .as.atom = {            \
-        .type = ATOM_SYM,   \
-        .as.sym = { .size = DONT_FREE_THIS, \
-                    .data = (name) } }, \
-    .nref = DONT_FREE_THIS }
+      .type = ATOM_SYM,     \
+      .as.sym = {           \
+        .size = DONT_FREE_THIS, \
+        .data = (name) } } }
 
 #define INIT_NUM(num) {     \
     .type = CELL_ATOM,      \
-    .as.atom = { .type = ATOM_INT,  \
-                 .as.num = (num) }, \
-    .nref = DONT_FREE_THIS }
+    .nref = DONT_FREE_THIS, \
+    .as.atom = {            \
+      .type = ATOM_INT,     \
+      .as.num = (num) }}
 
 #define INIT_FUNC(func) {   \
     .type = CELL_ATOM,      \
-    .as.atom = { .type = ATOM_FUNC,  \
-                 .as.ptr = (void *)(func) }, \
-    .nref = DONT_FREE_THIS }
+    .nref = DONT_FREE_THIS, \
+    .as.atom = {            \
+      .type = ATOM_FUNC,   \
+      .as.op = {           \
+        .fun = (secd_opfunc_t)(func),     \
+        .sym = NULL        \
+    }}}
 
 const cell_t cons_func  = INIT_FUNC(secd_cons);
 const cell_t car_func   = INIT_FUNC(secd_car);
@@ -1071,29 +1086,31 @@ const cell_t dum_func   = INIT_FUNC(secd_dum);
 const cell_t rap_func   = INIT_FUNC(secd_rap);
 const cell_t read_func  = INIT_FUNC(secd_read);
 const cell_t print_func = INIT_FUNC(secd_print);
+const cell_t stop_func  = INIT_FUNC(NULL);
 
-const cell_t cons_sym   = INIT_SYM("CONS");
+const cell_t ap_sym     = INIT_SYM("AP");
+const cell_t add_sym    = INIT_SYM("ADD");
+const cell_t atom_sym   = INIT_SYM("ATOM");
 const cell_t car_sym    = INIT_SYM("CAR");
 const cell_t cdr_sym    = INIT_SYM("CDR");
-const cell_t add_sym    = INIT_SYM("ADD");
-const cell_t sub_sym    = INIT_SYM("SUB");
-const cell_t mul_sym    = INIT_SYM("MUL");
+const cell_t cons_sym   = INIT_SYM("CONS");
 const cell_t div_sym    = INIT_SYM("DIV");
-const cell_t rem_sym    = INIT_SYM("REM");
-const cell_t leq_sym    = INIT_SYM("LEQ");
-const cell_t ldc_sym    = INIT_SYM("LDC");
-const cell_t ld_sym     = INIT_SYM("LD");
-const cell_t eq_sym     = INIT_SYM("EQ");
-const cell_t atom_sym   = INIT_SYM("ATOM");
-const cell_t sel_sym    = INIT_SYM("SEL");
-const cell_t join_sym   = INIT_SYM("JOIN");
-const cell_t ldf_sym    = INIT_SYM("LDF");
-const cell_t ap_sym     = INIT_SYM("AP");
-const cell_t rtn_sym    = INIT_SYM("RTN");
 const cell_t dum_sym    = INIT_SYM("DUM");
+const cell_t eq_sym     = INIT_SYM("EQ");
+const cell_t join_sym   = INIT_SYM("JOIN");
+const cell_t ld_sym     = INIT_SYM("LD");
+const cell_t ldc_sym    = INIT_SYM("LDC");
+const cell_t ldf_sym    = INIT_SYM("LDF");
+const cell_t leq_sym    = INIT_SYM("LEQ");
+const cell_t mul_sym    = INIT_SYM("MUL");
+const cell_t print_sym  = INIT_SYM("PRINT");
 const cell_t rap_sym    = INIT_SYM("RAP");
 const cell_t read_sym   = INIT_SYM("READ");
-const cell_t print_sym  = INIT_SYM("PRINT");
+const cell_t rem_sym    = INIT_SYM("REM");
+const cell_t rtn_sym    = INIT_SYM("RTN");
+const cell_t sel_sym    = INIT_SYM("SEL");
+const cell_t stop_sym   = INIT_SYM("STOP");
+const cell_t sub_sym    = INIT_SYM("SUB");
 
 const cell_t t_sym      = INIT_SYM("#t");
 const cell_t nil_sym    = INIT_SYM("NIL");
@@ -1101,36 +1118,142 @@ const cell_t nil_sym    = INIT_SYM("NIL");
 const struct {
     const cell_t *sym;
     const cell_t *val;
+    int args;       // takes 'args' control cells after the opcode
 } global_binding[] = {
     // opcodes: for information, not to be called
-    { &add_sym,     &add_func },
-    { &ap_sym,      &ap_func  },
-    { &atom_sym,    &atom_func },
-    { &car_sym,     &car_func },
-    { &cdr_sym,     &cdr_func },
-    { &cons_sym,    &cons_func },
-    { &div_sym,     &div_func },
-    { &dum_sym,     &dum_func },
-    { &eq_sym,      &eq_func  },
-    { &join_sym,    &join_func },
-    { &ld_sym,      &ld_func  },
-    { &ldc_sym,     &ldc_func },
-    { &ldf_sym,     &ldf_func },
-    { &leq_sym,     &leq_func },
-    { &mul_sym,     &mul_func },
-    { &print_sym,   &print_func },
-    { &rap_sym,     &rap_func },
-    { &read_sym,    &read_func},
-    { &rem_sym,     &rem_func },
-    { &rtn_sym,     &rtn_func },
-    { &sel_sym,     &sel_func },
-    { &sub_sym,     &sub_func },
+    // keep symbols sorted properly
+    { &add_sym,     &add_func,  0},
+    { &ap_sym,      &ap_func,   0},
+    { &atom_sym,    &atom_func, 0},
+    { &car_sym,     &car_func,  0},
+    { &cdr_sym,     &cdr_func,  0},
+    { &cons_sym,    &cons_func, 0},
+    { &div_sym,     &div_func,  0},
+    { &dum_sym,     &dum_func,  0},
+    { &eq_sym,      &eq_func,   0},
+    { &join_sym,    &join_func, 0},
+    { &ld_sym,      &ld_func,   1},
+    { &ldc_sym,     &ldc_func,  1},
+    { &ldf_sym,     &ldf_func,  1},
+    { &leq_sym,     &leq_func,  0},
+    { &mul_sym,     &mul_func,  0},
+    { &print_sym,   &print_func,0},
+    { &rap_sym,     &rap_func,  0},
+    { &read_sym,    &read_func, 0},
+    { &rem_sym,     &rem_func,  0},
+    { &rtn_sym,     &rtn_func,  0},
+    { &sel_sym,     &sel_func,  2},
+    { &stop_sym,    &stop_func, 0},
+    { &sub_sym,     &sub_func,  0},
 
-    // symbols
-    { &t_sym,       &t_sym    },
-    { NULL,         NULL  } // must be last
+    { NULL,         NULL,       0}
 };
 
+index_t search_global_bindings(cell_t *sym) {
+    index_t a = 0;
+    index_t b = 0;
+    while (global_binding[b].sym) ++b;
+    while (a != b) {
+        index_t c = (a + b) / 2;
+        int ord = str_cmp( symname(sym), symname(global_binding[c].sym));
+        if (ord == 0) return c;
+        if (ord < 0) b = c;
+        else a = c;
+    }
+    return -1;
+}
+
+cell_t *compile_control_path(secd_t *secd, cell_t *control) {
+    assert(control, "control path is NULL");
+    cell_t *compiled = secd->nil;
+
+    cell_t *cursor = control;
+    cell_t *compcursor = compiled;
+    while (not_nil(cursor)) {
+        cell_t *opcode = list_head(cursor);
+        if (atom_type(opcode) != ATOM_SYM) {
+            errorf("compile_control: not a symbol in control path\n");
+            sexp_print(opcode);
+            return NULL;
+        }
+
+        index_t opind = search_global_bindings(opcode);
+        assert(opind >= 0, "Opcode not found: %s", symname(opcode))
+
+        cell_t *new_cmd = new_clone(secd, global_binding[opind].val);
+        cell_t *cc = new_cons(secd, new_cmd, secd->nil);
+        if (not_nil(compcursor)) {
+            compcursor->as.cons.cdr = share_cell(cc);
+            compcursor = list_next(compcursor);
+        } else {
+            compiled = compcursor = cc;
+        }
+        cursor = list_next(cursor);
+
+        cell_t *new_tail;
+        if (global_binding[opind].args > 0) {
+            if (new_cmd->as.atom.as.op.fun == &secd_sel) {
+                cell_t *thenb = compile_control_path(secd, list_head(cursor));
+                new_tail = new_cons(secd, thenb, secd->nil);
+                compcursor->as.cons.cdr = share_cell(new_tail);
+                compcursor = list_next(compcursor);
+                cursor = list_next(cursor);
+
+                cell_t *elseb = compile_control_path(secd, list_head(cursor));
+                new_tail = new_cons(secd, elseb, secd->nil);
+                compcursor->as.cons.cdr = share_cell(new_tail);
+                compcursor = list_next(compcursor);
+                cursor = list_next(cursor);
+            } else {
+                new_tail = new_cons(secd, list_head(cursor), secd->nil);
+                compcursor->as.cons.cdr = share_cell(new_tail);
+                compcursor = list_next(compcursor);
+                cursor = list_next(cursor);
+            }
+        }
+    }
+    return compiled;
+}
+
+bool is_control_compiled(cell_t *control) {
+    return atom_type(list_head(control)) == ATOM_FUNC;
+}
+
+#if TAILRECURSION
+/* 
+ * returns a new dump for a tail-recursive call
+ * or NULL if no Tail Call Optimization.
+ */
+static cell_t * new_dump_if_tailrec(cell_t *control, cell_t *dump) {
+    if (is_nil(control))
+        return NULL;
+
+    cell_t *nextop = list_head(control);
+    if (atom_type(nextop) != ATOM_FUNC)
+        return NULL;
+    secd_opfunc_t opfun = nextop->as.atom.as.op.fun;
+
+    if (opfun == &secd_rtn) {
+        return dump;
+    } else if (opfun == &secd_join) {
+        cell_t *join = list_head(dump);
+        return new_dump_if_tailrec(join, list_next(dump));
+    } else if (opfun == &secd_cons) {
+        /* a situation of CONS CAR - it is how `begin` implemented */
+        cell_t *nextcontrol = list_next(control);
+        cell_t *afternext = list_head(nextcontrol);
+        if (atom_type(afternext) != ATOM_FUNC)
+            return NULL;
+        if (afternext->as.atom.as.op.fun != &secd_car)
+            return NULL;
+        return new_dump_if_tailrec(list_next(nextcontrol), dump);
+    }
+
+    /* all other commands (except DUM, which must have RAP after it)
+     * mess with the stack. TCO's not possible: */
+    return NULL;
+}
+#endif
 
 const cell_t list_sym   = INIT_SYM("list");
 const cell_t append_sym = INIT_SYM("append");
@@ -1157,17 +1280,19 @@ const struct {
     const cell_t *val;
 } native_functions[] = {
     // native functions
-    { &list_sym,    &list_func },
+    { &list_sym,    &list_func  },
     { &append_sym,  &append_func },
     { &nullp_sym,   &nullp_func },
-    { &nump_sym,    &nump_func },
-    { &symp_sym,    &symp_func },
+    { &nump_sym,    &nump_func  },
+    { &symp_sym,    &symp_func  },
     { &copy_sym,    &copy_func  },
     { &eofp_sym,    &eofp_func  },
     { &debug_sym,   &debug_func  },
     { &env_sym,     &getenv_fun },
 
-    { NULL,         NULL } // must be last
+    // symbols
+    { &t_sym,       &t_sym      },
+    { NULL,         NULL        } // must be last
 };
 
 void fill_global_env(secd_t *secd) {
@@ -1177,13 +1302,16 @@ void fill_global_env(secd_t *secd) {
 
     cell_t *env = new_cons(secd, secd->nil, secd->nil);
 
+    /*
     for (i = 0; global_binding[i].sym; ++i) {
         cell_t *sym = new_clone(secd, global_binding[i].sym);
         cell_t *val = new_clone(secd, global_binding[i].val);
+        val->as.atom.as.op.sym = sym;
         sym->nref = val->nref = DONT_FREE_THIS;
         symlist = new_cons(secd, sym, symlist);
         vallist = new_cons(secd, val, vallist);
     }
+    */
 
     for (i = 0; native_functions[i].sym; ++i) {
         cell_t *sym = new_clone(secd, native_functions[i].sym);
@@ -1548,22 +1676,16 @@ void run_secd(secd_t *secd) {
     while (true)  {
         op = pop_control(secd);
         assertv(op, "run: no command");
+        assert_or_continue(
+                atom_type(op) == ATOM_FUNC,
+                "run: not an opcode at [%ld]\n", cell_index(op));
 
-        //print_cell(op);
-        assert_or_continue(atom_type(op) == ATOM_SYM,
-                "run: not a symbol at [%ld]\n", cell_index(op));
+        secd_opfunc_t callee = (secd_opfunc_t) op->as.atom.as.op.fun;
+        if (NULL == callee) return;  // STOP
 
-        const char *sym = symname(op);
-        if (str_eq("STOP", sym)) return;
-
-        cell_t *val = lookup_env(secd, sym);
-        assert_or_continue(val, "run: lookup_env() failed for %s\n", sym);
-        assert_or_continue(atom_type(val) == ATOM_FUNC, "run: not a ATOM_FUNC\n");
-        drop_cell(op);
-
-        secd_opfunc_t callee = (secd_opfunc_t) val->as.atom.as.ptr;
         cell_t *ret = callee(secd);
         assertv(ret, "run: Instruction failed\n");
+        drop_cell(op);
 
         //ctrldebugf("Stack:\n"); print_list(secd->stack);
     }
