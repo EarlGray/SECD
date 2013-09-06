@@ -55,7 +55,9 @@
 # define envdebugf(...)
 #endif
 
-#define __unused __attribute__((unused))
+#ifndef __unused
+# define __unused __attribute__((unused))
+#endif
 
 
 #define EOF_OBJ     "#<eof>"
@@ -331,7 +333,9 @@ inline static cell_t *drop_cell(cell_t *c) {
         memdebugf("drop [NIL]\n");
         return NULL;
     }
-    assert(c->nref > 0, "drop_cell[%ld]: negative", cell_index(c));
+    if (c->nref <= 0) {
+        assert(c->nref > 0, "drop_cell[%ld]: negative", cell_index(c));
+    }
 
     -- c->nref;
     memtracef("drop [%ld] %ld\n", cell_index(c), c->nref);
@@ -525,7 +529,7 @@ cell_t *secd_car(secd_t *secd) {
     ctrldebugf("CAR\n");
     cell_t *cons = pop_stack(secd);
     assert(cons, "secd_car: pop_stack() failed");
-    assert(not_nil(cons), "secd_car: stack is empty");
+    assert(not_nil(cons), "secd_car: cons is NIL");
     assert(is_cons(cons), "secd_car: cons expected");
 
     cell_t *car = push_stack(secd, get_car(cons));
@@ -537,7 +541,7 @@ cell_t *secd_cdr(secd_t *secd) {
     ctrldebugf("CDR\n");
     cell_t *cons = pop_stack(secd);
     assert(cons, "secd_cdr: pop_stack() failed");
-    assert(not_nil(cons), "secd_cdr: stack is empty");
+    assert(not_nil(cons), "secd_cdr: cons is NIL");
     assert(is_cons(cons), "secd_cdr: cons expected");
 
     cell_t *cdr = push_stack(secd, get_cdr(cons));
@@ -706,6 +710,7 @@ cell_t *secd_leq(secd_t *secd) {
     assert(atom_type(opnd2) == ATOM_INT, "secd_leq: int expected as opnd2");
 
     cell_t *result = to_bool(secd, opnd1->as.atom.as.num <= opnd2->as.atom.as.num);
+    drop_cell(opnd1); drop_cell(opnd2);
     return push_stack(secd, result);
 }
 
@@ -737,7 +742,8 @@ cell_t *secd_join(secd_t *secd) {
     cell_t *joinb = pop_dump(secd);
     assert(joinb, "secd_join: pop_dump() failed");
 
-    return (secd->control = share_cell(joinb));
+    secd->control = joinb; //share_cell(joinb); drop_cell(joinb);
+    return secd->control;
 }
 
 
@@ -752,6 +758,7 @@ cell_t *secd_ldf(secd_t *secd) {
     if (! is_control_compiled(body)) {
         cell_t *compiled = compile_control_path(secd, body);
         assert(compiled, "secd_ldf: failed to compile possible callee");
+        drop_cell(body);
         func->as.cons.cdr->as.cons.car = share_cell(compiled);
     }
 
@@ -769,14 +776,13 @@ cell_t *secd_ap(secd_t *secd) {
 
     cell_t *closure = pop_stack(secd);
     cell_t *argvals = pop_stack(secd);
+    assert(argvals, "secd_ap: no arguments on stack");
+    assert(is_cons(argvals), "secd_ap: a list expected for arguments");
 
     cell_t *func = get_car(closure);
     cell_t *newenv = get_cdr(closure);
 
     if (atom_type(func) == ATOM_FUNC) {
-        assert(argvals, "secd_ap: native(NULL)");
-        assert(is_cons(argvals), "secd_ap: a list expected");
-
         secd_nativefunc_t native = (secd_nativefunc_t)func->as.atom.as.op.fun;
         cell_t *result = push_stack(secd, native(secd, argvals));
 
@@ -785,23 +791,22 @@ cell_t *secd_ap(secd_t *secd) {
     }
 
     cell_t *argnames = get_car(func);
-    cell_t *control = get_car(list_next(func));
+    cell_t *control = list_head(list_next(func));
 
     if (! is_control_compiled( control )) {
         // control has not been compiled yet
         cell_t *compiled = compile_control_path(secd, control);
         assert(compiled, "secd_ap: failed to compile callee");
+        //drop_cell(control); // no need: will be dropped with func
         control = compiled;
     }
 
 #if TAILRECURSION
     cell_t *new_dump = new_dump_if_tailrec(secd->control, secd->dump);
     if (new_dump) {
-        //printf("secd_ap: tail-recursive\n");
-
         cell_t *dump = secd->dump;
         secd->dump = share_cell(new_dump);
-        drop_cell(dump);
+        drop_cell(dump);  // dump may be new_dump, so don't drop before share
     } else {
 #endif
         push_dump(secd, secd->control);
@@ -815,8 +820,11 @@ cell_t *secd_ap(secd_t *secd) {
     secd->stack = secd->nil;
 
     cell_t *frame = new_cons(secd, argnames, argvals);
+    cell_t *oldenv = secd->env;
+    drop_cell(oldenv);
     secd->env = share_cell(new_cons(secd, frame, newenv));
 
+    drop_cell(secd->control);
     secd->control = share_cell(control);
 
     drop_cell(closure); drop_cell(argvals);
@@ -826,7 +834,7 @@ cell_t *secd_ap(secd_t *secd) {
 cell_t *secd_rtn(secd_t *secd) {
     ctrldebugf("RTN\n");
 
-    drop_cell(secd->env);
+    assert(is_nil(secd->control), "secd_rtn: commands after RTN");
 
     assert(not_nil(secd->stack), "secd_rtn: stack is empty");
     cell_t *top = pop_stack(secd);
@@ -836,12 +844,13 @@ cell_t *secd_rtn(secd_t *secd) {
     cell_t *prevenv = pop_dump(secd);
     cell_t *prevcontrol = pop_dump(secd);
 
-    secd->stack = share_cell(new_cons(secd, top, prevstack));
-    secd->env = share_cell(prevenv);
-    secd->control = share_cell(prevcontrol);
+    drop_cell(secd->env);
 
+    secd->stack = share_cell(new_cons(secd, top, prevstack));
     drop_cell(top); drop_cell(prevstack);
-    drop_cell(prevenv); drop_cell(prevcontrol);
+
+    secd->env = prevenv; // share_cell(prevenv); drop_cell(prevenv); 
+    secd->control = prevcontrol; // share_cell(prevcontrol); drop_cell(prevcontrol);
 
     return top;
 }
@@ -889,16 +898,18 @@ cell_t *secd_rap(secd_t *secd) {
 #endif
     newenv->as.cons.car = share_cell(frame);
 
-    drop_cell(secd->env);
+    drop_cell(secd->stack);
     secd->stack = secd->nil;
-    secd->env = share_cell(newenv);
-    //print_env(secd);
 
+    cell_t *oldenv = secd->env;
+    secd->env = share_cell(newenv);
+
+    drop_cell(secd->control);
     secd->control = share_cell(control);
 
+    drop_cell(oldenv);
     drop_cell(closure); drop_cell(argvals);
-
-    return control;
+    return secd->control;
 }
 
 
