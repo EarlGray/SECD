@@ -108,6 +108,8 @@
         (append (compile (car tl)) '(PRINT)))
       ((eq? hd 'read)
         '(READ))
+      ((eq? hd 'eval)
+        (append '(LDC () LDC () ) (compile (car tl)) '(CONS LD make-closure AP AP)))
       ((eq? hd 'quit)
         '(STOP))
       (else

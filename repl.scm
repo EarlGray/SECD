@@ -108,6 +108,8 @@
         (append (compile (car tl)) '(PRINT)))
       ((eq? hd 'read)
         '(READ))
+      ((eq? hd 'eval)
+        (append '(LDC () LDC () ) (compile (car tl)) '(CONS LD make-closure AP AP)))
       ((eq? hd 'quit)
         '(STOP))
       (else
@@ -128,15 +130,13 @@
         (env (interaction-environment)))
     (cons (list '() compiled) env))))
 
-(eval (lambda (sexp)
-  ((make-closure sexp))))
-
 (repl (lambda () 
-    (let ((inp (read)))
+    (let ((inp (read))
+          (env (interaction-environment)))
       (if (eof-object? inp) (quit)
         (begin
           ;(display inp) ; just echo back
-          (display (eval inp))  ;; compile and run:
+          (display (eval inp env))  ;; compile and run:
           ;(secdctl 'free)       ;; memory debug
           (repl))))))
 )
