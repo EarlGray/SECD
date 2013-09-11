@@ -775,6 +775,8 @@ cell_t *secd_ap(secd_t *secd) {
     ctrldebugf("AP\n");
 
     cell_t *closure = pop_stack(secd);
+    assert(is_cons(closure), "secd_ap: closure is not a cons");
+
     cell_t *argvals = pop_stack(secd);
     assert(argvals, "secd_ap: no arguments on stack");
     assert(is_cons(argvals), "secd_ap: a list expected for arguments");
@@ -789,9 +791,11 @@ cell_t *secd_ap(secd_t *secd) {
         drop_cell(closure); drop_cell(argvals);
         return result;
     }
+    assert(is_cons(func), "secd_ap: not a cons at func definition");
 
     cell_t *argnames = get_car(func);
     cell_t *control = list_head(list_next(func));
+    assert(is_cons(control), "secd_ap: control path is not a list");
 
     if (! is_control_compiled( control )) {
         // control has not been compiled yet
@@ -989,10 +993,16 @@ cell_t *secdf_append(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_append\n");
     assert(args, "secdf_append: args is NULL");
 
+    if (is_nil(args)) 
+        return args;
+
     cell_t *xs = list_head(args);
     assert(is_cons(list_next(args)), "secdf_append: expected two arguments");
 
     cell_t *argtail = list_next(args);
+    if (is_nil(argtail))
+        return xs;
+
     cell_t *ys = list_head(argtail);
     if (not_nil(list_next(argtail))) {
           ys = secdf_append(secd, argtail);
@@ -1440,8 +1450,16 @@ enum {
     TOK_EOF = -1,
     TOK_STR = -2,
     TOK_NUM = -3,
-    TOK_ERR = -4,
+
+    TOK_QUOTE = -4,
+    TOK_QQ = -5,
+    TOK_UQ = -6,
+    TOK_UQSPL = -7,
+
+    TOK_ERR = -65536
 };
+
+const char not_symbol_chars[] = " ();\n";
 
 struct secd_parser {
     token_t token;
@@ -1465,7 +1483,7 @@ secd_parser_t *init_parser(secd_parser_t *p, FILE *f) {
 
     memset(p->issymbc, false, 0x20);
     memset(p->issymbc + 0x20, true, UCHAR_MAX - 0x20);
-    char *s = " ();\n";
+    const char *s = not_symbol_chars;
     while (*s)
         p->issymbc[(unsigned char)*s++] = false;
     return p;
@@ -1494,11 +1512,25 @@ token_t lexnext(secd_parser_t *p) {
         do nextchar(p); while (p->lc != '\n');
         return lexnext(p);
 
-      case '(': case ')': case '\'':
+      case '(': case ')': 
         /* one-char tokens */
         p->token = p->lc;
         nextchar(p);
         return p->token;
+      case '\'': 
+        nextchar(p);
+        return (p->token = TOK_QUOTE);
+      case '`':
+        nextchar(p);
+        return (p->token = TOK_QQ);
+      case ',':
+        /* may be ',' or ',@' */
+        nextchar(p);
+        if (p->lc == '@') {
+            nextchar(p);
+            return (p->token = TOK_UQSPL);
+        }
+        return (p->token = TOK_UQ);
     }
 
     if (isdigit(p->lc)) {
@@ -1525,21 +1557,14 @@ token_t lexnext(secd_parser_t *p) {
     return TOK_ERR;
 }
 
-void test_lexer(void) {
-    secd_parser_t p;
-    init_parser(&p, NULL);
-    int tok;
-    while (TOK_EOF != (tok = lexnext(&p))) {
-        switch (tok) {
-          case TOK_STR: printf("lexsym(%s)\n", p.strtok); break;
-          case TOK_NUM: printf("lexnum(%d)\n", p.numtok); break;
-          case TOK_ERR: printf("lexerr.\n"); return;
-          case '(': printf("lexLB\n"); break;
-          case ')': printf("lexRB\n"); break;
-          default: printf("lextok('%c')\n", tok);
-        }
+static const char * special_form_for(int token) {
+    switch (token) {
+      case TOK_QUOTE: return "quote";
+      case TOK_QQ:    return "quasiquote";
+      case TOK_UQ:    return "unquote";
+      case TOK_UQSPL: return "unquote-splicing";
     }
-    printf("lexbye.\n");
+    return NULL;
 }
 
 cell_t *read_list(secd_t *secd, secd_parser_t *p) {
@@ -1571,11 +1596,16 @@ cell_t *read_list(secd_t *secd, secd_parser_t *p) {
               }
               assert(p->token == ')', "read_list: not a closing bracket");
               break;
-           case '\'':
+
+           case TOK_QUOTE: case TOK_QQ: 
+           case TOK_UQ: case TOK_UQSPL: {
+              const char *formname = special_form_for(tok);
+              assert(formname, "No formname for token=%d\n", tok);
               val = sexp_read(secd, p);
-              val = new_cons(secd, new_symbol(secd, "quote"),
+              val = new_cons(secd, new_symbol(secd, formname),
                                    new_cons(secd, val, secd->nil));
-              break;
+              } break;
+
            default:
               errorf("Unknown token: %1$d ('%1$c')", tok);
               free_cell(head);
@@ -1612,11 +1642,16 @@ cell_t *sexp_read(secd_t *secd, secd_parser_t *p) {
         break;
       case TOK_EOF:
         return new_symbol(secd, EOF_OBJ);
-      case '\'':
+
+      case TOK_QUOTE: case TOK_QQ:
+      case TOK_UQ: case TOK_UQSPL: {
+        const char *formname = special_form_for(tok);
+        assert(formname, "No  special form for token=%d\n", tok);
         inp = sexp_read(secd, p);
-        inp = new_cons(secd, new_symbol(secd, "quote"),
+        inp = new_cons(secd, new_symbol(secd, formname),
                              new_cons(secd, inp, secd->nil));
-        break;
+        } break;
+
       default:
         errorf("Unknown token: %1$d ('%1$c')", tok);
         return NULL;
