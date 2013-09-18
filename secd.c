@@ -786,7 +786,9 @@ cell_t *secd_ap(secd_t *secd) {
 
     if (atom_type(func) == ATOM_FUNC) {
         secd_nativefunc_t native = (secd_nativefunc_t)func->as.atom.as.op.fun;
-        cell_t *result = push_stack(secd, native(secd, argvals));
+        cell_t *result = native(secd, argvals);
+        assert(result, "secd_ap: a built-in routine failed");
+        push_stack(secd, result);
 
         drop_cell(closure); drop_cell(argvals);
         return result;
@@ -1066,6 +1068,41 @@ cell_t *secdf_getenv(secd_t *secd, cell_t __unused *args) {
     return secd->env;
 }
 
+cell_t *secdf_bind(secd_t *secd, cell_t *args) {
+    ctrldebugf("secdf_bind\n");
+
+    assert(not_nil(args), "secdf_bind: can't bind nothing to nothing");
+    cell_t *sym = list_head(args);
+    assert(atom_type(sym) == ATOM_SYM, "secdf_bind: a symbol must be bound");
+
+    args = list_next(args);
+    assert(not_nil(args), "secdf_bind: No value for binding");
+    cell_t *val = list_head(args);
+
+    cell_t *env;
+    // is there the third argument?
+    if (not_nil(list_next(args))) {
+        args = list_next(args);
+        env = list_head(args);
+    } else {
+        env = secd->global_env;
+    }
+    
+    cell_t *frame = list_head(env);
+    cell_t *old_syms = get_car(frame);
+    cell_t *old_vals = get_cdr(frame);
+
+    // an intersting side effect: since there's no check for 
+    // re-binding an existing symbol, we can create multiple 
+    // copies of it on the frame, the last added is found 
+    // during value lookup, but the old ones are persistent
+    frame->as.cons.car = share_cell(new_cons(secd, sym, old_syms));
+    frame->as.cons.cdr = share_cell(new_cons(secd, val, old_vals));
+
+    drop_cell(old_syms); drop_cell(old_vals);
+    return sym;
+}
+
 #define INIT_SYM(name) {    \
     .type = CELL_ATOM,      \
     .nref = DONT_FREE_THIS, \
@@ -1292,6 +1329,7 @@ const cell_t symp_sym   = INIT_SYM("symbol?");
 const cell_t eofp_sym   = INIT_SYM("eof-object?");
 const cell_t debug_sym  = INIT_SYM("secdctl");
 const cell_t env_sym    = INIT_SYM("interaction-environment");
+const cell_t bind_sym   = INIT_SYM("secd-bind!");
 
 const cell_t list_func  = INIT_FUNC(secdf_list);
 const cell_t append_func = INIT_FUNC(secdf_append);
@@ -1302,6 +1340,7 @@ const cell_t symp_func  = INIT_FUNC(secdf_symp);
 const cell_t eofp_func  = INIT_FUNC(secdf_eofp);
 const cell_t debug_func = INIT_FUNC(secdf_ctl);
 const cell_t getenv_fun = INIT_FUNC(secdf_getenv);
+const cell_t bind_func  = INIT_FUNC(secdf_bind);
 
 const struct {
     const cell_t *sym;
@@ -1317,6 +1356,7 @@ const struct {
     { &eofp_sym,    &eofp_func  },
     { &debug_sym,   &debug_func  },
     { &env_sym,     &getenv_fun },
+    { &bind_sym,    &bind_func  },
 
     // symbols
     { &t_sym,       &t_sym      },
