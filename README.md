@@ -179,7 +179,7 @@ TODO
 ----
  - [ ] `define`, interpreter environment!
  - [ ] dot-lists;
- - [ ] `AP n`: treat n values on top of the stack as arguments for a function call instead of always creating a list.
+ - [x] `AP n`: treat n values on top of the stack as arguments for a function call instead of always creating a list.
  - [ ] Is there a way to make `cond` forms less nested?
  - [ ] support for more Scheme types: `bytestring`, `string` (list of chars?), `port`;
  - [ ] make symbol storage: quick access (balanced binary search tree or hashtable?), reuse string resources;

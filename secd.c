@@ -487,7 +487,6 @@ cell_t *set_control(secd_t *secd, cell_t *opcons) {
     if (! is_control_compiled(opcons)) {
         opcons = compile_control_path(secd, opcons);
         assert(opcons, "set_control: failed to compile control path");
-        //sexp_print(opcons);
     }
     return (secd->control = share_cell(opcons));
 }
@@ -771,13 +770,40 @@ cell_t *secd_ldf(secd_t *secd) {
 static cell_t * new_dump_if_tailrec(cell_t *control, cell_t *dump);
 #endif
 
+static cell_t *extract_argvals(secd_t *secd) {
+    if (atom_type(list_head(secd->control)) != ATOM_INT) {
+        return pop_stack(secd); // don't forget to drop
+    }
+
+    cell_t *argvals = secd->nil;
+    cell_t *argvcursor = secd->nil;
+    cell_t *new_stack = secd->stack;
+
+    cell_t *ntop = pop_control(secd);
+    int n = numval(ntop);
+
+    while (n-- > 0) {
+        argvcursor = new_stack;
+        new_stack = list_next(new_stack);
+    }
+    if (not_nil(argvcursor)) {
+        argvals = secd->stack;
+        argvcursor->as.cons.cdr = secd->nil;
+    }
+    secd->stack = new_stack; // no share_cell
+
+    drop_cell(ntop);
+    // has at least 1 "ref", don't forget to drop
+    return argvals; 
+}
+
 cell_t *secd_ap(secd_t *secd) {
     ctrldebugf("AP\n");
 
     cell_t *closure = pop_stack(secd);
     assert(is_cons(closure), "secd_ap: closure is not a cons");
 
-    cell_t *argvals = pop_stack(secd);
+    cell_t *argvals = extract_argvals(secd); 
     assert(argvals, "secd_ap: no arguments on stack");
     assert(is_cons(argvals), "secd_ap: a list expected for arguments");
 
@@ -814,12 +840,14 @@ cell_t *secd_ap(secd_t *secd) {
         secd->dump = share_cell(new_dump);
         drop_cell(dump);  // dump may be new_dump, so don't drop before share
     } else {
-#endif
         push_dump(secd, secd->control);
         push_dump(secd, secd->env);
         push_dump(secd, secd->stack);
-#if TAILRECURSION
     }
+#else
+    push_dump(secd, secd->control);
+    push_dump(secd, secd->env);
+    push_dump(secd, secd->stack);
 #endif
 
     drop_cell(secd->stack);
@@ -1214,9 +1242,14 @@ const struct {
     { NULL,         NULL,       0}
 };
 
+index_t optable_len = 0;
+
 index_t search_opcode_table(cell_t *sym) {
+    if (optable_len == 0)
+        while (opcode_table[optable_len].sym) ++optable_len;
+
     index_t a = 0;
-    index_t b = 0;
+    index_t b = optable_len;
     while (opcode_table[b].sym) ++b;
     while (a != b) {
         index_t c = (a + b) / 2;
@@ -1256,6 +1289,17 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control) {
         cursor = list_next(cursor);
 
         cell_t *new_tail;
+
+        if (new_cmd->as.atom.as.op.fun == &secd_ap) {
+            cell_t *next = list_head(cursor);
+            if (atom_type(next) == ATOM_INT) {
+                new_tail = new_cons(secd, next, secd->nil);
+                compcursor->as.cons.cdr = share_cell(new_tail);
+                compcursor = list_next(compcursor);
+                cursor = list_next(cursor);
+            }
+        }
+
         if (opcode_table[opind].args > 0) {
             if (new_cmd->as.atom.as.op.fun == &secd_sel) {
                 cell_t *thenb = compile_control_path(secd, list_head(cursor));

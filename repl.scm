@@ -21,6 +21,19 @@
                 (secd-compile (car bs))
                 '(CONS)))))
 
+(compile-n-bindings
+  (lambda (bs)
+    (if (null? bs) '()
+        (append (compile-n-bindings (cdr bs))
+                (secd-compile (car bs))))))
+
+(length (lambda (xs)
+  (letrec 
+    ((len (lambda (xs acc)
+            (if (null? xs) acc
+                (len (cdr xs) (+ 1 acc))))))
+    (len xs 0))))
+
 (compile-begin-acc
   (lambda (stmts acc)   ; acc must be '(LDC ()) at the beginning
     (if (null? stmts)
@@ -132,8 +145,9 @@
         '(STOP))
       (else
         (let ((compiled-head
-                (if (atom? hd) (list 'LD hd) (secd-compile hd))))
-         (append (compile-bindings tl) compiled-head '(AP))))
+                (if (symbol? hd) (list 'LD hd) (secd-compile hd)))
+              (nbinds (length tl)))
+         (append (compile-n-bindings tl) compiled-head (list 'AP nbinds))))
     ))))
 
 (secd-compile (lambda (s)
