@@ -28,7 +28,7 @@
                 (secd-compile (car bs))))))
 
 (length (lambda (xs)
-  (letrec 
+  (letrec
     ((len (lambda (xs acc)
             (if (null? xs) acc
                 (len (cdr xs) (+ 1 acc))))))
@@ -140,14 +140,22 @@
       ((eq? hd 'read)
         '(READ))
       ((eq? hd 'eval)
-        (append '(LDC () LDC ()) (secd-compile (car tl)) '(CONS LD secd-from-scheme AP AP)))
+        ;(append '(LDC () LDC ()) (secd-compile (car tl))
+        ;   '(CONS LD secd-from-scheme AP AP)))
+        (secd-compile `((secd-from-scheme ,(car tl)))))
       ((eq? hd 'quit)
         '(STOP))
       (else
-        (let ((compiled-head
-                (if (symbol? hd) (list 'LD hd) (secd-compile hd)))
-              (nbinds (length tl)))
-         (append (compile-n-bindings tl) compiled-head (list 'AP nbinds))))
+        (let ((macro (lookup-macro hd)))
+          (if (null? macro)
+              ;; it is a form
+              (let ((compiled-head (if (symbol? hd) (list 'LD hd) (secd-compile hd)))
+                    (nbinds (length tl)))
+                (append (compile-n-bindings tl) compiled-head (list 'AP nbinds)))
+              ;; it is a macro application
+              (let ((evalclos (macro tl))) ;(car tl))))
+                (begin (display evalclos)
+                (secd-compile evalclos))))))
     ))))
 
 (secd-compile (lambda (s)
@@ -157,9 +165,40 @@
     (else (compile-form s)))))
 
 (secd-closure (lambda (ctrlpath maybe-env)
-  (let ((func (list '() (append ctrlpath '(RTN))))
+   (secd-closure-with-args ctrlpath maybe-env '())))
+
+(secd-closure-with-args (lambda (ctrlpath maybe-env args)
+  (let ((func (list args (append ctrlpath '(RTN))))
         (env (if (null? maybe-env) (interaction-environment) maybe-env)))
     (cons func env))))
+
+
+(lookup-macro (lambda (name)
+   (letrec
+      ((lookup
+        (lambda (*macro-list*)
+          (if (null? *macro-list*) '()
+              (let ((hd (car *macro-list*)))
+                 (let ((macro-name (car hd)))
+                   (if (eq? macro-name name) (cdr hd)
+                       (lookup (cdr *macro-list*)))))))))
+    (if (symbol? name)
+        (lookup *macros*)
+        '()))))
+
+(secd-define-macro! (lambda (macro)
+  (let ((macrodef (car macro))
+        (macrobody (cdr macro)))
+    (let ((macroname (car macrodef))
+          (macroargs (cdr macrodef)))
+      (let ((macrocode (append (list 'lambda macroargs) macrobody)))
+        (begin (display macrocode)
+        (let ((lookup-pair
+                 (cons macroname
+                       (secd-closure-with-args (secd-compile macrocode) nil macroargs))))
+           (begin
+             (secd-bind! '*macros* (cons lookup-pair *macros*))
+             ''ok))))))))
 
 (secd-from-scheme (lambda (s)
     (secd-closure (secd-compile s) nil)))
@@ -173,4 +212,8 @@
 )
 
 ;; <let> in
-(repl (interaction-environment)))
+(begin
+  (secd-bind! '*macros*
+    (list
+      (cons 'define-macro secd-define-macro!)))
+  (repl (interaction-environment))))

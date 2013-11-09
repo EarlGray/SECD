@@ -950,6 +950,7 @@ cell_t *secd_rap(secd_t *secd) {
 cell_t *secd_read(secd_t *secd) {
     ctrldebugf("READ\n");
 
+    printf(";> ");
     cell_t *inp = sexp_parse(secd, NULL);
     assert(inp, "secd_read: failed to read");
 
@@ -1271,7 +1272,7 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control) {
         cell_t *opcode = list_head(cursor);
         if (atom_type(opcode) != ATOM_SYM) {
             errorf("compile_control: not a symbol in control path\n");
-            sexp_print(opcode);
+            sexp_print(opcode); printf("\n");
             return NULL;
         }
 
