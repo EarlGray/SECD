@@ -81,9 +81,14 @@ typedef cell_t* (*secd_opfunc_t)(secd_t *);
 typedef cell_t* (*secd_nativefunc_t)(secd_t *, cell_t *);
 
 enum cell_type {
+    /* main types */
     CELL_UNDEF,
     CELL_ATOM,
     CELL_CONS,
+
+    /* the same as CELL_CONS */
+    CELL_FRAME,  // a environment frame
+
     CELL_ERROR,
 };
 
@@ -223,20 +228,13 @@ inline static bool is_cons(const cell_t *cell) {
     return cell_type(cell) == CELL_CONS;
 }
 
-void print_atom(const cell_t *c) {
-    switch (atom_type(c)) {
-      case ATOM_INT: printf("INT(%d)", c->as.atom.as.num); break;
-      case ATOM_SYM: printf("SYM(%s)", c->as.atom.as.sym.data); break;
-      case ATOM_FUNC: printf("BUILTIN(%p)", c->as.atom.as.op.fun); break;
-      case NOT_AN_ATOM: printf("ERROR(not an atom)");
-    }
-}
+void print_opcode(void *opptr);
 
 void sexp_print_atom(const cell_t *c) {
     switch (atom_type(c)) {
       case ATOM_INT: printf("%d", c->as.atom.as.num); break;
       case ATOM_SYM: printf("%s", c->as.atom.as.sym.data); break;
-      case ATOM_FUNC: printf("#*%p", c->as.atom.as.op.fun); break;
+      case ATOM_FUNC: print_opcode(c->as.atom.as.op.fun); break;
       case NOT_AN_ATOM: printf("???");
     }
 }
@@ -250,10 +248,15 @@ void print_cell(const cell_t *c) {
     printf("[%ld]^%ld: ", cell_index(c), c->nref);
     switch (cell_type(c)) {
       case CELL_CONS:
-        printf("CONS([%ld], [%ld])\n", cell_index(get_car(c)), cell_index(get_cdr(c)));
+        printf("CONS([%ld], [%ld])\n",
+               cell_index(get_car(c)), cell_index(get_cdr(c)));
+        break;
+      case CELL_FRAME:
+        printf("FRAME(syms: [%ld], vals: [%d])\n",
+               cell_index(get_car(c)), cell_index(get_cdr(c)));
         break;
       case CELL_ATOM:
-        print_atom(c); printf("\n");
+        sexp_print_atom(c); printf("\n");
         break;
       default:
         printf("unknown type: %d\n", cell_type(c));
@@ -287,6 +290,9 @@ void sexp_print(cell_t *cell) {
       case CELL_ATOM:
         sexp_print_atom(cell);
         break;
+      case CELL_FRAME:
+        printf("#<envframe> ");
+        break;
       case CELL_CONS:
         printf("(");
         cell_t *iter = cell;
@@ -296,11 +302,6 @@ void sexp_print(cell_t *cell) {
                 printf(". "); sexp_print(iter); break;
             }
 
-            // to avoid cycles:
-            if (iter == secd->global_env) {
-                printf("*global_env*");
-                break;
-            }
             cell_t *head = get_car(iter);
             sexp_print(head);
             iter = list_next(iter);
@@ -382,6 +383,13 @@ cell_t *new_cons(secd_t *secd, cell_t *car, cell_t *cdr) {
     return cell;
 }
 
+cell_t *new_frame(secd_t *secd, cell_t *syms, cell_t *vals) {
+    cell_t *cons = new_cons(secd, syms, vals);
+    cons->type &= (INTPTR_MAX << SECD_ALIGN);
+    cons->type |= CELL_FRAME;
+    return cons;
+}
+
 cell_t *new_number(secd_t *secd, int num) {
     cell_t *cell = pop_free(secd);
     cell->type |= CELL_ATOM;
@@ -437,6 +445,10 @@ cell_t *free_cell(cell_t *c) {
     switch (t) {
       case CELL_ATOM:
         free_atom(c);
+        break;
+      case CELL_FRAME:
+        drop_cell(get_car(c));
+        drop_cell(get_cdr(c));
         break;
       case CELL_CONS:
         drop_cell(get_car(c));
@@ -794,7 +806,7 @@ static cell_t *extract_argvals(secd_t *secd) {
 
     drop_cell(ntop);
     // has at least 1 "ref", don't forget to drop
-    return argvals; 
+    return argvals;
 }
 
 cell_t *secd_ap(secd_t *secd) {
@@ -803,7 +815,7 @@ cell_t *secd_ap(secd_t *secd) {
     cell_t *closure = pop_stack(secd);
     assert(is_cons(closure), "secd_ap: closure is not a cons");
 
-    cell_t *argvals = extract_argvals(secd); 
+    cell_t *argvals = extract_argvals(secd);
     assert(argvals, "secd_ap: no arguments on stack");
     assert(is_cons(argvals), "secd_ap: a list expected for arguments");
 
@@ -853,7 +865,7 @@ cell_t *secd_ap(secd_t *secd) {
     drop_cell(secd->stack);
     secd->stack = secd->nil;
 
-    cell_t *frame = new_cons(secd, argnames, argvals);
+    cell_t *frame = new_frame(secd, argnames, argvals);
     cell_t *oldenv = secd->env;
     drop_cell(oldenv);
     secd->env = share_cell(new_cons(secd, frame, newenv));
@@ -883,7 +895,7 @@ cell_t *secd_rtn(secd_t *secd) {
     secd->stack = share_cell(new_cons(secd, top, prevstack));
     drop_cell(top); drop_cell(prevstack);
 
-    secd->env = prevenv; // share_cell(prevenv); drop_cell(prevenv); 
+    secd->env = prevenv; // share_cell(prevenv); drop_cell(prevenv);
     secd->control = prevcontrol; // share_cell(prevcontrol); drop_cell(prevcontrol);
 
     return top;
@@ -924,7 +936,7 @@ cell_t *secd_rap(secd_t *secd) {
     push_dump(secd, get_cdr(secd->env));
     push_dump(secd, secd->stack);
 
-    cell_t *frame = new_cons(secd, argnames, argvals);
+    cell_t *frame = new_frame(secd, argnames, argvals);
 #if CTRLDEBUG
     printf("new frame: \n"); print_cell(frame);
     printf(" argnames: \n"); printc(argnames);
@@ -1024,7 +1036,7 @@ cell_t *secdf_append(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_append\n");
     assert(args, "secdf_append: args is NULL");
 
-    if (is_nil(args)) 
+    if (is_nil(args))
         return args;
 
     cell_t *xs = list_head(args);
@@ -1116,14 +1128,14 @@ cell_t *secdf_bind(secd_t *secd, cell_t *args) {
     } else {
         env = secd->global_env;
     }
-    
+
     cell_t *frame = list_head(env);
     cell_t *old_syms = get_car(frame);
     cell_t *old_vals = get_cdr(frame);
 
-    // an intersting side effect: since there's no check for 
-    // re-binding an existing symbol, we can create multiple 
-    // copies of it on the frame, the last added is found 
+    // an intersting side effect: since there's no check for
+    // re-binding an existing symbol, we can create multiple
+    // copies of it on the frame, the last added is found
     // during value lookup, but the old ones are persistent
     frame->as.cons.car = share_cell(new_cons(secd, sym, old_syms));
     frame->as.cons.cdr = share_cell(new_cons(secd, val, old_vals));
@@ -1329,6 +1341,16 @@ bool is_control_compiled(cell_t *control) {
     return atom_type(list_head(control)) == ATOM_FUNC;
 }
 
+void print_opcode(void *opptr) {
+    int i;
+    for (i= 0; opcode_table[i].sym; ++i) {
+        if (opptr == opcode_table[i].val->as.atom.as.op.fun) {
+            printf("#%s# ", symname(opcode_table[i].sym));
+            return;
+        }
+    }
+    printf("#*%p# ", opptr);
+}
 #if TAILRECURSION
 /*
  * returns a new dump for a tail-recursive call
@@ -1377,7 +1399,7 @@ const cell_t env_sym    = INIT_SYM("interaction-environment");
 const cell_t bind_sym   = INIT_SYM("secd-bind!");
 
 const cell_t list_func  = INIT_FUNC(secdf_list);
-const cell_t append_func = INIT_FUNC(secdf_append);
+const cell_t appnd_func = INIT_FUNC(secdf_append);
 const cell_t copy_func  = INIT_FUNC(secdf_copy);
 const cell_t nullp_func = INIT_FUNC(secdf_null);
 const cell_t nump_func  = INIT_FUNC(secdf_nump);
@@ -1393,7 +1415,7 @@ const struct {
 } native_functions[] = {
     // native functions
     { &list_sym,    &list_func  },
-    { &append_sym,  &append_func },
+    { &append_sym,  &appnd_func },
     { &nullp_sym,   &nullp_func },
     { &nump_sym,    &nump_func  },
     { &symp_sym,    &symp_func  },
@@ -1429,7 +1451,7 @@ void fill_global_env(secd_t *secd) {
     symlist = new_cons(secd, sym, symlist);
     vallist = new_cons(secd, val, vallist);
 
-    cell_t *frame = new_cons(secd, symlist, vallist);
+    cell_t *frame = new_frame(secd, symlist, vallist);
     env->as.cons.car = share_cell(frame);
 
     secd->env = share_cell(env);
@@ -1597,12 +1619,12 @@ token_t lexnext(secd_parser_t *p) {
         do nextchar(p); while (p->lc != '\n');
         return lexnext(p);
 
-      case '(': case ')': 
+      case '(': case ')':
         /* one-char tokens */
         p->token = p->lc;
         nextchar(p);
         return p->token;
-      case '\'': 
+      case '\'':
         nextchar(p);
         return (p->token = TOK_QUOTE);
       case '`':
@@ -1682,7 +1704,7 @@ cell_t *read_list(secd_t *secd, secd_parser_t *p) {
               assert(p->token == ')', "read_list: not a closing bracket");
               break;
 
-           case TOK_QUOTE: case TOK_QQ: 
+           case TOK_QUOTE: case TOK_QQ:
            case TOK_UQ: case TOK_UQSPL: {
               const char *formname = special_form_for(tok);
               assert(formname, "No formname for token=%d\n", tok);

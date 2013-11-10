@@ -143,19 +143,30 @@
         ;(append '(LDC () LDC ()) (secd-compile (car tl))
         ;   '(CONS LD secd-from-scheme AP AP)))
         (secd-compile `((secd-from-scheme ,(car tl)))))
+      ((eq? hd 'secd-inline)
+        (if (null? tl) (display 'Error:_secd_inline_require_one_argument)
+            (if (eq? (car tl) 'quote)
+                (car (cdr tl))
+                (display 'Error:_secd_inline_requires_quoted_argument))))
+      ((eq? hd 'secd-apply)
+        (if (null? tl) (display 'Error:_secd-apply_requires_args)
+            (if (null? (cdr tl)) (display 'Error:_secd-apply_requires_second_arg)
+        (append (secd-compile (car (cdr tl))) (secd-compile (car tl)) '(AP)))))
       ((eq? hd 'quit)
         '(STOP))
       (else
         (let ((macro (lookup-macro hd)))
           (if (null? macro)
               ;; it is a form
-              (let ((compiled-head (if (symbol? hd) (list 'LD hd) (secd-compile hd)))
+              (let ((compiled-head
+                      (if (symbol? hd) (list 'LD hd) (secd-compile hd)))
                     (nbinds (length tl)))
                 (append (compile-n-bindings tl) compiled-head (list 'AP nbinds)))
               ;; it is a macro application
-              (let ((evalclos (macro tl))) ;(car tl))))
-                (begin (display evalclos)
-                (secd-compile evalclos))))))
+              (let ((evalclos (secd-apply macro tl)))
+                (begin
+                  ;(display evalclos)   ;; expanded macro
+                  (secd-compile evalclos))))))
     ))))
 
 (secd-compile (lambda (s)
@@ -164,14 +175,15 @@
     ((number? s) (list 'LDC s))
     (else (compile-form s)))))
 
-(secd-closure (lambda (ctrlpath maybe-env)
-   (secd-closure-with-args ctrlpath maybe-env '())))
-
-(secd-closure-with-args (lambda (ctrlpath maybe-env args)
-  (let ((func (list args (append ctrlpath '(RTN))))
+(secd-make-executable (lambda (ctrlpath maybe-env)
+  (let ((func (list '() (append ctrlpath '(RTN))))
         (env (if (null? maybe-env) (interaction-environment) maybe-env)))
     (cons func env))))
 
+(secd-closure (lambda (ctrlpath args maybe-env)
+  (let ((func (list args (append ctrlpath '(RTN))))
+        (env (if (null? maybe-env) (interaction-environment) maybe-env)))
+    (cons func env))))
 
 (lookup-macro (lambda (name)
    (letrec
@@ -186,22 +198,18 @@
         (lookup *macros*)
         '()))))
 
-(secd-define-macro! (lambda (macro)
-  (let ((macrodef (car macro))
-        (macrobody (cdr macro)))
-    (let ((macroname (car macrodef))
-          (macroargs (cdr macrodef)))
-      (let ((macrocode (append (list 'lambda macroargs) macrobody)))
-        (begin (display macrocode)
-        (let ((lookup-pair
-                 (cons macroname
-                       (secd-closure-with-args (secd-compile macrocode) nil macroargs))))
-           (begin
-             (secd-bind! '*macros* (cons lookup-pair *macros*))
-             ''ok))))))))
+(secd-define-macro! (lambda (macrodef macrobody)
+  (let ((macroname (car macrodef))
+        (macroargs (cdr macrodef)))
+    (let ((macroclos ;; TODO: macrobody may be more longer than 1 form
+            (secd-closure (secd-compile macrobody) macroargs nil)))
+      (begin
+        ;(display macrobody) ;;; what macro is compiled to.
+        (secd-bind! '*macros* (cons (cons macroname macroclos)  *macros*))
+        ''ok)))))
 
 (secd-from-scheme (lambda (s)
-    (secd-closure (secd-compile s) nil)))
+    (secd-make-executable (secd-compile s) nil)))
 
 (repl (lambda (env)
     (let ((inp (read)))

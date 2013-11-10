@@ -140,6 +140,8 @@
         '(READ))
       ((eq? hd 'eval)
         (append '(LDC () LDC () LDC () CONS) (secd-compile (car tl)) '(CONS LD secd-from-scheme AP AP)))
+      ((eq? hd 'secd-apply)
+        (append (secd-compile (car (cdr tl))) (secd-compile (car tl)) '(AP)))
       ((eq? hd 'quit)
         '(STOP))
       (else
