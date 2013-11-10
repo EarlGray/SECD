@@ -1,0 +1,12 @@
+#!/bin/sh
+
+SECDVM=./secd
+REPL=repl.secd
+
+# is there the secd interpreter?
+[ -x $SECDVM ] || gcc -g -O2 secd.c -o $SECDVM
+
+# is there compiled REPL code?
+[ -r $REPL ] || $SECDVM scm2secd.secd < repl.scm > $REPL
+
+exec `which rlwrap` $SECDVM $REPL
