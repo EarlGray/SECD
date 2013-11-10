@@ -208,6 +208,11 @@
         (secd-bind! '*macros* (cons (cons macroname macroclos)  *macros*))
         ''ok)))))
 
+(secd-mdefine! (lambda (definition initval)
+  (if (symbol? definition)
+      (secd-bind! definition (eval initval))
+      (display 'Error:_define_is_not_implemented_for_functions))))
+
 (secd-from-scheme (lambda (s)
     (secd-make-executable (secd-compile s) nil)))
 
@@ -223,5 +228,6 @@
 (begin
   (secd-bind! '*macros*
     (list
-      (cons 'define-macro secd-define-macro!)))
+      (cons 'define-macro secd-define-macro!)
+      (cons 'define secd-mdefine!)))
   (repl (interaction-environment))))
