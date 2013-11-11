@@ -252,7 +252,7 @@ void print_cell(const cell_t *c) {
                cell_index(get_car(c)), cell_index(get_cdr(c)));
         break;
       case CELL_FRAME:
-        printf("FRAME(syms: [%ld], vals: [%d])\n",
+        printf("FRAME(syms: [%ld], vals: [%ld])\n",
                cell_index(get_car(c)), cell_index(get_cdr(c)));
         break;
       case CELL_ATOM:
