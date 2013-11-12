@@ -154,6 +154,8 @@ struct secd  {
 
     cell_t *global_env;
 
+    unsigned long tick;
+
     size_t used_stack;
     size_t free_cells;
 };
@@ -252,7 +254,7 @@ void print_cell(const cell_t *c) {
                cell_index(get_car(c)), cell_index(get_cdr(c)));
         break;
       case CELL_FRAME:
-        printf("FRAME(syms: [%ld], vals: [%d])\n",
+        printf("FRAME(syms: [%ld], vals: [%ld])\n",
                cell_index(get_car(c)), cell_index(get_cdr(c)));
         break;
       case CELL_ATOM:
@@ -285,7 +287,6 @@ void printc(cell_t *c) {
 }
 
 void sexp_print(cell_t *cell) {
-    secd_t *secd = cell_secd(cell);
     switch (cell_type(cell)) {
       case CELL_ATOM:
         sexp_print_atom(cell);
@@ -1096,8 +1097,10 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
             printf("SECDCTL: Available cells: %lu\n", secd->free_cells);
         } else if (str_eq(symname(arg1), "env")) {
             print_env(secd);
+        } else if (str_eq(symname(arg1), "tick")) {
+            printf("SECDCTL: tick = %lu\n", secd->tick);
         } else if (str_eq(symname(arg1), "help")) {
-            printf("SECDCTL: options are 'help', 'env', 'free'\n");
+            printf("SECDCTL: options are 'help', 'tick', 'env', 'free'\n");
         }
     }
     return args;
@@ -1816,6 +1819,8 @@ secd_t * init_secd(secd_t *secd) {
     secd->free_cells = N_CELLS - 1;
     secd->used_stack = 0;
 
+    secd->tick = 0;
+
     return secd;
 }
 
@@ -1834,6 +1839,7 @@ void run_secd(secd_t *secd) {
         cell_t *ret = callee(secd);
         assertv(ret, "run: Instruction failed\n");
         drop_cell(op);
+        ++secd->tick;
     }
 }
 
