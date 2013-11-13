@@ -57,17 +57,21 @@
 
 (compile-quasiquote
   (lambda (lst)
-    (if (null? lst) '()
+    (cond
+      ((symbol? lst) (list 'LDC lst))
+      ((null? lst) (list 'LDC '()))
+      (else
         (let ((hd (car lst)) (tl (cdr lst)))
-          (if (atom? hd)
-              (append (compile-quasiquote tl) (list 'LDC hd 'CONS))
-              (cond
-                ((eq? (car hd) 'unquote)
-                   (append (compile-quasiquote tl) (secd-compile (cadr hd)) '(CONS)))
-                   ;; TODO: (unquote a1 a2 ...)
-                ((eq? (car hd) 'unquote-splicing)
-                   (error 'TODO)) ;; TODO
-                (else (append (compile-bindings tl) (list 'LDC hd 'CONS)))))))))
+           (cond
+             ((atom? hd)
+                (append (compile-quasiquote tl) (list 'LDC hd 'CONS)))
+             ((eq? (car hd) 'unquote)
+                (append (compile-quasiquote tl) (secd-compile (cadr hd)) '(CONS)))
+                ;; TODO: (unquote a1 a2 ...)
+             ((eq? (car hd) 'unquote-splicing)
+                (display 'Error:_unquote-splicing_TODO)) ;; TODO
+             (else (append (compile-quasiquote tl)
+                           (compile-quasiquote hd) '(CONS)))))))))
 
 (compile-form (lambda (f)
   (let ((hd (car f))
@@ -76,7 +80,7 @@
       ((eq? hd 'quote)
         (list 'LDC (car tl)))
       ((eq? hd 'quasiquote)
-        (append '(LDC ()) (compile-quasiquote (car tl))))
+        (compile-quasiquote (car tl)))
       ((eq? hd '+)
         (append (secd-compile (cadr tl)) (secd-compile (car tl)) '(ADD)))
       ((eq? hd '-)
@@ -143,15 +147,11 @@
         ;(append '(LDC () LDC ()) (secd-compile (car tl))
         ;   '(CONS LD secd-from-scheme AP AP)))
         (secd-compile `((secd-from-scheme ,(car tl)))))
-      ((eq? hd 'secd-inline)
-        (if (null? tl) (display 'Error:_secd_inline_require_one_argument)
-            (if (eq? (car tl) 'quote)
-                (car (cdr tl))
-                (display 'Error:_secd_inline_requires_quoted_argument))))
       ((eq? hd 'secd-apply)
-        (if (null? tl) (display 'Error:_secd-apply_requires_args)
-            (if (null? (cdr tl)) (display 'Error:_secd-apply_requires_second_arg)
-        (append (secd-compile (car (cdr tl))) (secd-compile (car tl)) '(AP)))))
+        (cond
+          ((null? tl) (display 'Error:_secd-apply_requires_args))
+          ((null? (cdr tl)) (display 'Error:_secd-apply_requires_second_arg))
+          (else (append (secd-compile (car (cdr tl))) (secd-compile (car tl)) '(AP)))))
       ((eq? hd 'quit)
         '(STOP))
       (else
