@@ -1090,8 +1090,10 @@ cell_t *secdf_eofp(secd_t *secd, cell_t *args) {
 
 cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_ctl\n");
-    cell_t *arg1 = list_head(args);
+    if (is_nil(args))
+        goto help;
 
+    cell_t *arg1 = list_head(args);
     if (atom_type(arg1) == ATOM_SYM) {
         if (str_eq(symname(arg1), "free")) {
             printf("SECDCTL: Available cells: %lu\n", secd->free_cells);
@@ -1099,10 +1101,13 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
             print_env(secd);
         } else if (str_eq(symname(arg1), "tick")) {
             printf("SECDCTL: tick = %lu\n", secd->tick);
-        } else if (str_eq(symname(arg1), "help")) {
-            printf("SECDCTL: options are 'help', 'tick', 'env', 'free'\n");
+        } else {
+            goto help;
         }
     }
+    return args;
+help:
+    printf("SECDCTL: options are 'tick', 'env', 'free'\n");
     return args;
 }
 
