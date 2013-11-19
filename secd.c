@@ -154,6 +154,8 @@ struct secd  {
 
     cell_t *global_env;
 
+    unsigned long tick;
+
     size_t used_stack;
     size_t free_cells;
 };
@@ -285,7 +287,6 @@ void printc(cell_t *c) {
 }
 
 void sexp_print(cell_t *cell) {
-    secd_t *secd = cell_secd(cell);
     switch (cell_type(cell)) {
       case CELL_ATOM:
         sexp_print_atom(cell);
@@ -962,7 +963,6 @@ cell_t *secd_rap(secd_t *secd) {
 cell_t *secd_read(secd_t *secd) {
     ctrldebugf("READ\n");
 
-    printf(";> ");
     cell_t *inp = sexp_parse(secd, NULL);
     assert(inp, "secd_read: failed to read");
 
@@ -1090,17 +1090,24 @@ cell_t *secdf_eofp(secd_t *secd, cell_t *args) {
 
 cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_ctl\n");
-    cell_t *arg1 = list_head(args);
+    if (is_nil(args))
+        goto help;
 
+    cell_t *arg1 = list_head(args);
     if (atom_type(arg1) == ATOM_SYM) {
         if (str_eq(symname(arg1), "free")) {
             printf("SECDCTL: Available cells: %lu\n", secd->free_cells);
         } else if (str_eq(symname(arg1), "env")) {
             print_env(secd);
-        } else if (str_eq(symname(arg1), "help")) {
-            printf("SECDCTL: options are 'help', 'env', 'free'\n");
+        } else if (str_eq(symname(arg1), "tick")) {
+            printf("SECDCTL: tick = %lu\n", secd->tick);
+        } else {
+            goto help;
         }
     }
+    return args;
+help:
+    printf("SECDCTL: options are 'tick', 'env', 'free'\n");
     return args;
 }
 
@@ -1817,6 +1824,8 @@ secd_t * init_secd(secd_t *secd) {
     secd->free_cells = N_CELLS - 1;
     secd->used_stack = 0;
 
+    secd->tick = 0;
+
     return secd;
 }
 
@@ -1835,6 +1844,7 @@ void run_secd(secd_t *secd) {
         cell_t *ret = callee(secd);
         assertv(ret, "run: Instruction failed\n");
         drop_cell(op);
+        ++secd->tick;
     }
 }
 
