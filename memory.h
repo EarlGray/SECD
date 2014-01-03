@@ -58,4 +58,10 @@ inline static cell_t *drop_cell(cell_t *c) {
     return free_cell(c);
 }
 
+/*
+ *
+ */
+
+void init_mem(secd_t *secd, size_t size);
+
 #endif // __SECD_MEM_H__

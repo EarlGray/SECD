@@ -222,4 +222,11 @@ inline static bool is_cons(const cell_t *cell) {
       .type = ATOM_FUNC,   \
       .as.ptr = (func) } }
 
+/*
+ * machine
+ */
+
+secd_t * init_secd(secd_t *secd);
+void run_secd(secd_t *secd, cell_t *ctrl);
+
 #endif //__SECD_H__

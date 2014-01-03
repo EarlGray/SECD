@@ -8,5 +8,6 @@ void printc(cell_t *c);
 void sexp_print(cell_t *c);
 
 cell_t *sexp_parse(secd_t *secd, FILE *f);
+cell_t *read_secd(secd_t *secd, FILE *f);
 
 #endif //__SECD_READPARSE_H__
