@@ -20,6 +20,15 @@ cell_t *new_error(secd_t *secd, const char *fmt, ...);
 
 cell_t *free_cell(cell_t *c);
 
+cell_t *push_stack(secd_t *secd, cell_t *newc);
+cell_t *pop_stack(secd_t *secd);
+
+cell_t *set_control(secd_t *secd, cell_t *opcons);
+cell_t *pop_control(secd_t *secd);
+
+cell_t *push_dump(secd_t *secd, cell_t *cell);
+cell_t *pop_dump(secd_t *secd);
+
 /*
  * Reference-counting
  */
