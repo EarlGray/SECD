@@ -1,10 +1,16 @@
 #include "secd.h"
 #include "memory.h"
 #include "secdops.h"
+#include "readparse.h"
+#include "env.h"
+
+#include <string.h>
 
 /*
  *  Compiled form of control paths
  */
+
+index_t search_opcode_table(cell_t *sym);
 
 cell_t *compile_control_path(secd_t *secd, cell_t *control) {
     assert(control, "control path is NULL");
@@ -172,8 +178,9 @@ bool atom_eq(const cell_t *a1, const cell_t *a2) {
         return false;
     switch (atype1) {
       case ATOM_INT: return (a1->as.atom.as.num == a2->as.atom.as.num);
-      case ATOM_SYM: return (!strcasecmp(symname(a1), symname(a2)));
-      case ATOM_FUNC: return (a1->as.atom.as.op.fun == a2->as.atom.as.op.fun);
+      case ATOM_SYM: return (str_eq(symname(a1), symname(a2)));
+      case ATOM_OP: return (a1->as.atom.as.op == a2->as.atom.as.op);
+      case ATOM_FUNC: return (a1->as.atom.as.ptr == a2->as.atom.as.ptr);
       default: errorf("atom_eq([%ld], [%ld]): don't know how to handle type %d\n",
                        cell_index(a1), cell_index(a2), atype1);
     }
@@ -359,22 +366,23 @@ static cell_t * new_dump_if_tailrec(cell_t *control, cell_t *dump) {
         return NULL;
 
     cell_t *nextop = list_head(control);
-    if (atom_type(nextop) != ATOM_FUNC)
+    if (atom_type(nextop) != ATOM_OP)
         return NULL;
-    secd_opfunc_t opfun = nextop->as.atom.as.op.fun;
 
-    if (opfun == &secd_rtn) {
+    opindex_t opind = nextop->as.atom.as.op;
+
+    if (opind == SECD_RTN) {
         return dump;
-    } else if (opfun == &secd_join) {
+    } else if (opind == SECD_JOIN) {
         cell_t *join = list_head(dump);
         return new_dump_if_tailrec(join, list_next(dump));
-    } else if (opfun == &secd_cons) {
+    } else if (opind == SECD_CONS) {
         /* a situation of CONS CAR - it is how `begin` implemented */
         cell_t *nextcontrol = list_next(control);
         cell_t *afternext = list_head(nextcontrol);
-        if (atom_type(afternext) != ATOM_FUNC)
+        if (atom_type(afternext) != ATOM_OP)
             return NULL;
-        if (afternext->as.atom.as.op.fun != &secd_car)
+        if (afternext->as.atom.as.op != SECD_CAR)
             return NULL;
         return new_dump_if_tailrec(list_next(nextcontrol), dump);
     }
@@ -426,7 +434,7 @@ cell_t *secd_ap(secd_t *secd) {
     cell_t *newenv = get_cdr(closure);
 
     if (atom_type(func) == ATOM_FUNC) {
-        secd_nativefunc_t native = (secd_nativefunc_t)func->as.atom.as.op.fun;
+        secd_nativefunc_t native = (secd_nativefunc_t)func->as.atom.as.ptr;
         cell_t *result = native(secd, argvals);
         assert(result, "secd_ap: a built-in routine failed");
         push_stack(secd, result);
@@ -653,7 +661,7 @@ const opcode_t opcode_table[] = {
 index_t optable_len = 0;
 
 inline size_t opcode_count(void) {
-    if (optable_len = 0)
+    if (optable_len == 0)
         while (opcode_table[optable_len].sym) ++optable_len;
     return optable_len;
 }

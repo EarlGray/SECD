@@ -10,22 +10,24 @@
 #include <limits.h>
 #include <ctype.h>
 
-void print_opcode(void *opptr) {
+void print_opcode(opindex_t op) {
     int i;
-    for (i= 0; opcode_table[i].sym; ++i) {
-        if (opptr == opcode_table[i].val->as.atom.as.op.fun) {
+    for (i = 0; opcode_table[i].sym; ++i) {
+        const cell_t *val = opcode_table[i].val;
+        if (op == val->as.atom.as.op) {
             printf("#%s# ", symname(opcode_table[i].sym));
             return;
         }
     }
-    printf("#*%p# ", opptr);
+    printf("#[%d]# ", op);
 }
 
 void sexp_print_atom(const cell_t *c) {
     switch (atom_type(c)) {
       case ATOM_INT: printf("%d", c->as.atom.as.num); break;
       case ATOM_SYM: printf("%s", c->as.atom.as.sym.data); break;
-      case ATOM_FUNC: print_opcode(c->as.atom.as.op.fun); break;
+      case ATOM_OP: print_opcode(c->as.atom.as.op); break;
+      case ATOM_FUNC: printf("(0x%p)()", c->as.atom.as.ptr); break;
       case NOT_AN_ATOM: printf("???");
     }
 }

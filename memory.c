@@ -8,7 +8,6 @@
  *  Cell memory management
  */
 
-index_t search_opcode_table(cell_t *sym);
 bool is_control_compiled(cell_t *control);
 cell_t *compile_control_path(secd_t *secd, cell_t *control);
 
