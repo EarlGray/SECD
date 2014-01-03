@@ -29,7 +29,7 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control) {
         index_t opind = search_opcode_table(opcode);
         assert(opind >= 0, "Opcode not found: %s", symname(opcode))
 
-        cell_t *new_cmd = new_clone(secd, opcode_table[opind].val);
+        cell_t *new_cmd = new_op(secd, opind);
         cell_t *cc = new_cons(secd, new_cmd, secd->nil);
         if (not_nil(compcursor)) {
             compcursor->as.cons.cdr = share_cell(cc);
@@ -76,7 +76,7 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control) {
 }
 
 bool is_control_compiled(cell_t *control) {
-    return atom_type(list_head(control)) == ATOM_FUNC;
+    return atom_type(list_head(control)) == ATOM_OP;
 }
 
 cell_t* compiled_ctrl(secd_t *secd, cell_t *ctrl) {
@@ -580,29 +580,29 @@ cell_t *secd_print(secd_t *secd) {
     return top;
 }
 
-const cell_t cons_func  = INIT_FUNC(secd_cons);
-const cell_t car_func   = INIT_FUNC(secd_car);
-const cell_t cdr_func   = INIT_FUNC(secd_cdr);
-const cell_t add_func   = INIT_FUNC(secd_add);
-const cell_t sub_func   = INIT_FUNC(secd_sub);
-const cell_t mul_func   = INIT_FUNC(secd_mul);
-const cell_t div_func   = INIT_FUNC(secd_div);
-const cell_t rem_func   = INIT_FUNC(secd_rem);
-const cell_t leq_func   = INIT_FUNC(secd_leq);
-const cell_t ldc_func   = INIT_FUNC(secd_ldc);
-const cell_t ld_func    = INIT_FUNC(secd_ld);
-const cell_t eq_func    = INIT_FUNC(secd_eq);
-const cell_t atom_func  = INIT_FUNC(secd_atom);
-const cell_t sel_func   = INIT_FUNC(secd_sel);
-const cell_t join_func  = INIT_FUNC(secd_join);
-const cell_t ldf_func   = INIT_FUNC(secd_ldf);
-const cell_t ap_func    = INIT_FUNC(secd_ap);
-const cell_t rtn_func   = INIT_FUNC(secd_rtn);
-const cell_t dum_func   = INIT_FUNC(secd_dum);
-const cell_t rap_func   = INIT_FUNC(secd_rap);
-const cell_t read_func  = INIT_FUNC(secd_read);
-const cell_t print_func = INIT_FUNC(secd_print);
-const cell_t stop_func  = INIT_FUNC(NULL);
+const cell_t cons_func  = INIT_OP(SECD_CONS);
+const cell_t car_func   = INIT_OP(SECD_CAR);
+const cell_t cdr_func   = INIT_OP(SECD_CDR);
+const cell_t add_func   = INIT_OP(SECD_ADD);
+const cell_t sub_func   = INIT_OP(SECD_SUB);
+const cell_t mul_func   = INIT_OP(SECD_MUL);
+const cell_t div_func   = INIT_OP(SECD_DIV);
+const cell_t rem_func   = INIT_OP(SECD_REM);
+const cell_t leq_func   = INIT_OP(SECD_LEQ);
+const cell_t ldc_func   = INIT_OP(SECD_LDC);
+const cell_t ld_func    = INIT_OP(SECD_LD);
+const cell_t eq_func    = INIT_OP(SECD_EQ);
+const cell_t atom_func  = INIT_OP(SECD_ATOM);
+const cell_t sel_func   = INIT_OP(SECD_SEL);
+const cell_t join_func  = INIT_OP(SECD_JOIN);
+const cell_t ldf_func   = INIT_OP(SECD_LDF);
+const cell_t ap_func    = INIT_OP(SECD_AP);
+const cell_t rtn_func   = INIT_OP(SECD_RTN);
+const cell_t dum_func   = INIT_OP(SECD_DUM);
+const cell_t rap_func   = INIT_OP(SECD_RAP);
+const cell_t read_func  = INIT_OP(SECD_READ);
+const cell_t print_func = INIT_OP(SECD_PRN);
+const cell_t stop_func  = INIT_OP(SECD_STOP);
 
 const cell_t ap_sym     = INIT_SYM("AP");
 const cell_t add_sym    = INIT_SYM("ADD");
@@ -631,29 +631,29 @@ const cell_t sub_sym    = INIT_SYM("SUB");
 const opcode_t opcode_table[] = {
     // opcodes: for information, not to be called
     // keep symbols sorted properly
-    [SECD_ADD]  = { &add_sym,     &add_func,  0},
-    [SECD_AP]   = { &ap_sym,      &ap_func,   0},
-    [SECD_ATOM] = { &atom_sym,    &atom_func, 0},
-    [SECD_CAR]  = { &car_sym,     &car_func,  0},
-    [SECD_CDR]  = { &cdr_sym,     &cdr_func,  0},
-    [SECD_CONS] = { &cons_sym,    &cons_func, 0},
-    [SECD_DIV]  = { &div_sym,     &div_func,  0},
-    [SECD_DUM]  = { &dum_sym,     &dum_func,  0},
-    [SECD_EQ]   = { &eq_sym,      &eq_func,   0},
-    [SECD_JOIN] = { &join_sym,    &join_func, 0},
-    [SECD_LD]   = { &ld_sym,      &ld_func,   1},
-    [SECD_LDC]  = { &ldc_sym,     &ldc_func,  1},
-    [SECD_LDF]  = { &ldf_sym,     &ldf_func,  1},
-    [SECD_LEQ]  = { &leq_sym,     &leq_func,  0},
-    [SECD_MUL]  = { &mul_sym,     &mul_func,  0},
-    [SECD_PRN]  = { &print_sym,   &print_func,0},
-    [SECD_RAP]  = { &rap_sym,     &rap_func,  0},
-    [SECD_READ] = { &read_sym,    &read_func, 0},
-    [SECD_REM]  = { &rem_sym,     &rem_func,  0},
-    [SECD_RTN]  = { &rtn_sym,     &rtn_func,  0},
-    [SECD_SEL]  = { &sel_sym,     &sel_func,  2},
-    [SECD_STOP] = { &stop_sym,    &stop_func, 0},
-    [SECD_SUB]  = { &sub_sym,     &sub_func,  0},
+    [SECD_ADD]  = { &add_sym,     secd_add,  0},
+    [SECD_AP]   = { &ap_sym,      secd_ap,   0},
+    [SECD_ATOM] = { &atom_sym,    secd_atom, 0},
+    [SECD_CAR]  = { &car_sym,     secd_car,  0},
+    [SECD_CDR]  = { &cdr_sym,     secd_cdr,  0},
+    [SECD_CONS] = { &cons_sym,    secd_cons, 0},
+    [SECD_DIV]  = { &div_sym,     secd_div,  0},
+    [SECD_DUM]  = { &dum_sym,     secd_dum,  0},
+    [SECD_EQ]   = { &eq_sym,      secd_eq,   0},
+    [SECD_JOIN] = { &join_sym,    secd_join, 0},
+    [SECD_LD]   = { &ld_sym,      secd_ld,   1},
+    [SECD_LDC]  = { &ldc_sym,     secd_ldc,  1},
+    [SECD_LDF]  = { &ldf_sym,     secd_ldf,  1},
+    [SECD_LEQ]  = { &leq_sym,     secd_leq,  0},
+    [SECD_MUL]  = { &mul_sym,     secd_mul,  0},
+    [SECD_PRN]  = { &print_sym,   secd_print,0},
+    [SECD_RAP]  = { &rap_sym,     secd_rap,  0},
+    [SECD_READ] = { &read_sym,    secd_read, 0},
+    [SECD_REM]  = { &rem_sym,     secd_rem,  0},
+    [SECD_RTN]  = { &rtn_sym,     secd_rtn,  0},
+    [SECD_SEL]  = { &sel_sym,     secd_sel,  2},
+    [SECD_STOP] = { &stop_sym,    NULL,      0},
+    [SECD_SUB]  = { &sub_sym,     secd_sub,  0},
 
     [SECD_LAST] = { NULL,         NULL,       0}
 };

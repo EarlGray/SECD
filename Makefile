@@ -1,10 +1,12 @@
 objs := interp.o machine.o env.o memory.o native.o readparse.o secd.o
 
+CFLAGS := -g
+
 secd: $(objs)
-	$(CC) $(objs) -o $@
+	$(CC) $(CFLAGS) $(objs) -o $@
 
 %.o : %.c
-	$(CC) -c $< -o $@ -Wall
+	$(CC) $(CFLAGS) -c $< -o $@ -Wall
 
 .PHONY: clean
 clean:

@@ -11,13 +11,9 @@
 #include <ctype.h>
 
 void print_opcode(opindex_t op) {
-    int i;
-    for (i = 0; opcode_table[i].sym; ++i) {
-        const cell_t *val = opcode_table[i].val;
-        if (op == val->as.atom.as.op) {
-            printf("#%s# ", symname(opcode_table[i].sym));
-            return;
-        }
+    if (0 <= op && op < SECD_LAST) {
+        printf("#%s# ", symname(opcode_table[op].sym));
+        return;
     }
     printf("#[%d]# ", op);
 }

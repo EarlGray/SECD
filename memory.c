@@ -66,6 +66,14 @@ cell_t *new_symbol(secd_t *secd, const char *sym) {
     return cell;
 }
 
+cell_t *new_op(secd_t *secd, opindex_t opind) {
+    cell_t *cell = pop_free(secd);
+    cell->type |= CELL_ATOM;
+    cell->as.atom.type = ATOM_OP;
+    cell->as.atom.as.op = opind;
+    return cell;
+}
+
 cell_t *new_clone(secd_t *secd, const cell_t *from) {
     if (!from) return NULL;
     cell_t *clone = pop_free(secd);
@@ -189,6 +197,6 @@ void init_mem(secd_t *secd, size_t size) {
     }
     cell_t * c = secd->data + size - 1;
     secd->nil = c;
-    c->type = (intptr_t)secd | size;
+    c->type = (intptr_t)secd | CELL_CONS;
     c->as.cons.cdr = NULL;
 }

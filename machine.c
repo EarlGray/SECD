@@ -1,6 +1,7 @@
 #include "secd.h"
 #include "memory.h"
 #include "env.h"
+#include "secdops.h"
 
 #include <stdlib.h>
 
@@ -37,10 +38,10 @@ void run_secd(secd_t *secd, cell_t *ctrl) {
         op = pop_control(secd);
         assertv(op, "run: no command");
         assert_or_continue(
-                atom_type(op) == ATOM_FUNC,
+                atom_type(op) == ATOM_OP,
                 "run: not an opcode at [%ld]\n", cell_index(op));
 
-        secd_opfunc_t callee = (secd_opfunc_t) op->as.atom.as.ptr;
+        secd_opfunc_t callee = (secd_opfunc_t) opcode_table[ op->as.atom.as.op ].fun;
         if (NULL == callee) return;  // STOP
 
         cell_t *ret = callee(secd);

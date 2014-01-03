@@ -215,6 +215,13 @@ inline static bool is_cons(const cell_t *cell) {
       .type = ATOM_INT,     \
       .as.num = (num) }}
 
+#define INIT_OP(op) {     \
+    .type = CELL_ATOM,      \
+    .nref = DONT_FREE_THIS, \
+    .as.atom = {            \
+      .type = ATOM_OP,     \
+      .as.num = (op) }}
+
 #define INIT_FUNC(func) {  \
     .type = CELL_ATOM,     \
     .nref = DONT_FREE_THIS,\
