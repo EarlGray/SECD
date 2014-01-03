@@ -3,6 +3,96 @@
 #include "secdops.h"
 
 /*
+ *  Compiled form of control paths
+ */
+
+cell_t *compile_control_path(secd_t *secd, cell_t *control) {
+    assert(control, "control path is NULL");
+    cell_t *compiled = secd->nil;
+
+    cell_t *cursor = control;
+    cell_t *compcursor = compiled;
+    while (not_nil(cursor)) {
+        cell_t *opcode = list_head(cursor);
+        if (atom_type(opcode) != ATOM_SYM) {
+            errorf("compile_control: not a symbol in control path\n");
+            sexp_print(opcode); printf("\n");
+            return NULL;
+        }
+
+        index_t opind = search_opcode_table(opcode);
+        assert(opind >= 0, "Opcode not found: %s", symname(opcode))
+
+        cell_t *new_cmd = new_clone(secd, opcode_table[opind].val);
+        cell_t *cc = new_cons(secd, new_cmd, secd->nil);
+        if (not_nil(compcursor)) {
+            compcursor->as.cons.cdr = share_cell(cc);
+            compcursor = list_next(compcursor);
+        } else {
+            compiled = compcursor = cc;
+        }
+        cursor = list_next(cursor);
+
+        cell_t *new_tail;
+
+        if (new_cmd->as.atom.as.op == SECD_AP) {
+            cell_t *next = list_head(cursor);
+            if (atom_type(next) == ATOM_INT) {
+                new_tail = new_cons(secd, next, secd->nil);
+                compcursor->as.cons.cdr = share_cell(new_tail);
+                compcursor = list_next(compcursor);
+                cursor = list_next(cursor);
+            }
+        }
+
+        if (opcode_table[opind].args > 0) {
+            if (new_cmd->as.atom.as.op == SECD_SEL) {
+                cell_t *thenb = compile_control_path(secd, list_head(cursor));
+                new_tail = new_cons(secd, thenb, secd->nil);
+                compcursor->as.cons.cdr = share_cell(new_tail);
+                compcursor = list_next(compcursor);
+                cursor = list_next(cursor);
+
+                cell_t *elseb = compile_control_path(secd, list_head(cursor));
+                new_tail = new_cons(secd, elseb, secd->nil);
+                compcursor->as.cons.cdr = share_cell(new_tail);
+                compcursor = list_next(compcursor);
+                cursor = list_next(cursor);
+            } else {
+                new_tail = new_cons(secd, list_head(cursor), secd->nil);
+                compcursor->as.cons.cdr = share_cell(new_tail);
+                compcursor = list_next(compcursor);
+                cursor = list_next(cursor);
+            }
+        }
+    }
+    return compiled;
+}
+
+bool is_control_compiled(cell_t *control) {
+    return atom_type(list_head(control)) == ATOM_FUNC;
+}
+
+cell_t* compiled_ctrl(secd_t *secd, cell_t *ctrl) {
+    if (is_control_compiled(ctrl))
+        return NULL;
+
+    cell_t *compiled = compile_control_path(secd, ctrl);
+    asserti(compiled, "compiled_ctrl: failed");
+
+    return compiled;
+}
+
+bool compile_ctrl(secd_t *secd, cell_t **ctrl) {
+    cell_t *compiled = compiled_ctrl(secd, *ctrl);
+    if (compiled) {
+        *ctrl = compiled;
+        return true;
+    }
+    return false;
+}
+
+/*
  *  SECD built-ins
  */
 
@@ -248,9 +338,8 @@ cell_t *secd_ldf(secd_t *secd) {
     assert(func, "secd_ldf: failed to get the control path");
 
     cell_t *body = list_head(list_next(func));
-    if (! is_control_compiled(body)) {
-        cell_t *compiled = compile_control_path(secd, body);
-        assert(compiled, "secd_ldf: failed to compile possible callee");
+    cell_t *compiled = compiled_ctrl(secd, body);
+    if (compiled) {
         drop_cell(body);
         func->as.cons.cdr->as.cons.car = share_cell(compiled);
     }
@@ -261,7 +350,39 @@ cell_t *secd_ldf(secd_t *secd) {
 }
 
 #if TAILRECURSION
-static cell_t * new_dump_if_tailrec(cell_t *control, cell_t *dump);
+/*
+ * returns a new dump for a tail-recursive call
+ * or NULL if no Tail Call Optimization.
+ */
+static cell_t * new_dump_if_tailrec(cell_t *control, cell_t *dump) {
+    if (is_nil(control))
+        return NULL;
+
+    cell_t *nextop = list_head(control);
+    if (atom_type(nextop) != ATOM_FUNC)
+        return NULL;
+    secd_opfunc_t opfun = nextop->as.atom.as.op.fun;
+
+    if (opfun == &secd_rtn) {
+        return dump;
+    } else if (opfun == &secd_join) {
+        cell_t *join = list_head(dump);
+        return new_dump_if_tailrec(join, list_next(dump));
+    } else if (opfun == &secd_cons) {
+        /* a situation of CONS CAR - it is how `begin` implemented */
+        cell_t *nextcontrol = list_next(control);
+        cell_t *afternext = list_head(nextcontrol);
+        if (atom_type(afternext) != ATOM_FUNC)
+            return NULL;
+        if (afternext->as.atom.as.op.fun != &secd_car)
+            return NULL;
+        return new_dump_if_tailrec(list_next(nextcontrol), dump);
+    }
+
+    /* all other commands (except DUM, which must have RAP after it)
+     * mess with the stack. TCO's not possible: */
+    return NULL;
+}
 #endif
 
 static cell_t *extract_argvals(secd_t *secd) {
@@ -319,13 +440,7 @@ cell_t *secd_ap(secd_t *secd) {
     cell_t *control = list_head(list_next(func));
     assert(is_cons(control), "secd_ap: control path is not a list");
 
-    if (! is_control_compiled( control )) {
-        // control has not been compiled yet
-        cell_t *compiled = compile_control_path(secd, control);
-        assert(compiled, "secd_ap: failed to compile callee");
-        //drop_cell(control); // no need: will be dropped with func
-        control = compiled;
-    }
+    compile_ctrl(secd, &control);
 
 #if TAILRECURSION
     cell_t *new_dump = new_dump_if_tailrec(secd->control, secd->dump);
@@ -407,12 +522,7 @@ cell_t *secd_rap(secd_t *secd) {
     cell_t *argnames = get_car(func);
     cell_t *control = get_car(list_next(func));
 
-    if (! is_control_compiled( control )) {
-        // control has not been compiled yet
-        cell_t *compiled = compile_control_path(secd, control);
-        assert(compiled, "secd_rap: failed to compile callee");
-        control = compiled;
-    }
+    compile_ctrl(secd, &control);
 
     push_dump(secd, secd->control);
     push_dump(secd, get_cdr(secd->env));
@@ -433,7 +543,7 @@ cell_t *secd_rap(secd_t *secd) {
     secd->env = share_cell(newenv);
 
     drop_cell(secd->control);
-    secd->control = share_cell(control);
+    set_control(secd, control);
 
     drop_cell(oldenv);
     drop_cell(closure); drop_cell(argvals);
@@ -510,9 +620,6 @@ const cell_t sel_sym    = INIT_SYM("SEL");
 const cell_t stop_sym   = INIT_SYM("STOP");
 const cell_t sub_sym    = INIT_SYM("SUB");
 
-const cell_t t_sym      = INIT_SYM("#t");
-const cell_t nil_sym    = INIT_SYM("NIL");
-
 const opcode_t opcode_table[] = {
     // opcodes: for information, not to be called
     // keep symbols sorted properly
@@ -545,14 +652,16 @@ const opcode_t opcode_table[] = {
 
 index_t optable_len = 0;
 
+inline size_t opcode_count(void) {
+    if (optable_len = 0)
+        while (opcode_table[optable_len].sym) ++optable_len;
+    return optable_len;
+}
 
 index_t search_opcode_table(cell_t *sym) {
-    if (optable_len == 0)
-        while (opcode_table[optable_len].sym) ++optable_len;
-
     index_t a = 0;
-    index_t b = optable_len;
-    while (opcode_table[b].sym) ++b;
+    index_t b = opcode_count();
+
     while (a != b) {
         index_t c = (a + b) / 2;
         int ord = str_cmp( symname(sym), symname(opcode_table[c].sym));

@@ -30,6 +30,33 @@ typedef  struct error error_t;
 typedef cell_t* (*secd_opfunc_t)(secd_t *);
 typedef cell_t* (*secd_nativefunc_t)(secd_t *, cell_t *);
 
+typedef enum {
+    SECD_ADD,
+    SECD_AP,
+    SECD_ATOM,
+    SECD_CAR,
+    SECD_CDR,
+    SECD_CONS,
+    SECD_DIV,
+    SECD_DUM,
+    SECD_EQ,
+    SECD_JOIN,
+    SECD_LD,
+    SECD_LDC,
+    SECD_LDF,
+    SECD_LEQ,
+    SECD_MUL,
+    SECD_PRN,
+    SECD_RAP,
+    SECD_READ,
+    SECD_REM,
+    SECD_RTN,
+    SECD_SEL,
+    SECD_STOP,
+    SECD_SUB,
+    SECD_LAST,
+} opindex_t;
+
 enum cell_type {
     /* main types */
     CELL_UNDEF,
@@ -46,6 +73,7 @@ enum atom_type {
     NOT_AN_ATOM,
     ATOM_INT,
     ATOM_SYM,
+    ATOM_OP,
     ATOM_FUNC,
 };
 
@@ -58,11 +86,7 @@ struct atom {
             const char *data;
         } sym;
 
-        struct {
-            secd_opfunc_t fun;
-            cell_t *sym;
-        } op;
-
+        opindex_t op;
         void *ptr;
     } as;
 };
@@ -191,14 +215,11 @@ inline static bool is_cons(const cell_t *cell) {
       .type = ATOM_INT,     \
       .as.num = (num) }}
 
-#define INIT_FUNC(func) {   \
-    .type = CELL_ATOM,      \
-    .nref = DONT_FREE_THIS, \
-    .as.atom = {            \
+#define INIT_FUNC(func) {  \
+    .type = CELL_ATOM,     \
+    .nref = DONT_FREE_THIS,\
+    .as.atom = {           \
       .type = ATOM_FUNC,   \
-      .as.op = {           \
-        .fun = (secd_opfunc_t)(func),     \
-        .sym = NULL        \
-    }}}
+      .as.ptr = (func) } }
 
 #endif //__SECD_H__

@@ -1,9 +1,16 @@
 #include "secd.h"
+#include "memory.h"
+#include "env.h"
+
+#include <string.h>
 
 /*
  * Some native functions
  */
 
+static inline cell_t *to_bool(secd_t *secd, bool cond) {
+    return ((cond)? lookup_env(secd, "#t") : secd->nil);
+}
 
 cell_t *secdf_list(secd_t __unused *secd, cell_t *args) {
     ctrldebugf("secdf_list\n");
@@ -191,6 +198,12 @@ const cell_t debug_func = INIT_FUNC(secdf_ctl);
 const cell_t getenv_fun = INIT_FUNC(secdf_getenv);
 const cell_t bind_func  = INIT_FUNC(secdf_bind);
 
+const cell_t t_sym      = INIT_SYM("#t");
+const cell_t nil_sym    = INIT_SYM("NIL");
+
+const struct {
+    const cell_t *sym;
+    const cell_t *val;
 } native_functions[] = {
     // native functions
     { &list_sym,    &list_func  },
@@ -218,7 +231,7 @@ cell_t * make_frame_of_natives(secd_t *secd) {
         cell_t *sym = new_clone(secd, native_functions[i].sym);
         cell_t *val = new_clone(secd, native_functions[i].val);
         sym->nref = val->nref = DONT_FREE_THIS;
-        cell_t *closure = new_cons(secd, val, env);
+        cell_t *closure = new_cons(secd, val, secd->nil);
         symlist = new_cons(secd, sym, symlist);
         vallist = new_cons(secd, closure, vallist);
     }
