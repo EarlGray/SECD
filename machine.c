@@ -38,15 +38,15 @@ void run_secd(secd_t *secd, cell_t *ctrl) {
         op = pop_control(secd);
         assertv(op, "run: no command");
         assert_or_continue(
-                atom_type(op) == ATOM_OP,
-                "run: not an opcode at [%ld]\n", cell_index(op));
+                atom_type(secd, op) == ATOM_OP,
+                "run: not an opcode at [%ld]\n", cell_index(secd, op));
 
         secd_opfunc_t callee = (secd_opfunc_t) opcode_table[ op->as.atom.as.op ].fun;
         if (NULL == callee) return;  // STOP
 
         cell_t *ret = callee(secd);
         assertv(ret, "run: Instruction failed\n");
-        drop_cell(op);
+        drop_cell(secd, op);
         ++secd->tick;
     }
 }

@@ -18,8 +18,8 @@ void print_opcode(opindex_t op) {
     printf("#[%d]# ", op);
 }
 
-void sexp_print_atom(const cell_t *c) {
-    switch (atom_type(c)) {
+void secd_print_atom(secd_t *secd, const cell_t *c) {
+    switch (atom_type(secd, c)) {
       case ATOM_INT: printf("%d", c->as.atom.as.num); break;
       case ATOM_SYM: printf("%s", c->as.atom.as.sym.data); break;
       case ATOM_OP: print_opcode(c->as.atom.as.op); break;
@@ -28,55 +28,55 @@ void sexp_print_atom(const cell_t *c) {
     }
 }
 
-void print_cell(const cell_t *c) {
+void print_cell(secd_t *secd, const cell_t *c) {
     assertv(c, "print_cell(NULL)\n");
-    if (is_nil(c)) {
+    if (is_nil(secd, c)) {
          printf("NIL\n");
          return;
     }
-    printf("[%ld]^%ld: ", cell_index(c), c->nref);
+    printf("[%ld]^%ld: ", cell_index(secd, c), c->nref);
     switch (cell_type(c)) {
       case CELL_CONS:
         printf("CONS([%ld], [%ld])\n",
-               cell_index(get_car(c)), cell_index(get_cdr(c)));
+               cell_index(secd, get_car(c)), cell_index(secd, get_cdr(c)));
         break;
       case CELL_FRAME:
         printf("FRAME(syms: [%ld], vals: [%ld])\n",
-               cell_index(get_car(c)), cell_index(get_cdr(c)));
+               cell_index(secd, get_car(c)), cell_index(secd, get_cdr(c)));
         break;
       case CELL_ATOM:
-        sexp_print_atom(c); printf("\n");
+        secd_print_atom(secd, c); printf("\n");
         break;
       default:
         printf("unknown type: %d\n", cell_type(c));
     }
 }
 
-void print_list(cell_t *list) {
+void print_list(secd_t *secd, cell_t *list) {
     printf("  -= ");
-    while (not_nil(list)) {
+    while (not_nil(secd, list)) {
         assertv(is_cons(list),
-                "Not a cons at [%ld]\n", cell_index(list));
-        printf("[%ld]:%ld\t", cell_index(list), cell_index(get_car(list)));
-        print_cell(get_car(list));
+                "Not a cons at [%ld]\n", cell_index(secd, list));
+        printf("[%ld]:%ld\t", cell_index(secd, list), cell_index(secd, get_car(list)));
+        print_cell(secd, get_car(list));
         printf("  -> ");
-        list = list_next(list);
+        list = list_next(secd, list);
     }
     printf("NIL\n");
 }
 
-void printc(cell_t *c) {
+void printc(secd_t *secd, cell_t *c) {
     assertv(c, "printc(NULL)");
     if (is_cons(c))
-        print_list(c);
+        print_list(secd, c);
     else
-        print_cell(c);
+        print_cell(secd, c);
 }
 
-void sexp_print(cell_t *cell) {
+void sexp_print(secd_t* secd, cell_t *cell) {
     switch (cell_type(cell)) {
       case CELL_ATOM:
-        sexp_print_atom(cell);
+        secd_print_atom(secd, cell);
         break;
       case CELL_FRAME:
         printf("#<envframe> ");
@@ -84,15 +84,15 @@ void sexp_print(cell_t *cell) {
       case CELL_CONS:
         printf("(");
         cell_t *iter = cell;
-        while (not_nil(iter)) {
+        while (not_nil(secd, iter)) {
             if (iter != cell) printf(" ");
             if (cell_type(iter) != CELL_CONS) {
-                printf(". "); sexp_print(iter); break;
+                printf(". "); sexp_print(secd, iter); break;
             }
 
             cell_t *head = get_car(iter);
-            sexp_print(head);
-            iter = list_next(iter);
+            sexp_print(secd, head);
+            iter = list_next(secd, iter);
         }
         printf(") ");
         break;
@@ -255,12 +255,12 @@ cell_t *read_list(secd_t *secd, secd_parser_t *p) {
               ++ p->nested;
               val = read_list(secd, p);
               if (p->token == TOK_ERR) {
-                  free_cell(head);
+                  free_cell(secd, head);
                   errorf("read_list: TOK_ERR\n");
                   return NULL;
               }
               if (p->token == TOK_EOF) {
-                  free_cell(head);
+                  free_cell(secd, head);
                   errorf("read_list: TOK_EOF, ')' expected\n");
               }
               assert(p->token == ')', "read_list: not a closing bracket");
@@ -277,13 +277,13 @@ cell_t *read_list(secd_t *secd, secd_parser_t *p) {
 
            default:
               errorf("Unknown token: %1$d ('%1$c')", tok);
-              free_cell(head);
+              free_cell(secd, head);
               return NULL;
         }
 
         newtail = new_cons(secd, val, secd->nil);
-        if (not_nil(head)) {
-            tail->as.cons.cdr = share_cell(newtail);
+        if (not_nil(secd, head)) {
+            tail->as.cons.cdr = share_cell(secd, newtail);
             tail = newtail;
         } else {
             head = tail = newtail;
@@ -299,7 +299,7 @@ cell_t *sexp_read(secd_t *secd, secd_parser_t *p) {
         inp = read_list(secd, p);
         if (p->token != ')') {
             errorf("read_secd: failed\n");
-            if (inp) drop_cell(inp);
+            if (inp) drop_cell(secd, inp);
             return NULL;
         }
         break;
@@ -346,7 +346,7 @@ cell_t *read_secd(secd_t *secd, FILE *f) {
     cell_t *result = read_list(secd, &p);
     if (p.token != ')') {
         errorf("read_secd: the end bracket expected\n");
-        if (result) drop_cell(result);
+        if (result) drop_cell(secd, result);
         return NULL;
     }
     return result;

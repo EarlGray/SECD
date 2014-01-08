@@ -13,32 +13,31 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control);
 
 cell_t *pop_free(secd_t *secd) {
     cell_t *cell = secd->free;
-    assert(not_nil(cell), "pop_free: no free memory");
+    assert(not_nil(secd, cell), "pop_free: no free memory");
 
-    secd->free = list_next(cell);
-    memdebugf("NEW [%ld]\n", cell_index(cell));
+    secd->free = list_next(secd, cell);
+    memdebugf("NEW [%ld]\n", cell_index(secd, cell));
     -- secd->free_cells;
 
     cell->type = (intptr_t)secd;
     return cell;
 }
 
-void push_free(cell_t *c) {
+void push_free(secd_t *secd, cell_t *c) {
     assertv(c, "push_free(NULL)");
-    assertv(c->nref == 0, "push_free: [%ld]->nref is %ld\n", cell_index(c), c->nref);
-    secd_t *secd = cell_secd(c);
+    assertv(c->nref == 0, "push_free: [%ld]->nref is %ld\n", cell_index(secd, c), c->nref);
     c->type = (intptr_t)secd | CELL_CONS;
     c->as.cons.cdr = secd->free;
     secd->free = c;
     ++ secd->free_cells;
-    memdebugf("FREE[%ld]\n", cell_index(c));
+    memdebugf("FREE[%ld]\n", cell_index(secd, c));
 }
 
 cell_t *new_cons(secd_t *secd, cell_t *car, cell_t *cdr) {
     cell_t *cell = pop_free(secd);
     cell->type |= CELL_CONS;
-    cell->as.cons.car = share_cell(car);
-    cell->as.cons.cdr = share_cell(cdr);
+    cell->as.cons.car = share_cell(secd, car);
+    cell->as.cons.cdr = share_cell(secd, cdr);
     return cell;
 }
 
@@ -107,83 +106,83 @@ void free_atom(cell_t *cell) {
     }
 }
 
-cell_t *free_cell(cell_t *c) {
+cell_t *free_cell(secd_t *secd, cell_t *c) {
     enum cell_type t = cell_type(c);
     switch (t) {
       case CELL_ATOM:
         free_atom(c);
         break;
       case CELL_FRAME:
-        drop_cell(get_car(c));
-        drop_cell(get_cdr(c));
+        drop_cell(secd, get_car(c));
+        drop_cell(secd, get_cdr(c));
         break;
       case CELL_CONS:
-        drop_cell(get_car(c));
-        drop_cell(get_cdr(c));
+        drop_cell(secd, get_car(c));
+        drop_cell(secd, get_cdr(c));
         break;
       case CELL_ERROR:
         return c;
       default:
-        return new_error(cell_secd(c), "free_cell: unknown cell_type 0x%x", t);
+        return new_error(secd, "free_cell: unknown cell_type 0x%x", t);
     }
-    push_free(c);
+    push_free(secd, c);
     return NULL;
 }
 
 inline static cell_t *push(secd_t *secd, cell_t **to, cell_t *what) {
     cell_t *newtop = new_cons(secd, what, *to);
-    drop_cell(*to);
-    return (*to = share_cell(newtop));
+    drop_cell(secd, *to);
+    return (*to = share_cell(secd, newtop));
 }
 
-inline static cell_t *pop(cell_t **from) {
+inline static cell_t *pop(secd_t *secd, cell_t **from) {
     cell_t *top = *from;
-    assert(not_nil(top), "pop: stack is empty");
+    assert(not_nil(secd, top), "pop: stack is empty");
     assert(is_cons(top), "pop: not a cons");
 
-    cell_t *val = share_cell(get_car(top));
-    *from = share_cell(get_cdr(top));
-    drop_cell(top);
+    cell_t *val = share_cell(secd, get_car(top));
+    *from = share_cell(secd, get_cdr(top));
+    drop_cell(secd, top);
     return val;
 }
 
 cell_t *push_stack(secd_t *secd, cell_t *newc) {
     cell_t *top = push(secd, &secd->stack, newc);
-    memdebugf("PUSH S[%ld (%ld, %ld)]\n", cell_index(top),
-                        cell_index(get_car(top)), cell_index(get_cdr(top)));
+    memdebugf("PUSH S[%ld (%ld, %ld)]\n", cell_index(secd, top),
+                        cell_index(secd, get_car(top)), cell_index(secd, get_cdr(top)));
     return top;
 }
 
 cell_t *pop_stack(secd_t *secd) {
-    cell_t *cell = pop(&secd->stack);
-    memdebugf("POP S[%ld]\n", cell_index(cell));
+    cell_t *cell = pop(secd, &secd->stack);
+    memdebugf("POP S[%ld]\n", cell_index(secd, cell));
     return cell; // don't forget to drop_call(result)
 }
 
 cell_t *set_control(secd_t *secd, cell_t *opcons) {
     assert(is_cons(opcons),
-           "set_control: failed, not a cons at [%ld]\n", cell_index(opcons));
+           "set_control: failed, not a cons at [%ld]\n", cell_index(secd, opcons));
     if (! is_control_compiled(opcons)) {
         opcons = compile_control_path(secd, opcons);
         assert(opcons, "set_control: failed to compile control path");
     }
-    return (secd->control = share_cell(opcons));
+    return (secd->control = share_cell(secd, opcons));
 }
 
 cell_t *pop_control(secd_t *secd) {
-    return pop(&secd->control);
+    return pop(secd, &secd->control);
 }
 
 cell_t *push_dump(secd_t *secd, cell_t *cell) {
     cell_t *top = push(secd, &secd->dump, cell);
-    memdebugf("PUSH D[%ld] (%ld, %ld)\n", cell_index(top),
-            cell_index(get_car(top), get_cdr(top)));
+    memdebugf("PUSH D[%ld] (%ld, %ld)\n", cell_index(secd, top),
+            cell_index(secd, get_car(top), get_cdr(top)));
     return top;
 }
 
 cell_t *pop_dump(secd_t *secd) {
-    cell_t *cell = pop(&secd->dump);
-    memdebugf("POP D[%ld]\n", cell_index(cell));
+    cell_t *cell = pop(secd, &secd->dump);
+    memdebugf("POP D[%ld]\n", cell_index(secd, cell));
     return cell;
 }
 

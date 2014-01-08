@@ -60,13 +60,19 @@ typedef enum {
 enum cell_type {
     /* main types */
     CELL_UNDEF,
-    CELL_ATOM,
     CELL_CONS,
-
     /* the same as CELL_CONS */
     CELL_FRAME,  // a environment frame
 
+    CELL_ATOM,
+    /* atoms
+    CELL_INT,
+    CELL_SYM,
+    CELL_OP,
+    CELL_FUNC, */
+
     CELL_ERROR,
+    //CELL_LAST
 };
 
 enum atom_type {
@@ -147,22 +153,21 @@ inline static secd_t *cell_secd(const cell_t *c) {
     return (secd_t *)((INTPTR_MAX << SECD_ALIGN) & c->type);
 }
 
-inline static enum atom_type atom_type(const cell_t *c) {
+inline static enum atom_type atom_type(secd_t *secd, const cell_t *c) {
     if (cell_type(c) != CELL_ATOM) return NOT_AN_ATOM;
     return (enum atom_type)(c->as.atom.type);
 }
 
-inline static bool is_nil(const cell_t *cell) {
-    secd_t *secd = cell_secd(cell);
+inline static bool is_nil(secd_t *secd, const cell_t *cell) {
     return cell == secd->nil;
 }
-inline static bool not_nil(const cell_t *cell) {
-    return !is_nil(cell);
+inline static bool not_nil(secd_t *secd, const cell_t *cell) {
+    return !is_nil(secd, cell);
 }
 
-inline static long cell_index(const cell_t *cons) {
-    if (is_nil(cons)) return -1;
-    return cons - cell_secd(cons)->data;
+inline static long cell_index(secd_t *secd, const cell_t *cons) {
+    if (is_nil(secd, cons)) return -1;
+    return cons - secd->data;
 }
 
 inline static const char * symname(const cell_t *c) {
@@ -173,12 +178,12 @@ inline static int numval(const cell_t *c) {
     return c->as.atom.as.num;
 }
 
-void print_cell(const cell_t *c);
+void print_cell(secd_t *secd, const cell_t *c);
 
-inline static cell_t *list_next(const cell_t *cons) {
+inline static cell_t *list_next(secd_t *secd, const cell_t *cons) {
     if (cell_type(cons) != CELL_CONS) {
-        errorf("list_next: not a cons at [%ld]\n", cell_index(cons));
-        print_cell(cons);
+        errorf("list_next: not a cons at [%ld]\n", cell_index(secd, cons));
+        print_cell(secd, cons);
         return NULL;
     }
     return cons->as.cons.cdr;

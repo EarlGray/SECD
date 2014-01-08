@@ -9,7 +9,7 @@
  */
 
 cell_t *pop_free(secd_t *secd);
-void push_free(cell_t *c);
+void push_free(secd_t *secd, cell_t *c);
 
 cell_t *new_cons(secd_t *secd, cell_t *car, cell_t *cdr);
 cell_t *new_frame(secd_t *secd, cell_t *syms, cell_t *vals);
@@ -19,7 +19,7 @@ cell_t *new_op(secd_t *secd, opindex_t opind);
 cell_t *new_clone(secd_t *secd, const cell_t *from);
 cell_t *new_error(secd_t *secd, const char *fmt, ...);
 
-cell_t *free_cell(cell_t *c);
+cell_t *free_cell(secd_t *, cell_t *c);
 
 cell_t *push_stack(secd_t *secd, cell_t *newc);
 cell_t *pop_stack(secd_t *secd);
@@ -34,8 +34,8 @@ cell_t *pop_dump(secd_t *secd);
  * Reference-counting
  */
 
-inline static cell_t *share_cell(cell_t *c) {
-    if (not_nil(c)) {
+inline static cell_t *share_cell(secd_t *secd, cell_t *c) {
+    if (not_nil(secd, c)) {
         ++c->nref;
         memtracef("share[%ld] %ld\n", cell_index(c), c->nref);
     } else {
@@ -44,19 +44,19 @@ inline static cell_t *share_cell(cell_t *c) {
     return c;
 }
 
-inline static cell_t *drop_cell(cell_t *c) {
-    if (is_nil(c)) {
+inline static cell_t *drop_cell(secd_t *secd, cell_t *c) {
+    if (is_nil(secd, c)) {
         memdebugf("drop [NIL]\n");
         return NULL;
     }
     if (c->nref <= 0) {
-        assert(c->nref > 0, "drop_cell[%ld]: negative", cell_index(c));
+        assert(c->nref > 0, "drop_cell[%ld]: negative", cell_index(secd, c));
     }
 
     -- c->nref;
     memtracef("drop [%ld] %ld\n", cell_index(c), c->nref);
     if (c->nref) return c;
-    return free_cell(c);
+    return free_cell(secd, c);
 }
 
 /*

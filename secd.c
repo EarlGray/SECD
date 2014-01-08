@@ -18,23 +18,23 @@ int main(int argc, char *argv[]) {
     envdebugf(">>>>>\n");
     cell_t *inp = read_secd(&secd, op_in);
     asserti(inp, "read_secd failed");
-    if (is_nil(inp)) {
+    if (is_nil(&secd, inp)) {
         printf("no commands.\n\n");
         return 0;
     }
 
     if (ENVDEBUG) {
         envdebugf("Control path:\n");
-        sexp_print(inp);
+        sexp_print(&secd, inp);
     }
     envdebugf("<<<<<\n");
 
     run_secd(&secd, inp);
 
     envdebugf("-----\n");
-    if (not_nil(secd.stack)) {
+    if (not_nil(&secd, secd.stack)) {
         envdebugf("Stack head:\n");
-        printc(get_car(secd.stack));
+        printc(&secd, get_car(secd.stack));
     } else {
         envdebugf("Stack is empty\n");
     }
