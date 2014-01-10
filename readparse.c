@@ -1,7 +1,6 @@
 #include "secd.h"
 
 #include "secdops.h"
-#include "readparse.h"
 #include "memory.h"
 
 #include <stdlib.h>
@@ -11,7 +10,7 @@
 #include <ctype.h>
 
 void print_opcode(opindex_t op) {
-    if (0 <= op && op < SECD_LAST) {
+    if (op < SECD_LAST) {
         printf("#%s# ", symname(opcode_table[op].sym));
         return;
     }
@@ -132,7 +131,7 @@ const char not_symbol_chars[] = " ();\n";
 
 struct secd_parser {
     token_t token;
-    FILE *f;
+    secd_stream_t *f;
 
     /* lexer guts */
     int lc;
@@ -145,9 +144,9 @@ struct secd_parser {
 
 cell_t *sexp_read(secd_t *secd, secd_parser_t *p);
 
-secd_parser_t *init_parser(secd_parser_t *p, FILE *f) {
+secd_parser_t *init_parser(secd_parser_t *p, secd_stream_t *f) {
     p->lc = ' ';
-    p->f = (f ? f : stdin);
+    p->f = f;
     p->nested = 0;
 
     memset(p->issymbc, false, 0x20);
@@ -158,14 +157,9 @@ secd_parser_t *init_parser(secd_parser_t *p, FILE *f) {
     return p;
 }
 
-secd_parser_t *new_parser(FILE *f) {
-    secd_parser_t *p = (secd_parser_t *)calloc(1, sizeof(secd_parser_t));
-    return init_parser(p, f);
-}
-
 inline static int nextchar(secd_parser_t *p) {
-    //printf("nextchar\n");
-    return p->lc = fgetc(p->f);
+    secd_stream_t *f = p->f;
+    return p->lc = f->getc(f->data);
 }
 
 token_t lexnext(secd_parser_t *p) {
@@ -328,13 +322,13 @@ cell_t *sexp_read(secd_t *secd, secd_parser_t *p) {
     return inp;
 }
 
-cell_t *sexp_parse(secd_t *secd, FILE *f) {
+cell_t *sexp_parse(secd_t *secd, secd_stream_t *f) {
     secd_parser_t p;
     init_parser(&p, f);
     return sexp_read(secd, &p);
 }
 
-cell_t *read_secd(secd_t *secd, FILE *f) {
+cell_t *read_secd(secd_t *secd, secd_stream_t *f) {
     secd_parser_t p;
     init_parser(&p, f);
 

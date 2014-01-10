@@ -1,6 +1,6 @@
 objs := interp.o machine.o env.o memory.o native.o readparse.o secd.o
 
-CFLAGS := -g
+CFLAGS := -g -Wno-shift-overflow
 
 secd: $(objs)
 	$(CC) $(CFLAGS) $(objs) -o $@

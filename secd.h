@@ -27,6 +27,8 @@ typedef  struct atom  atom_t;
 typedef  struct cons  cons_t;
 typedef  struct error error_t;
 
+typedef  struct secd_stream  secd_stream_t;
+
 typedef cell_t* (*secd_opfunc_t)(secd_t *);
 typedef cell_t* (*secd_nativefunc_t)(secd_t *, cell_t *);
 
@@ -135,6 +137,7 @@ struct secd  {
     cell_t *global_env;
 
     unsigned long tick;
+    secd_stream_t *input;
 
     size_t used_stack;
     size_t free_cells;
@@ -235,10 +238,26 @@ inline static bool is_cons(const cell_t *cell) {
       .as.ptr = (func) } }
 
 /*
+ * parser
+ */
+struct secd_stream {
+    int (*getc)(void *);
+    void *data;
+};
+
+void print_cell(secd_t *secd, const cell_t *c);
+void printc(secd_t *secd, cell_t *c);
+
+void sexp_print(secd_t *secd, cell_t *c);
+
+cell_t *sexp_parse(secd_t *secd, secd_stream_t *f);
+cell_t *read_secd(secd_t *secd, secd_stream_t *f);
+
+/*
  * machine
  */
 
-secd_t * init_secd(secd_t *secd);
+secd_t * init_secd(secd_t *secd, secd_stream_t *readstream);
 void run_secd(secd_t *secd, cell_t *ctrl);
 
 #endif //__SECD_H__

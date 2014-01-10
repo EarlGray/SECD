@@ -9,7 +9,7 @@
  * SECD machine
  */
 
-secd_t * init_secd(secd_t *secd) {
+secd_t * init_secd(secd_t *secd, secd_stream_t *readstream) {
     /* allocate memory chunk */
     secd->data = (cell_t *)calloc(N_CELLS, sizeof(cell_t));
 
@@ -18,6 +18,8 @@ secd_t * init_secd(secd_t *secd) {
     secd->free = secd->data;
     secd->stack = secd->dump =  secd->nil;
     secd->control = secd->env =  secd->nil;
+
+    secd->input = readstream;
 
     secd->free_cells = N_CELLS - 1;
     secd->used_stack = 0;

@@ -1,7 +1,6 @@
 #include "secd.h"
 #include "memory.h"
 #include "secdops.h"
-#include "readparse.h"
 #include "env.h"
 
 #include <string.h>
@@ -562,7 +561,7 @@ cell_t *secd_rap(secd_t *secd) {
 cell_t *secd_read(secd_t *secd) {
     ctrldebugf("READ\n");
 
-    cell_t *inp = sexp_parse(secd, NULL);
+    cell_t *inp = sexp_parse(secd, secd->input);
     assert(inp, "secd_read: failed to read");
 
     push_stack(secd, inp);
