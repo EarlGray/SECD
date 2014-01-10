@@ -1,4 +1,5 @@
-objs := interp.o machine.o env.o memory.o native.o readparse.o secd.o
+libobjs := interp.o machine.o env.o memory.o native.o readparse.o
+objs := $(libobjs) secd.o
 
 CFLAGS := -g -Wno-shift-overflow
 
@@ -8,9 +9,12 @@ secd: $(objs)
 %.o : %.c
 	$(CC) $(CFLAGS) -c $< -o $@ -Wall
 
+libsecd: $(libobjs)
+	ar -r libsecd.a $(libobjs)
+
 .PHONY: clean
 clean:
-	rm secd *.o
+	rm secd *.o libsecd\* || true
 
 interp.o : interp.c
 machine.o : machine.c
