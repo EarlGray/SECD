@@ -4,28 +4,42 @@
 #include <string.h>
 #include <stdarg.h>
 
+bool is_control_compiled(cell_t *control);
+cell_t *compile_control_path(secd_t *secd, cell_t *control);
+
 /*
  *  Cell memory management
  */
 
-bool is_control_compiled(cell_t *control);
-cell_t *compile_control_path(secd_t *secd, cell_t *control);
+static inline cell_t*
+init_cons(secd_t *secd, cell_t *car, cell_t *cdr, cell_t *cell) {
+    cell->type = (intptr_t)secd | CELL_CONS;
+    cell->as.cons.car = share_cell(secd, car);
+    cell->as.cons.cdr = share_cell(secd, cdr);
+    return cell;
+}
 
 cell_t *pop_free(secd_t *secd) {
     cell_t *cell;
-    if (is_nil(secd->free)) {
+    if (not_nil(secd->free)) {
+        /* take a cell from the list */
+        cell = secd->free;
+        secd->free = get_cdr(secd->free);
+        if (secd->free)
+            secd->free->as.cons.car = SECD_NIL;
+        memdebugf("NEW [%ld]\n", cell_index(secd, cell));
+        -- secd->free_cells;
+    } else {
+        /* move fixedptr */
         if (secd->fixedptr >= secd->arrayptr)
             return &secd_out_of_memory;
 
         cell = secd->fixedptr;
         ++ secd->fixedptr;
-    } else {
-        cell = secd->free;
-        secd->free = list_next(secd, cell);
-        memdebugf("NEW [%ld]\n", cell_index(secd, cell));
-        -- secd->free_cells;
+        memdebugf("NEW [%ld] ++\n", cell_index(secd, cell));
     }
     cell->type = (intptr_t)secd;
+    cell->nref = 0;
     return cell;
 }
 
@@ -33,20 +47,48 @@ void push_free(secd_t *secd, cell_t *c) {
     assertv(c, "push_free(NULL)");
     assertv(c->nref == 0,
             "push_free: [%ld]->nref is %ld\n", cell_index(secd, c), c->nref);
-    c->type = (intptr_t)secd | CELL_CONS;
-    c->as.cons.cdr = secd->free;
-    secd->free = c;
-    ++ secd->free_cells;
-    memdebugf("FREE[%ld]\n", cell_index(secd, c));
+
+    if (c + 1 < secd->fixedptr) {
+        /* just add the cell to the list secd->free */
+        if (not_nil(secd->free))
+            secd->free->as.cons.car = c;
+        c->type = CELL_UNDEF;
+        c->as.cons.car = SECD_NIL;
+        c->as.cons.cdr = secd->free;
+        secd->free = c;
+
+        ++secd->free_cells;
+        memdebugf("FREE[%ld], %ld free\n", 
+                cell_index(secd, c), secd->free_cells);
+    } else {
+        /* it is a cell adjacent to the free space */
+        c->type = CELL_UNDEF;
+        while (c->type == CELL_UNDEF) {
+            if (c != secd->free) {
+                cell_t *prev = c->as.cons.car;
+                cell_t *next = c->as.cons.cdr;
+                if (not_nil(prev)) {
+                    prev->as.cons.cdr = next;
+                }
+                if (not_nil(next)) {
+                    next->as.cons.car = prev;
+                }
+            } else {
+                cell_t *prev = c->as.cons.car;
+                if (not_nil(prev))
+                    prev->as.cons.cdr = SECD_NIL;
+                secd->free = prev;
+            }
+            memdebugf("FREE[%ld] --\n", cell_index(secd, c));
+            --c;
+            --secd->free_cells;
+        }
+
+        secd->fixedptr = c + 1;
+        memdebugf("FREE[], %ld free\n", secd->free_cells);
+    }
 }
 
-static inline cell_t*
-init_cons(secd_t *secd, cell_t *car, cell_t *cdr, cell_t *cell) {
-    cell->type |= CELL_CONS;
-    cell->as.cons.car = share_cell(secd, car);
-    cell->as.cons.cdr = share_cell(secd, cdr);
-    return cell;
-}
 
 cell_t *new_cons(secd_t *secd, cell_t *car, cell_t *cdr) {
     return init_cons(secd, car, cdr, pop_free(secd));
@@ -204,7 +246,8 @@ cell_t *pop_control(secd_t *secd) {
 cell_t *push_dump(secd_t *secd, cell_t *cell) {
     cell_t *top = push(secd, &secd->dump, cell);
     memdebugf("PUSH D[%ld] (%ld, %ld)\n", cell_index(secd, top),
-            cell_index(secd, get_car(top), get_cdr(top)));
+            cell_index(secd, get_car(top)), 
+            cell_index(secd, get_cdr(top)));
     ++secd->used_dump;
     return top;
 }
@@ -222,4 +265,9 @@ void init_mem(secd_t *secd, cell_t *heap, size_t size) {
 
     secd->fixedptr = secd->begin;
     secd->arrayptr = secd->end - 1;
+
+    secd->used_stack = 0;
+    secd->used_dump = 0;
+    secd->used_control = 0;
+    secd->free_cells = 0;
 }

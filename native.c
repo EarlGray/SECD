@@ -118,11 +118,17 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
     cell_t *arg1 = list_head(args);
     if (atom_type(secd, arg1) == ATOM_SYM) {
         if (str_eq(symname(arg1), "free")) {
-            printf("SECDCTL: Available cells: %lu\n", secd->free_cells);
+            printf(";; SECDCTL: \n");
+            printf(";;  size = %ld\n", secd->end - secd->begin);
+            printf(";;  fixedptr = %ld\n", secd->fixedptr - secd->begin);
+            printf(";;  arrayptr = %ld\n", secd->arrayptr - secd->begin);
+            printf(";;  Fixed cells: %ld free, %ld dump\n", 
+                    secd->free_cells, secd->used_dump);
         } else if (str_eq(symname(arg1), "env")) {
             print_env(secd);
         } else if (str_eq(symname(arg1), "tick")) {
             printf("SECDCTL: tick = %lu\n", secd->tick);
+            return new_number(secd, secd->tick);
         } else {
             goto help;
         }

@@ -28,7 +28,6 @@ void secd_print_atom(secd_t *secd, const cell_t *c) {
 }
 
 void print_cell(secd_t *secd, const cell_t *c) {
-    assertv(c, "print_cell(NULL)\n");
     if (is_nil(c)) {
          printf("NIL\n");
          return;
@@ -65,7 +64,6 @@ void print_list(secd_t *secd, cell_t *list) {
 }
 
 void printc(secd_t *secd, cell_t *c) {
-    assertv(c, "printc(NULL)");
     if (is_cons(c))
         print_list(secd, c);
     else

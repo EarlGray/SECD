@@ -169,7 +169,7 @@ struct secd {
     cell_t *control;    // list
     cell_t *dump;       // list
 
-    cell_t *free;       // list
+    cell_t *free;       // double-linked list
     cell_t *global_env; // frame
 
     // all cells before this one are fixed-size cells
@@ -188,8 +188,9 @@ struct secd {
     /* some statistics */
     unsigned long tick;
 
-    size_t used_dump;
     size_t used_stack;
+    size_t used_control;
+    size_t used_dump;
     size_t free_cells;
 };
 

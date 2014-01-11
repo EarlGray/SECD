@@ -38,14 +38,14 @@ inline static cell_t *share_cell(secd_t *secd, cell_t *c) {
         ++c->nref;
         memtracef("share[%ld] %ld\n", cell_index(c), c->nref);
     } else {
-        memdebugf("share[NIL]\n");
+        memtracef("share[NIL]\n");
     }
     return c;
 }
 
 inline static cell_t *drop_cell(secd_t *secd, cell_t *c) {
     if (is_nil(c)) {
-        memdebugf("drop [NIL]\n");
+        memtracef("drop [NIL]\n");
         return NULL;
     }
     if (c->nref <= 0) {

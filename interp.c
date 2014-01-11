@@ -538,7 +538,7 @@ cell_t *secd_rap(secd_t *secd) {
 
     cell_t *frame = new_frame(secd, argnames, argvals);
 #if CTRLDEBUG
-    printf("new frame: \n"); print_cell(frame);
+    printf("new frame: \n"); print_cell(secd, frame);
     printf(" argnames: \n"); printc(secd, argnames);
     printf(" argvals : \n"); printc(secd, argvals);
 #endif

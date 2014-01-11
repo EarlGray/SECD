@@ -24,7 +24,7 @@ void print_env(secd_t *secd) {
             cell_t *sym = get_car(symlist);
             cell_t *val = get_car(vallist);
             if (atom_type(secd, sym) != ATOM_SYM)
-                fprintf(stderr, "print_env: not a symbol at *%p in vallist\n", sym);
+                errorf("print_env: not a symbol at *%p in vallist\n", sym);
             printf("  %s\t=>\t", symname(sym));
             print_cell(secd, val);
 
@@ -46,12 +46,12 @@ void init_env(secd_t *secd) {
 
 cell_t *lookup_env(secd_t *secd, const char *symbol) {
     cell_t *env = secd->env;
-    assert(cell_type(env) == CELL_CONS, "lookup_env: environment is not a list\n");
+    assert(cell_type(env) == CELL_CONS, 
+            "lookup_env: environment is not a list\n");
 
     while (not_nil(env)) {       // walk through frames
         cell_t *frame = get_car(env);
         if (is_nil(frame)) {
-            //printf("lookup_env: warning: skipping OMEGA-frame...\n");
             env = list_next(secd, env);
             continue;
         }
@@ -63,7 +63,8 @@ cell_t *lookup_env(secd_t *secd, const char *symbol) {
             if (atom_type(secd, cur_sym) != ATOM_SYM) {
                 errorf("lookup_env: variable at [%ld] is not a symbol\n",
                         cell_index(secd, cur_sym));
-                symlist = list_next(secd, symlist); vallist = list_next(secd, vallist);
+                symlist = list_next(secd, symlist); 
+                vallist = list_next(secd, vallist);
                 continue;
             }
 
@@ -76,13 +77,14 @@ cell_t *lookup_env(secd_t *secd, const char *symbol) {
 
         env = list_next(secd, env);
     }
-    printf("lookup_env: %s not found\n", symbol);
-    return NULL;
+    errorf("lookup_env: %s not found\n", symbol);
+    return new_error(secd, "lookup failed for: '%s'", symbol);
 }
 
 cell_t *lookup_symenv(secd_t *secd, const char *symbol) {
     cell_t *env = secd->env;
-    assert(cell_type(env) == CELL_CONS, "lookup_symbol: environment is not a list\n");
+    assert(cell_type(env) == CELL_CONS, 
+            "lookup_symbol: environment is not a list\n");
 
     while (not_nil(env)) {       // walk through frames
         cell_t *frame = get_car(env);

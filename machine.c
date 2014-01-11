@@ -13,17 +13,13 @@ secd_t * init_secd(secd_t *secd, secd_stream_t *readstream) {
     /* allocate memory chunk */
     cell_t *heap = (cell_t *)calloc(N_CELLS, sizeof(cell_t));
 
-    init_mem(secd, heap, N_CELLS);
-
     secd->free = SECD_NIL;
     secd->stack = secd->dump =
         secd->control = secd->env = SECD_NIL;
 
+    init_mem(secd, heap, N_CELLS);
+
     secd->input = readstream;
-
-    secd->used_stack = 0;
-    secd->used_dump = 0;
-
     secd->tick = 0;
 
     init_env(secd);

@@ -6,7 +6,10 @@
 #include <stdio.h>
 
 #if (MEMDEBUG)
-# define memdebugf(...) printf(__VA_ARGS__)
+# define memdebugf(...) do { \
+    printf("%ld |   ", secd->tick); \
+    printf(__VA_ARGS__);  \
+  } while (0)
 # if (MEMTRACE)
 #  define memtracef(...) printf(__VA_ARGS__)
 # else
@@ -18,7 +21,10 @@
 #endif
 
 #if (CTRLDEBUG)
-# define ctrldebugf(...) printf(__VA_ARGS__)
+# define ctrldebugf(...) do { \
+    printf("%ld | ", secd->tick); \
+    printf(__VA_ARGS__);  \
+  } while (0)
 #else
 # define ctrldebugf(...)
 #endif
