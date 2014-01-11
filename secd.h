@@ -123,6 +123,8 @@ struct cell {
     size_t nref;
 };
 
+typedef  struct secd_stat  secd_stat_t;
+
 // must be aligned at 1<<SECD_ALIGN
 struct secd  {
     cell_t *stack;      // list
@@ -137,8 +139,12 @@ struct secd  {
     cell_t *global_env;
 
     unsigned long tick;
+
     secd_stream_t *input;
 
+    cell_t *last_list;  // all cells before this are list fixed-size cells
+
+    size_t used_dump;
     size_t used_stack;
     size_t free_cells;
 };
@@ -241,8 +247,8 @@ inline static bool is_cons(const cell_t *cell) {
  * parser
  */
 struct secd_stream {
-    int (*getc)(void *);
-    void *data;
+    int (*read)(void *);
+    void *state;
 };
 
 void print_cell(secd_t *secd, const cell_t *c);

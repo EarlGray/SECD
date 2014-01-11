@@ -6,8 +6,8 @@
 int posix_getc(void *f)          { return fgetc(f); }
 int stdin_getc(void __unused *f) { return getc(stdin); }
 
-secd_stream_t posix_stdio = { .getc = &posix_getc };
-secd_stream_t posix_stdin = { .getc = &stdin_getc };
+secd_stream_t posix_stdio = { .read = &posix_getc };
+secd_stream_t posix_stdin = { .read = &stdin_getc };
 
 secd_t __attribute__((aligned(1 << SECD_ALIGN))) secd;
 
@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
     if (argc == 2) {
         op_in = fopen(argv[1], "r");
     }
-    posix_stdio.data = op_in;
+    posix_stdio.state = op_in;
 
     cell_t *inp = read_secd(&secd, &posix_stdio);
     asserti(inp, "read_secd failed");

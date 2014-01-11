@@ -177,23 +177,20 @@ cell_t *push_dump(secd_t *secd, cell_t *cell) {
     cell_t *top = push(secd, &secd->dump, cell);
     memdebugf("PUSH D[%ld] (%ld, %ld)\n", cell_index(secd, top),
             cell_index(secd, get_car(top), get_cdr(top)));
+    ++secd->used_dump;
     return top;
 }
 
 cell_t *pop_dump(secd_t *secd) {
     cell_t *cell = pop(secd, &secd->dump);
     memdebugf("POP D[%ld]\n", cell_index(secd, cell));
+    --secd->used_dump;
     return cell;
 }
 
 void init_mem(secd_t *secd, size_t size) {
     /* mark up a list of free cells */
-    int i;
-    for (i = 0; i + 1 < (int)size; ++i) {
-        cell_t *c = secd->data + i;
-        c->type = (intptr_t)secd | CELL_CONS;
-        c->as.cons.cdr = secd->data + i + 1;
-    }
+
     cell_t * c = secd->data + size - 1;
     secd->nil = c;
     c->type = (intptr_t)secd | CELL_CONS;

@@ -8,6 +8,8 @@
  *   Allocation
  */
 
+typedef  struct secd_memory  secd_memory_t;
+
 cell_t *pop_free(secd_t *secd);
 void push_free(secd_t *secd, cell_t *c);
 

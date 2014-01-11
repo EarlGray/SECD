@@ -159,7 +159,7 @@ secd_parser_t *init_parser(secd_parser_t *p, secd_stream_t *f) {
 
 inline static int nextchar(secd_parser_t *p) {
     secd_stream_t *f = p->f;
-    return p->lc = f->getc(f->data);
+    return p->lc = f->read(f->state);
 }
 
 token_t lexnext(secd_parser_t *p) {
