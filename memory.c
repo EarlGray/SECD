@@ -12,20 +12,27 @@ bool is_control_compiled(cell_t *control);
 cell_t *compile_control_path(secd_t *secd, cell_t *control);
 
 cell_t *pop_free(secd_t *secd) {
-    cell_t *cell = secd->free;
-    assert(not_nil(secd, cell), "pop_free: no free memory");
+    cell_t *cell;
+    if (is_nil(secd->free)) {
+        if (secd->fixedptr >= secd->arrayptr)
+            return &secd_out_of_memory;
 
-    secd->free = list_next(secd, cell);
-    memdebugf("NEW [%ld]\n", cell_index(secd, cell));
-    -- secd->free_cells;
-
+        cell = secd->fixedptr;
+        ++ secd->fixedptr;
+    } else {
+        cell = secd->free;
+        secd->free = list_next(secd, cell);
+        memdebugf("NEW [%ld]\n", cell_index(secd, cell));
+        -- secd->free_cells;
+    }
     cell->type = (intptr_t)secd;
     return cell;
 }
 
 void push_free(secd_t *secd, cell_t *c) {
     assertv(c, "push_free(NULL)");
-    assertv(c->nref == 0, "push_free: [%ld]->nref is %ld\n", cell_index(secd, c), c->nref);
+    assertv(c->nref == 0,
+            "push_free: [%ld]->nref is %ld\n", cell_index(secd, c), c->nref);
     c->type = (intptr_t)secd | CELL_CONS;
     c->as.cons.cdr = secd->free;
     secd->free = c;
@@ -33,12 +40,16 @@ void push_free(secd_t *secd, cell_t *c) {
     memdebugf("FREE[%ld]\n", cell_index(secd, c));
 }
 
-cell_t *new_cons(secd_t *secd, cell_t *car, cell_t *cdr) {
-    cell_t *cell = pop_free(secd);
+static inline cell_t*
+init_cons(secd_t *secd, cell_t *car, cell_t *cdr, cell_t *cell) {
     cell->type |= CELL_CONS;
     cell->as.cons.car = share_cell(secd, car);
     cell->as.cons.cdr = share_cell(secd, cdr);
     return cell;
+}
+
+cell_t *new_cons(secd_t *secd, cell_t *car, cell_t *cdr) {
+    return init_cons(secd, car, cdr, pop_free(secd));
 }
 
 cell_t *new_frame(secd_t *secd, cell_t *syms, cell_t *vals) {
@@ -82,18 +93,35 @@ cell_t *new_clone(secd_t *secd, const cell_t *from) {
     return clone;
 }
 
-cell_t *new_error(secd_t *secd, const char *fmt, ...) {
-    va_list va;
-    va_start(va, fmt);
+static cell_t *init_error(cell_t *cell, const char *buf) {
+    cell->type |= CELL_ERROR;
+    cell->as.err.len = strlen(buf);
+    cell->as.err.msg = strdup(buf);
+    return cell;
+}
+
+cell_t *new_errorv(secd_t *secd, const char *fmt, va_list va) {
 #define MAX_ERROR_SIZE  512
     char buf[MAX_ERROR_SIZE];
     vsnprintf(buf, MAX_ERROR_SIZE, fmt, va);
-    va_end(va);
+    return init_error(pop_free(secd), buf);
+}
 
-    cell_t *err = pop_free(secd);
-    err->type |= CELL_ERROR;
-    err->as.err.len = strlen(buf);
-    err->as.err.msg = strdup(buf);
+cell_t *new_error(secd_t *secd, const char *fmt, ...) {
+    va_list va;
+    va_start(va, fmt);
+    cell_t *cell = new_errorv(secd, fmt, va);
+    va_end(va);
+    return cell;
+}
+
+cell_t *new_error_with(
+        secd_t *secd, __unused cell_t *preverr, const char *fmt, ...)
+{
+    va_list va;
+    va_start(va, fmt);
+    cell_t *err = new_errorv(secd, fmt, va);
+    va_end(va);
     return err;
 }
 
@@ -137,7 +165,7 @@ inline static cell_t *push(secd_t *secd, cell_t **to, cell_t *what) {
 
 inline static cell_t *pop(secd_t *secd, cell_t **from) {
     cell_t *top = *from;
-    assert(not_nil(secd, top), "pop: stack is empty");
+    assert(not_nil(top), "pop: stack is empty");
     assert(is_cons(top), "pop: not a cons");
 
     cell_t *val = share_cell(secd, get_car(top));
@@ -164,7 +192,7 @@ cell_t *set_control(secd_t *secd, cell_t *opcons) {
            "set_control: failed, not a cons at [%ld]\n", cell_index(secd, opcons));
     if (! is_control_compiled(opcons)) {
         opcons = compile_control_path(secd, opcons);
-        assert(opcons, "set_control: failed to compile control path");
+        assert_cell(opcons, "set_control: failed to compile control path");
     }
     return (secd->control = share_cell(secd, opcons));
 }
@@ -188,11 +216,10 @@ cell_t *pop_dump(secd_t *secd) {
     return cell;
 }
 
-void init_mem(secd_t *secd, size_t size) {
-    /* mark up a list of free cells */
+void init_mem(secd_t *secd, cell_t *heap, size_t size) {
+    secd->begin = heap;
+    secd->end = heap + size;
 
-    cell_t * c = secd->data + size - 1;
-    secd->nil = c;
-    c->type = (intptr_t)secd | CELL_CONS;
-    c->as.cons.cdr = NULL;
+    secd->fixedptr = secd->begin;
+    secd->arrayptr = secd->end - 1;
 }

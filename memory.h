@@ -10,9 +10,6 @@
 
 typedef  struct secd_memory  secd_memory_t;
 
-cell_t *pop_free(secd_t *secd);
-void push_free(secd_t *secd, cell_t *c);
-
 cell_t *new_cons(secd_t *secd, cell_t *car, cell_t *cdr);
 cell_t *new_frame(secd_t *secd, cell_t *syms, cell_t *vals);
 cell_t *new_number(secd_t *secd, int num);
@@ -37,7 +34,7 @@ cell_t *pop_dump(secd_t *secd);
  */
 
 inline static cell_t *share_cell(secd_t *secd, cell_t *c) {
-    if (not_nil(secd, c)) {
+    if (not_nil(c)) {
         ++c->nref;
         memtracef("share[%ld] %ld\n", cell_index(c), c->nref);
     } else {
@@ -47,7 +44,7 @@ inline static cell_t *share_cell(secd_t *secd, cell_t *c) {
 }
 
 inline static cell_t *drop_cell(secd_t *secd, cell_t *c) {
-    if (is_nil(secd, c)) {
+    if (is_nil(c)) {
         memdebugf("drop [NIL]\n");
         return NULL;
     }
@@ -65,6 +62,6 @@ inline static cell_t *drop_cell(secd_t *secd, cell_t *c) {
  *
  */
 
-void init_mem(secd_t *secd, size_t size);
+void init_mem(secd_t *secd, cell_t *heap, size_t size);
 
 #endif // __SECD_MEM_H__

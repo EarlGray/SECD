@@ -1,5 +1,4 @@
 #include "secd.h"
-#include "memory.h"
 
 #include <stdio.h>
 
@@ -21,16 +20,19 @@ int main(int argc, char *argv[]) {
     posix_stdio.state = op_in;
 
     cell_t *inp = read_secd(&secd, &posix_stdio);
-    asserti(inp, "read_secd failed");
-    if (is_nil(&secd, inp)) {
+    if (is_nil(inp)) {
         printf("no commands.\n\n");
         return 0;
+    }
+    if (is_error(inp)) { errorf("read_secd failed: %s", errmsg(inp));
+        printc(&secd, inp);
+        return 1;
     }
 
     run_secd(&secd, inp);
 
     /* print the head of the stack */
-    if (not_nil(&secd, secd.stack)) {
+    if (not_nil(secd.stack)) {
         envdebugf("Stack head:\n");
         printc(&secd, get_car(secd.stack));
     } else {

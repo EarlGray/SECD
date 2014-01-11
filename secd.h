@@ -8,16 +8,38 @@
 #include <stddef.h>
 
 #define errorf(...) fprintf(stderr, __VA_ARGS__)
+
+/*
+ *  Macros that check input not to be SECD_NIL or CELL_ERROR:
+ */
 #define assert_or_continue(cond, ...) \
-    if (!(cond)) { errorf(__VA_ARGS__); fprintf(stderr, "\n"); continue; }
-#define assert(cond, ...) \
-    if (!(cond)) { errorf(__VA_ARGS__); fprintf(stderr, "\n"); return NULL; }
+    if (!(cond)) \
+        { errorf(__VA_ARGS__); errorf("\n"); continue; }
+
+#define assert(cond, ...)  \
+    if (!(cond)) {         \
+        errorf(__VA_ARGS__); errorf("\n");     \
+        return new_error(secd, __VA_ARGS__);   }
+
+#define assert_cell(cond, msg)  assert_cellf((cond), "%s", msg)
+
+#define assert_cellf(cond, fmt, ...)  \
+    if (is_error(cond)) {             \
+        errorf(fmt, __VA_ARGS__); errorf("\n");  \
+        return new_error_with(secd, (cond), fmt, __VA_ARGS__); }
+
+
 #define asserti(cond, ...) \
-    if (!(cond)) { errorf(__VA_ARGS__); fprintf(stderr, "\n"); return 0; }
+    if (!(cond)) { errorf(__VA_ARGS__); errorf("\n"); return 0; }
+
 #define assertv(cond, ...) \
-    if (!(cond)) { errorf(__VA_ARGS__); fprintf(stderr, "\n"); return; }
+    if (!(cond)) { errorf(__VA_ARGS__); errorf("\n"); return; }
+
+
+#define SECD_NIL   NULL
 
 typedef enum { false, true } bool;
+
 
 typedef  struct secd    secd_t;
 typedef  struct cell    cell_t;
@@ -109,40 +131,62 @@ struct error {
     const char *msg; // owns
 };
 
+extern cell_t secd_out_of_memory;
+extern cell_t secd_failure;
+extern cell_t secd_nil_failure;
+
+cell_t *new_error(secd_t *, const char *fmt, ...);
+cell_t *new_errorv(secd_t *secd, const char *fmt, va_list va);
+cell_t *new_error_with(secd_t *secd, cell_t *preverr, const char *fmt, ...);
+
+
 struct cell {
     // this is a packed structure:
     //      bits 0 .. SECD_ALIGN-1          - enum cell_type
     //      bits SECD_ALIGN .. CHAR_BIT * (sizeof(intptr_t)-1)   - (secd_t *)
     intptr_t type;
+    size_t nref;
+
     union {
         atom_t  atom;
         cons_t  cons;
         error_t err;
     } as;
-
-    size_t nref;
 };
 
 typedef  struct secd_stat  secd_stat_t;
 
 // must be aligned at 1<<SECD_ALIGN
-struct secd  {
+struct secd {
+    /**** memory layout ****/
+    /* pointers: begin, fixedptr, arrayptr, end
+     * - should keep the same ordering in run-time */
+    cell_t *begin;      // the first cell of the heap
+
+    /* these lists reside between secd->begin and secd->fixedptr */
     cell_t *stack;      // list
     cell_t *env;        // list
     cell_t *control;    // list
     cell_t *dump;       // list
 
     cell_t *free;       // list
-    cell_t *data;       // array
-    cell_t *nil;        // pointer
+    cell_t *global_env; // frame
 
-    cell_t *global_env;
+    // all cells before this one are fixed-size cells
+    cell_t *fixedptr;   // pointer
 
-    unsigned long tick;
+    /* some free space between these two pointers for both to grow in */
 
+    cell_t *arrayptr;   // pointer
+    // all cells after this one are managed memory for arrays
+
+    cell_t *end;        // the last cell of the heap
+
+    /**** I/O ****/
     secd_stream_t *input;
 
-    cell_t *last_list;  // all cells before this are list fixed-size cells
+    /* some statistics */
+    unsigned long tick;
 
     size_t used_dump;
     size_t used_stack;
@@ -155,6 +199,7 @@ struct secd  {
  */
 
 inline static enum cell_type cell_type(const cell_t *c) {
+    if (!c) return CELL_CONS;
     return ((1 << SECD_ALIGN) - 1) & c->type;
 }
 
@@ -167,20 +212,25 @@ inline static enum atom_type atom_type(secd_t *secd, const cell_t *c) {
     return (enum atom_type)(c->as.atom.type);
 }
 
-inline static bool is_nil(secd_t *secd, const cell_t *cell) {
-    return cell == secd->nil;
+inline static bool is_nil(const cell_t *cell) {
+    return cell == SECD_NIL;
 }
-inline static bool not_nil(secd_t *secd, const cell_t *cell) {
-    return !is_nil(secd, cell);
+
+inline static bool not_nil(const cell_t *cell) {
+    return cell != SECD_NIL;
 }
 
 inline static long cell_index(secd_t *secd, const cell_t *cons) {
-    if (is_nil(secd, cons)) return -1;
-    return cons - secd->data;
+    if (is_nil(cons)) return -1;
+    return cons - secd->begin;
 }
 
 inline static const char * symname(const cell_t *c) {
     return c->as.atom.as.sym.data;
+}
+
+inline static const char * errmsg(const cell_t *err) {
+    return err->as.err.msg;
 }
 
 inline static int numval(const cell_t *c) {
@@ -209,9 +259,14 @@ inline static cell_t *get_cdr(const cell_t *cons) {
     return cons->as.cons.cdr;
 }
 inline static bool is_cons(const cell_t *cell) {
+    if (is_nil(cell)) return true;
     return cell_type(cell) == CELL_CONS;
 }
 
+inline static bool is_error(const cell_t *cell) {
+    if (is_nil(cell)) return false;
+    return cell_type(cell) == CELL_ERROR;
+}
 
 #define INIT_SYM(name) {    \
     .type = CELL_ATOM,      \
@@ -229,19 +284,26 @@ inline static bool is_cons(const cell_t *cell) {
       .type = ATOM_INT,     \
       .as.num = (num) }}
 
-#define INIT_OP(op) {     \
+#define INIT_OP(op) {       \
     .type = CELL_ATOM,      \
     .nref = DONT_FREE_THIS, \
     .as.atom = {            \
-      .type = ATOM_OP,     \
+      .type = ATOM_OP,      \
       .as.num = (op) }}
 
-#define INIT_FUNC(func) {  \
-    .type = CELL_ATOM,     \
-    .nref = DONT_FREE_THIS,\
-    .as.atom = {           \
-      .type = ATOM_FUNC,   \
+#define INIT_FUNC(func) {   \
+    .type = CELL_ATOM,      \
+    .nref = DONT_FREE_THIS, \
+    .as.atom = {            \
+      .type = ATOM_FUNC,    \
       .as.ptr = (func) } }
+
+#define INIT_ERROR(txt) {   \
+    .type = CELL_ERROR,     \
+    .nref = DONT_FREE_THIS, \
+    .as.err = {             \
+        .msg = (txt),       \
+        .len = sizeof(txt) } }
 
 /*
  * parser
@@ -264,6 +326,6 @@ cell_t *read_secd(secd_t *secd, secd_stream_t *f);
  */
 
 secd_t * init_secd(secd_t *secd, secd_stream_t *readstream);
-void run_secd(secd_t *secd, cell_t *ctrl);
+cell_t * run_secd(secd_t *secd, cell_t *ctrl);
 
 #endif //__SECD_H__

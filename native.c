@@ -9,7 +9,7 @@
  */
 
 static inline cell_t *to_bool(secd_t *secd, bool cond) {
-    return ((cond)? lookup_env(secd, "#t") : secd->nil);
+    return ((cond)? lookup_env(secd, "#t") : SECD_NIL);
 }
 
 cell_t *secdf_list(secd_t __unused *secd, cell_t *args) {
@@ -19,31 +19,31 @@ cell_t *secdf_list(secd_t __unused *secd, cell_t *args) {
 
 cell_t *secdf_null(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_nullp\n");
-    assert(not_nil(secd, args), "secdf_copy: one argument expected");
-    return to_bool(secd, is_nil(secd, list_head(args)));
+    assert(not_nil(args), "secdf_copy: one argument expected");
+    return to_bool(secd, is_nil(list_head(args)));
 }
 
 cell_t *secdf_nump(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_nump\n");
-    assert(not_nil(secd, args), "secdf_copy: one argument expected");
+    assert(not_nil(args), "secdf_copy: one argument expected");
     return to_bool(secd, atom_type(secd, list_head(args)) == ATOM_INT);
 }
 
 cell_t *secdf_symp(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_symp\n");
-    assert(not_nil(secd, args), "secdf_copy: one argument expected");
+    assert(not_nil(args), "secdf_copy: one argument expected");
     return to_bool(secd, atom_type(secd, list_head(args)) == ATOM_SYM);
 }
 
 static cell_t *list_copy(secd_t *secd, cell_t *list, cell_t **out_tail) {
-    if (is_nil(secd, list))
-        return secd->nil;
+    if (is_nil(list))
+        return SECD_NIL;
 
     cell_t *new_head, *new_tail;
-    new_head = new_tail = new_cons(secd, list_head(list), secd->nil);
+    new_head = new_tail = new_cons(secd, list_head(list), SECD_NIL);
 
-    while (not_nil(secd, list = list_next(secd, list))) {
-        cell_t *new_cell = new_cons(secd, get_car(list), secd->nil);
+    while (not_nil(list = list_next(secd, list))) {
+        cell_t *new_cell = new_cons(secd, get_car(list), SECD_NIL);
         new_tail->as.cons.cdr = share_cell(secd, new_cell);
         new_tail = list_next(secd, new_tail);
     }
@@ -59,24 +59,21 @@ cell_t *secdf_copy(secd_t *secd, cell_t *args) {
 
 cell_t *secdf_append(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_append\n");
-    assert(args, "secdf_append: args is NULL");
-
-    if (is_nil(secd, args))
-        return args;
+    if (is_nil(args)) return args;
+    assert(is_cons(args), "secdf_append: expected arguments");
 
     cell_t *xs = list_head(args);
     assert(is_cons(list_next(secd, args)), "secdf_append: expected two arguments");
 
     cell_t *argtail = list_next(secd, args);
-    if (is_nil(secd, argtail))
-        return xs;
+    if (is_nil(argtail)) return xs;
 
     cell_t *ys = list_head(argtail);
-    if (not_nil(secd, list_next(secd, argtail))) {
+    if (not_nil(list_next(secd, argtail))) {
           ys = secdf_append(secd, argtail);
     }
 
-    if (is_nil(secd, xs))
+    if (is_nil(xs))
         return ys;
 
     cell_t *sum = xs;
@@ -86,7 +83,7 @@ cell_t *secdf_append(secd_t *secd, cell_t *args) {
             sum_tail = NULL; // xs must be copied
             break;
         }
-        if (is_nil(secd, list_next(secd, sum_tail)))
+        if (is_nil(list_next(secd, sum_tail)))
             break;
         sum_tail = list_next(secd, sum_tail);
     }
@@ -109,13 +106,13 @@ cell_t *secdf_eofp(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_eofp\n");
     cell_t *arg1 = list_head(args);
     if (atom_type(secd, arg1) != ATOM_SYM)
-        return secd->nil;
+        return SECD_NIL;
     return to_bool(secd, str_eq(symname(arg1), EOF_OBJ));
 }
 
 cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_ctl\n");
-    if (is_nil(secd, args))
+    if (is_nil(args))
         goto help;
 
     cell_t *arg1 = list_head(args);
@@ -144,17 +141,17 @@ cell_t *secdf_getenv(secd_t *secd, cell_t __unused *args) {
 cell_t *secdf_bind(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_bind\n");
 
-    assert(not_nil(secd, args), "secdf_bind: can't bind nothing to nothing");
+    assert(not_nil(args), "secdf_bind: can't bind nothing to nothing");
     cell_t *sym = list_head(args);
     assert(atom_type(secd, sym) == ATOM_SYM, "secdf_bind: a symbol must be bound");
 
     args = list_next(secd, args);
-    assert(not_nil(secd, args), "secdf_bind: No value for binding");
+    assert(not_nil(args), "secdf_bind: No value for binding");
     cell_t *val = list_head(args);
 
     cell_t *env;
     // is there the third argument?
-    if (not_nil(secd, list_next(secd, args))) {
+    if (not_nil(list_next(secd, args))) {
         args = list_next(secd, args);
         env = list_head(args);
     } else {
@@ -224,20 +221,20 @@ const struct {
 
 cell_t * make_frame_of_natives(secd_t *secd) {
     int i;
-    cell_t *symlist = secd->nil;
-    cell_t *vallist = secd->nil;
+    cell_t *symlist = SECD_NIL;
+    cell_t *vallist = SECD_NIL;
 
     for (i = 0; native_functions[i].sym; ++i) {
         cell_t *sym = new_clone(secd, native_functions[i].sym);
         cell_t *val = new_clone(secd, native_functions[i].val);
         sym->nref = val->nref = DONT_FREE_THIS;
-        cell_t *closure = new_cons(secd, val, secd->nil);
+        cell_t *closure = new_cons(secd, val, SECD_NIL);
         symlist = new_cons(secd, sym, symlist);
         vallist = new_cons(secd, closure, vallist);
     }
 
     cell_t *sym = new_clone(secd, &nil_sym);
-    cell_t *val = secd->nil;
+    cell_t *val = SECD_NIL;
     symlist = new_cons(secd, sym, symlist);
     vallist = new_cons(secd, val, vallist);
 

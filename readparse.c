@@ -29,7 +29,7 @@ void secd_print_atom(secd_t *secd, const cell_t *c) {
 
 void print_cell(secd_t *secd, const cell_t *c) {
     assertv(c, "print_cell(NULL)\n");
-    if (is_nil(secd, c)) {
+    if (is_nil(c)) {
          printf("NIL\n");
          return;
     }
@@ -53,7 +53,7 @@ void print_cell(secd_t *secd, const cell_t *c) {
 
 void print_list(secd_t *secd, cell_t *list) {
     printf("  -= ");
-    while (not_nil(secd, list)) {
+    while (not_nil(list)) {
         assertv(is_cons(list),
                 "Not a cons at [%ld]\n", cell_index(secd, list));
         printf("[%ld]:%ld\t", cell_index(secd, list), cell_index(secd, get_car(list)));
@@ -83,7 +83,7 @@ void sexp_print(secd_t* secd, cell_t *cell) {
       case CELL_CONS:
         printf("(");
         cell_t *iter = cell;
-        while (not_nil(secd, iter)) {
+        while (not_nil(iter)) {
             if (iter != cell) printf(" ");
             if (cell_type(iter) != CELL_CONS) {
                 printf(". "); sexp_print(secd, iter); break;
@@ -231,8 +231,11 @@ static const char * special_form_for(int token) {
 }
 
 cell_t *read_list(secd_t *secd, secd_parser_t *p) {
-    cell_t *head = secd->nil, *tail = secd->nil;
+    cell_t *head = SECD_NIL;
+    cell_t *tail = SECD_NIL;
+
     cell_t *newtail, *val;
+
     while (true) {
         int tok = lexnext(p);
         switch (tok) {
@@ -266,7 +269,7 @@ cell_t *read_list(secd_t *secd, secd_parser_t *p) {
               assert(formname, "No formname for token=%d\n", tok);
               val = sexp_read(secd, p);
               val = new_cons(secd, new_symbol(secd, formname),
-                                   new_cons(secd, val, secd->nil));
+                                   new_cons(secd, val, SECD_NIL));
               } break;
 
            default:
@@ -275,8 +278,8 @@ cell_t *read_list(secd_t *secd, secd_parser_t *p) {
               return NULL;
         }
 
-        newtail = new_cons(secd, val, secd->nil);
-        if (not_nil(secd, head)) {
+        newtail = new_cons(secd, val, SECD_NIL);
+        if (not_nil(head)) {
             tail->as.cons.cdr = share_cell(secd, newtail);
             tail = newtail;
         } else {
@@ -286,7 +289,7 @@ cell_t *read_list(secd_t *secd, secd_parser_t *p) {
 }
 
 cell_t *sexp_read(secd_t *secd, secd_parser_t *p) {
-    cell_t *inp = secd->nil;
+    cell_t *inp = SECD_NIL;
     int tok;
     switch (tok = lexnext(p)) {
       case '(':
@@ -312,7 +315,7 @@ cell_t *sexp_read(secd_t *secd, secd_parser_t *p) {
         assert(formname, "No  special form for token=%d\n", tok);
         inp = sexp_read(secd, p);
         inp = new_cons(secd, new_symbol(secd, formname),
-                             new_cons(secd, inp, secd->nil));
+                             new_cons(secd, inp, SECD_NIL));
         } break;
 
       default:

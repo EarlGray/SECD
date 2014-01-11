@@ -14,13 +14,13 @@ void print_env(secd_t *secd) {
     cell_t *env = secd->env;
     int i = 0;
     printf("Environment:\n");
-    while (not_nil(secd, env)) {
+    while (not_nil(env)) {
         printf(" Frame #%d:\n", i++);
         cell_t *frame = get_car(env);
         cell_t *symlist = get_car(frame);
         cell_t *vallist = get_cdr(frame);
 
-        while (not_nil(secd, symlist)) {
+        while (not_nil(symlist)) {
             cell_t *sym = get_car(symlist);
             cell_t *val = get_car(vallist);
             if (atom_type(secd, sym) != ATOM_SYM)
@@ -38,7 +38,7 @@ void print_env(secd_t *secd) {
 
 void init_env(secd_t *secd) {
     cell_t *frame = make_frame_of_natives(secd);
-    cell_t *env = new_cons(secd, frame, secd->nil);
+    cell_t *env = new_cons(secd, frame, SECD_NIL);
 
     secd->env = share_cell(secd, env);
     secd->global_env = secd->env;
@@ -48,9 +48,9 @@ cell_t *lookup_env(secd_t *secd, const char *symbol) {
     cell_t *env = secd->env;
     assert(cell_type(env) == CELL_CONS, "lookup_env: environment is not a list\n");
 
-    while (not_nil(secd, env)) {       // walk through frames
+    while (not_nil(env)) {       // walk through frames
         cell_t *frame = get_car(env);
-        if (is_nil(secd, frame)) {
+        if (is_nil(frame)) {
             //printf("lookup_env: warning: skipping OMEGA-frame...\n");
             env = list_next(secd, env);
             continue;
@@ -58,7 +58,7 @@ cell_t *lookup_env(secd_t *secd, const char *symbol) {
         cell_t *symlist = get_car(frame);
         cell_t *vallist = get_cdr(frame);
 
-        while (not_nil(secd, symlist)) {   // walk through symbols
+        while (not_nil(symlist)) {   // walk through symbols
             cell_t *cur_sym = get_car(symlist);
             if (atom_type(secd, cur_sym) != ATOM_SYM) {
                 errorf("lookup_env: variable at [%ld] is not a symbol\n",
@@ -84,11 +84,11 @@ cell_t *lookup_symenv(secd_t *secd, const char *symbol) {
     cell_t *env = secd->env;
     assert(cell_type(env) == CELL_CONS, "lookup_symbol: environment is not a list\n");
 
-    while (not_nil(secd, env)) {       // walk through frames
+    while (not_nil(env)) {       // walk through frames
         cell_t *frame = get_car(env);
         cell_t *symlist = get_car(frame);
 
-        while (not_nil(secd, symlist)) {   // walk through symbols
+        while (not_nil(symlist)) {   // walk through symbols
             cell_t *cur_sym = get_car(symlist);
             assert(atom_type(secd, cur_sym) != ATOM_SYM,
                     "lookup_symbol: variable at [%ld] is not a symbol\n", cell_index(secd, cur_sym));
