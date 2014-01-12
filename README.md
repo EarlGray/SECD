@@ -177,18 +177,21 @@ Use `compile` form to examine results of Scheme-to-SECD conversion in the REPL:
 
 TODO
 ----
- - [ ] `define`, interpreter environment!
- - [ ] dot-lists;
- - [x] `AP n`: treat n values on top of the stack as arguments for a function call instead of always creating a list.
- - [ ] Is there a way to make `cond` forms less nested?
- - [ ] support for more Scheme types: `bytestring`, `string` (list of chars?), `port`;
- - [ ] make symbol storage: quick access (balanced binary search tree or hashtable?), reuse string resources;
- - [ ] optional garbage-collector, compare RefCount and GC speed.
- - [ ] LLVM backend?
-
+- [ ] refactor out atom_type, reduce size to 4 words instead of 5;
+- [ ] '#f';
+- [ ] move to indexes instead of pointers;
+- [ ] abstract out system memory management: no direct calloc/free references;
+- [ ] support for more Scheme types: `bytestring`, `string` (list of chars?), `port`;
+- [ ] dot-lists;
+- [ ] make symbol storage: quick access (balanced binary search tree or hashtable?), reuse string resources;
+- [ ] optional garbage-collector, compare RefCount and GC speed.
+- [ ] LLVM backend?
 Optimization:
- - [x] don't look up opcodes on its execution;
- - [ ] tail-recursion/purity analysis on LDF when possible;
- - [ ] fast symbol lookup;
- - [ ] remove JOIN/RTN/LD/LDC?
+- [ ] fast symbol lookup;
+- [ ] remove JOIN/RTN/LD/LDC?
 
+Done:
+- [x] `define`, interpreter environment!
+- [x] `AP n`: treat n values on top of the stack as arguments for a function call instead of always creating a list.
+- [x] don't look up opcodes on its execution;
+- [x] tail-recursion/purity analysis on LDF when possible;
