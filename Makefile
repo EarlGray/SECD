@@ -6,6 +6,9 @@ CFLAGS := -g -Wno-shift-overflow
 secd: $(objs)
 	$(CC) $(CFLAGS) $(objs) -o $@
 
+repl.secd: repl.scm
+	./secd scm2secd.secd < $< > $@
+
 %.o : %.c
 	$(CC) $(CFLAGS) -c $< -o $@ -Wall
 

@@ -48,6 +48,7 @@ cell_t *lookup_env(secd_t *secd, const char *symbol) {
     cell_t *env = secd->env;
     assert(cell_type(env) == CELL_CONS, 
             "lookup_env: environment is not a list\n");
+    size_t symlen = strlen(symbol);
 
     while (not_nil(env)) {       // walk through frames
         cell_t *frame = get_car(env);
@@ -67,10 +68,10 @@ cell_t *lookup_env(secd_t *secd, const char *symbol) {
                 vallist = list_next(secd, vallist);
                 continue;
             }
+            if (cur_sym->as.atom.as.sym.size == symlen)
+                if (str_eq(symbol, symname(cur_sym)))
+                    return get_car(vallist);
 
-            if (str_eq(symbol, symname(cur_sym))) {
-                return get_car(vallist);
-            }
             symlist = list_next(secd, symlist);
             vallist = list_next(secd, vallist);
         }

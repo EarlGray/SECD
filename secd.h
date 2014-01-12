@@ -275,7 +275,7 @@ inline static bool is_error(const cell_t *cell) {
     .as.atom = {            \
       .type = ATOM_SYM,     \
       .as.sym = {           \
-        .size = DONT_FREE_THIS, \
+        .size = sizeof(name) - 1, \
         .data = (name) } } }
 
 #define INIT_NUM(num) {     \
