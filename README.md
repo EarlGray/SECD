@@ -3,6 +3,35 @@ SECD machine
 
 This is a loose implementation of [SECD machine](http://en.wikipedia.org/wiki/SECD) and a simplest self-hosted Scheme-to-SECD compiler.
 
+Quick run (no prompt is displayed, just type in a form):
+```
+$ ./secdrepl
+(+ 2 2)     ;; input
+4
+
+(define n 10) ;; input
+10
+
+(define sqr (lambda (x) (* x x)))    ;; input
+<compiled code>
+
+(define apply-to-42 (lambda (g) (g 42))) ;; input
+<compiled code>
+
+(apply-to-42 sqr)    ;; input
+1764
+
+(define fact (lambda (n) (if (eq? n 0) 1 (* n (fact (- n 1)))))) ;; input
+<compiled code>
+
+(fact 10)    ;; input
+3628800
+
+(begin (display 'bye') (quit))  ;; input
+bye
+$
+```
+
 The design is mostly inspired by detailed description in _Functional programming: Application and Implementation_ by Peter Henderson and his LispKit, but is not limited by the specific details of traditional SECD implementations (like 64 Kb size of heap, etc).
 
 Here is [a series of my blog posts about SECD machine](http://dmytrish.wordpress.com/2013/08/09/secd-about)
@@ -71,7 +100,7 @@ Notation: `(x.s)` means cons of value `x` and list `s`. Recursively, `(x.y.s)` m
 There are some functions implemented in C for efficiency:
 - `append`, `list`, `null?`, `copy`: are heavily used by the compiler, native for efficiency;
 - `number?`, `symbol?`, `eof-object?`: may be implemented in native code only;
-- `secdctl`: takes a symbol as the first arguments, outputs the following: stack usage for `(secdctl 'stack)`, prints current environment for `(secdctl 'env)`, shows how many cells are available with `(secdctl 'free)`;
+- `secdctl`: takes a symbol as the first arguments, outputs the following: current tick number with `(secdctl 'tick)`, prints current environment for `(secdctl 'env)`, shows how many cells are available with `(secdctl 'free)`;
 - `interaction-environment` - this native form gets the current environment (there's no distinction between lexical and dynamical environment as in other Scheme implementations).
 
 **About types:**
@@ -103,7 +132,7 @@ How to run
 ----------
 First of all, compile the machine:
 ```bash
-$ gcc secd.c -o secd
+$ make
 ```
 
 Examples of running the SECD codes (lines starting with `>` are user input):
@@ -137,7 +166,8 @@ See `tests/` directory for more examples of closures/recursion/IO in SECD codes.
 Scheme compiler: scm2secd.scm
 -----------------------------
 
-This file a simplest compiler from Scheme to SECD code. It is written in a quite limited subset of Scheme (even without `define`, using `let`/`letrec` instead). It supports very limited set of types (`symbol`s, `number`s and `list`s: no vectors, bytestrings, chars, strings, etc).
+This file a simplest compiler from Scheme to SECD code. It is written in a quite limited subset of Scheme (using `let`/`letrec` instead of `define`, though now it supports `define` definitions). It supports very limited set of types (`symbol`s, `number`s and `list`s: no vectors, bytestrings, chars, strings, etc).
+There is a `define` macro (no function definitions yet). It is implemented as a macro that falls back to a native function `(secd-bind! 'symbol value)`. A macro can be defined with macro `define-macro` which works just like in Guile.
 
 The compiler is self-hosted and can be bootstrapped using its pre-compiled SECD code in `scm2secd.secd`:
 
@@ -146,7 +176,7 @@ The compiler is self-hosted and can be bootstrapped using its pre-compiled SECD 
 $ ./secd scm2secd.secd <scm2secd.scm >scm2secd.1.secd
 $ mv scm2secd.1.secd scm2secd.secd
 
-# or, using a bootstrapping interpreter:
+# or, using a bootstrapping interpreter (tested with guile and mzscheme):
 $ guile -s scm2secd.scm <scm2secd.scm >scm2secd.secd
 $ mzscheme -f scm2secd.scm <scm2secd.scm >scm2secd.secd
 ```
@@ -156,7 +186,7 @@ Scheme expression and files may be evaluated this way:
 $ cat tests/append.scm | ./secd scm2secd.secd | ./secd
 ```
 
-Then bootstrap REPL: 
+Bootstrapping REPL: 
 ```bash
 $ ./secd scm2secd.secd <repl.scm >repl.secd
 $ ./secd repl.secd
@@ -167,11 +197,11 @@ bye
 $
 ```
 
-Use `compile` form to examine results of Scheme-to-SECD conversion in the REPL:
+Use `secd-compile` function to examine results of Scheme-to-SECD conversion in the REPL:
 ```scheme
-> (compile '(+ 2 2))
+> (secd-compile '(+ 2 2))
 (LDC 2 LDC 2 ADD)
-> (eval '(+ 2 2))
+> (eval '(+ 2 2) (interaction-environment))
 4
 ```
 
