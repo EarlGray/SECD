@@ -17,7 +17,7 @@ libsecd: $(libobjs)
 
 .PHONY: clean
 clean:
-	rm secd *.o libsecd\* || true
+	rm secd *.o libsecd* || true
 
 interp.o : interp.c
 machine.o : machine.c
