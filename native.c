@@ -110,6 +110,8 @@ cell_t *secdf_eofp(secd_t *secd, cell_t *args) {
     return to_bool(secd, str_eq(symname(arg1), EOF_OBJ));
 }
 
+void print_array_layout(secd_t *secd);
+
 cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_ctl\n");
     if (is_nil(args))
@@ -126,6 +128,8 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
                     secd->free_cells, secd->used_dump);
         } else if (str_eq(symname(arg1), "env")) {
             print_env(secd);
+        } else if (str_eq(symname(arg1), "heap")) {
+            print_array_layout(secd);
         } else if (str_eq(symname(arg1), "tick")) {
             printf("SECDCTL: tick = %lu\n", secd->tick);
             return new_number(secd, secd->tick);
@@ -133,10 +137,13 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
             goto help;
         }
     }
-    return args;
+    return new_symbol(secd, "ok");
 help:
-    printf("SECDCTL: options are 'tick', 'env', 'free'\n");
-    return args;
+    errorf(";; Options are 'tick', 'heap', 'env', 'free'\n");
+    errorf(";; Use them like (secdctl 'env)\n");
+    errorf(";; If you're here first time, explore (secdctl 'env)\n");
+    errorf(";;    to get some idea of what is available\n");
+    return new_symbol(secd, "see?");
 }
 
 cell_t *secdf_getenv(secd_t *secd, cell_t __unused *args) {

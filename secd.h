@@ -82,12 +82,16 @@ typedef enum {
 } opindex_t;
 
 enum cell_type {
-    /* main types */
-    CELL_UNDEF,
-    CELL_CONS,
-    /* the same as CELL_CONS */
-    CELL_FRAME,  // a environment frame
+    CELL_UNDEF, // also marks secd->free
 
+    /* compound types */
+    CELL_CONS,
+    CELL_FRAME, // a environment frame, the same as CELL_CONS
+    CELL_ARRAY, 
+
+    CELL_REF,   // a pivot point between compound and atomic types
+
+    /* atomic types */
     CELL_ATOM,
     /* atoms
     CELL_INT,
@@ -96,7 +100,6 @@ enum cell_type {
     CELL_FUNC, */
 
     CELL_ERROR,
-    //CELL_LAST
 };
 
 enum atom_type {
@@ -151,6 +154,9 @@ struct cell {
         atom_t  atom;
         cons_t  cons;
         error_t err;
+
+        cell_t *arr; // array
+        cell_t *ref; // pointer
     } as;
 };
 
@@ -177,6 +183,7 @@ struct secd {
 
     /* some free space between these two pointers for both to grow in */
 
+    cell_t *arrlist;    // cdr points to the double-linked list of arrays
     cell_t *arrayptr;   // pointer
     // all cells after this one are managed memory for arrays
 

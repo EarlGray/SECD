@@ -1,7 +1,7 @@
 libobjs := interp.o machine.o env.o memory.o native.o readparse.o
 objs := $(libobjs) secd.o
 
-CFLAGS := -g -Wno-shift-overflow
+CFLAGS := -O2 -g -Wno-shift-overflow
 
 secd: $(objs)
 	$(CC) $(CFLAGS) $(objs) -o $@

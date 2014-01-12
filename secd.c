@@ -11,7 +11,10 @@ secd_stream_t posix_stdin = { .read = &stdin_getc };
 secd_t __attribute__((aligned(1 << SECD_ALIGN))) secd;
 
 int main(int argc, char *argv[]) {
-    fprintf(stderr, "Welcome to SECD\n sizeof(cell_t) = %ld\n\n", sizeof(cell_t));
+    errorf(";;;   Welcome to SECD   \n");
+    errorf(";;;     sizeof(cell_t) is %ld\n", sizeof(cell_t));
+    errorf(";;;     Type (secdctl) to get some help.\n\n");
+
     init_secd(&secd, &posix_stdin);
 
     FILE *op_in = stdin;

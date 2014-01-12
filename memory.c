@@ -4,6 +4,13 @@
 #include <string.h>
 #include <stdarg.h>
 
+/*
+ *      A short description of SECD memory layout 
+ *                                          last updated: 12 Jan 2014
+ *
+ *  TODO
+ */
+
 bool is_control_compiled(cell_t *control);
 cell_t *compile_control_path(secd_t *secd, cell_t *control);
 
@@ -89,7 +96,113 @@ void push_free(secd_t *secd, cell_t *c) {
     }
 }
 
+/*
+ *      Array memory management
+ */
 
+/* checks if the array described by the metadata cons is free */
+static inline bool is_array_free(secd_t *secd, cell_t *metacons) {
+    if (metacons == secd->arrlist) return false;
+    return metacons->nref == 0;
+}
+static inline void mark_free(cell_t *metacons) { metacons->nref = 0; }
+static inline void mark_used(cell_t *metacons) { metacons->nref = 1; }
+
+static inline size_t arr_size(secd_t *secd, cell_t *metacons) {
+    if (metacons == secd->arrlist) return 0;
+    return get_car(metacons) - metacons - 1;
+}
+
+cell_t *alloc_array(secd_t *secd, size_t size) {
+    /* look through the list of arrays */
+    cell_t *cur = secd->arrlist;
+    while (not_nil(get_cdr(cur))) {
+        if (is_array_free(secd, cur)) {
+            if (arr_size(secd, cur) >= size) {
+                /* allocate this gap */
+                return ;
+            }
+        }
+        cur = get_cdr(cur);
+    }
+
+    /* no chunks of sufficient size found, move secd->arrayptr */
+    if (secd->arrayptr - secd->fixedptr <= size)
+        return &secd_out_of_memory;
+
+    /* create new metadata cons at arrayptr - size - 1 */
+    cell_t *oldmeta = secd->arrayptr;
+
+    cell_t *meta = oldmeta - size - 1;
+    init_cons(secd, meta, oldmeta, SECD_NIL);
+    mark_used(meta);
+
+    oldmeta->as.cons.cdr = meta;
+
+    secd->arrayptr = meta;
+    return meta + 1;
+}
+
+void free_array(secd_t *secd, cell_t *this) {
+    assertv(this < secd->arrlist, "free_array: tried to free arrlist");
+
+    cell_t *meta = this - 1;
+    cell_t *prev = get_car(meta);
+    size_t size = arr_size(secd, meta);
+    int i;
+
+    /* free the items */
+    for (i = 0; i < size; ++i) {
+        free_cell(secd, this + i);
+    }
+
+    if (meta != secd->arrayptr) {
+        if (is_array_free(secd, prev)) {
+            /* merge with the previous array */
+            cell_t *pprev = get_car(prev);
+            pprev->as.cons.cdr = this;
+            this->as.cons.car = pprev;
+        }
+
+        cell_t *next = get_cdr(this);
+        if (is_array_free(secd, next)) {
+            /* merge with the next array */
+            cell_t *newprev = get_car(this);
+            next->as.cons.car = newprev;
+            newprev->as.cons.cdr = next;
+        }
+        mark_free(this);
+    } else {
+        /* move arrayptr into the array area */
+        prev->as.cons.cdr = SECD_NIL;
+        secd->arrayptr = prev;
+
+        if (is_array_free(secd, prev)) {
+            /* at most one array after 'arr' may be free */
+            cell_t *pprev = get_car(prev);
+            pprev->as.cons.cdr = SECD_NIL;
+            secd->arrayptr = pprev;
+        }
+    }
+}
+
+void print_array_layout(secd_t *secd) {
+    errorf(";; Array heap layout:\n");
+    errorf(";;  arrayptr = %ld\n", cell_index(secd, secd->arrayptr));
+    errorf(";;  arrlist  = %ld\n", cell_index(secd, secd->arrlist));
+    errorf(";; Array list is:\n");
+    cell_t *cur = secd->arrlist;
+    while (get_cdr(cur)) {
+        cur = get_cdr(cur);
+        errorf(";;  %ld\t%ld (size=%ld,\t%s)\n", 
+                cell_index(secd, cur), cell_index(secd, cur->as.cons.car),
+                arr_size(secd, cur), (is_array_free(secd, cur)? "free" : "used"));
+    }
+}
+
+/*
+ *      "Constructors"
+ */
 cell_t *new_cons(secd_t *secd, cell_t *car, cell_t *cdr) {
     return init_cons(secd, car, cdr, pop_free(secd));
 }
@@ -167,6 +280,17 @@ cell_t *new_error_with(
     return err;
 }
 
+cell_t *new_array(secd_t *secd, size_t size) {
+    /* try to allocate memory */
+    cell_t *mem = alloc_array(secd, size);
+    assert_cell(mem, "new_array: memory allocation failed");
+
+    cell_t *arr = pop_free(secd);
+    arr->type |= CELL_ARRAY;
+    arr->as.arr = mem;
+    return arr;
+}
+
 void free_atom(cell_t *cell) {
     switch (cell->as.atom.type) {
       case ATOM_SYM:
@@ -189,6 +313,12 @@ cell_t *free_cell(secd_t *secd, cell_t *c) {
       case CELL_CONS:
         drop_cell(secd, get_car(c));
         drop_cell(secd, get_cdr(c));
+        break;
+      case CELL_ARRAY:
+        free_array(secd, c->as.arr);
+        break;
+      case CELL_REF:
+        drop_cell(secd, c->as.ref);
         break;
       case CELL_ERROR:
         return c;
@@ -265,6 +395,10 @@ void init_mem(secd_t *secd, cell_t *heap, size_t size) {
 
     secd->fixedptr = secd->begin;
     secd->arrayptr = secd->end - 1;
+
+    secd->arrlist = secd->arrayptr;
+    init_cons(secd, SECD_NIL, SECD_NIL, secd->arrlist);
+    secd->arrlist->nref = 0;
 
     secd->used_stack = 0;
     secd->used_dump = 0;

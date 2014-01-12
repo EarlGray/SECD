@@ -562,6 +562,7 @@ cell_t *secd_rap(secd_t *secd) {
 cell_t *secd_read(secd_t *secd) {
     ctrldebugf("READ\n");
 
+    errorf("\n");
     cell_t *inp = sexp_parse(secd, secd->input);
     assert_cell(inp, "secd_read: failed to read");
 
