@@ -186,9 +186,48 @@ cell_t *secdf_bind(secd_t *secd, cell_t *args) {
     return sym;
 }
 
+/*
+ *     Vector
+ */
+cell_t *secdv_is(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdv_is: no arguments");
+    assert(is_cons(args), "secdv_is: invalid arguments");
+    cell_t *obj = get_car(args);
+    return to_bool(secd, cell_type(obj) == CELL_ARRAY);
+}
+
+cell_t *secdv_make(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdv_make: no arguments");
+    assert(is_cons(args), "secdv_make: invalid arguments");
+
+    cell_t *num = get_car(args);
+    assert(atom_type(secd, num) == ATOM_INT, "secdv_make: a number expected");
+
+    int i;
+    size_t len = numval(num);
+    errorf(";; secdv_make: allocating %ld\n", len);
+    cell_t *arr = new_array(secd, len);
+    errorf(";; secdv_make: allocated %ld\n", arrmeta_size(secd, arr_meta(arr->as.arr)));
+
+    if (not_nil(list_next(secd, args))) {
+        cell_t *fill = get_car(list_next(secd, args));
+        for (i = 0; i < len; ++i)
+            init_with_copy(secd, arr->as.arr + i, fill);
+    } else {
+        /* make it CELL_UNDEF */
+        memset(arr->as.arr, 0, sizeof(cell_t) * len);
+    }
+
+    return arr;
+}
+
+
+/*
+ *    Native function mapping table
+ */
 const cell_t list_sym   = INIT_SYM("list");
 const cell_t append_sym = INIT_SYM("append");
-const cell_t copy_sym   = INIT_SYM("copy");
+const cell_t copy_sym   = INIT_SYM("list-copy");
 const cell_t nullp_sym  = INIT_SYM("null?");
 const cell_t nump_sym   = INIT_SYM("number?");
 const cell_t symp_sym   = INIT_SYM("symbol?");
@@ -196,6 +235,9 @@ const cell_t eofp_sym   = INIT_SYM("eof-object?");
 const cell_t debug_sym  = INIT_SYM("secdctl");
 const cell_t env_sym    = INIT_SYM("interaction-environment");
 const cell_t bind_sym   = INIT_SYM("secd-bind!");
+/* vector routines */
+const cell_t vp_sym     = INIT_SYM("vector?");
+const cell_t vmake_sym  = INIT_SYM("make-vector");
 
 const cell_t list_func  = INIT_FUNC(secdf_list);
 const cell_t appnd_func = INIT_FUNC(secdf_append);
@@ -207,14 +249,30 @@ const cell_t eofp_func  = INIT_FUNC(secdf_eofp);
 const cell_t debug_func = INIT_FUNC(secdf_ctl);
 const cell_t getenv_fun = INIT_FUNC(secdf_getenv);
 const cell_t bind_func  = INIT_FUNC(secdf_bind);
+/* vector routines */
+const cell_t vp_func    = INIT_FUNC(secdv_is);
+const cell_t vmake_func = INIT_FUNC(secdv_make);
 
 const cell_t t_sym      = INIT_SYM("#t");
+const cell_t f_sym      = INIT_SYM("#f");
 const cell_t nil_sym    = INIT_SYM("NIL");
+
+const cell_t err_sym        = INIT_SYM("error:generic");
+const cell_t err_nil_sym    = INIT_SYM("error:nil");
+const cell_t err_oom        = INIT_SYM("error:out_of_memory");
 
 const struct {
     const cell_t *sym;
     const cell_t *val;
 } native_functions[] = {
+    // predefined errors
+    { &err_oom,     &secd_out_of_memory },
+    { &err_nil_sym, &secd_nil_failure },
+    { &err_sym,     &secd_failure },
+
+    { &vp_sym,      &vp_func    },
+    { &vmake_sym,   &vmake_func },
+
     // native functions
     { &list_sym,    &list_func  },
     { &append_sym,  &appnd_func },
@@ -228,6 +286,7 @@ const struct {
     { &bind_sym,    &bind_func  },
 
     // symbols
+    { &f_sym,       &f_sym      },
     { &t_sym,       &t_sym      },
     { NULL,         NULL        } // must be last
 };
@@ -238,15 +297,15 @@ cell_t * make_frame_of_natives(secd_t *secd) {
     cell_t *vallist = SECD_NIL;
 
     for (i = 0; native_functions[i].sym; ++i) {
-        cell_t *sym = new_clone(secd, native_functions[i].sym);
-        cell_t *val = new_clone(secd, native_functions[i].val);
+        cell_t *sym = new_const_clone(secd, native_functions[i].sym);
+        cell_t *val = new_const_clone(secd, native_functions[i].val);
         sym->nref = val->nref = DONT_FREE_THIS;
         cell_t *closure = new_cons(secd, val, SECD_NIL);
         symlist = new_cons(secd, sym, symlist);
         vallist = new_cons(secd, closure, vallist);
     }
 
-    cell_t *sym = new_clone(secd, &nil_sym);
+    cell_t *sym = new_const_clone(secd, &nil_sym);
     cell_t *val = SECD_NIL;
     symlist = new_cons(secd, sym, symlist);
     vallist = new_cons(secd, val, vallist);

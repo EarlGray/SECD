@@ -207,6 +207,11 @@ Use `secd-compile` function to examine results of Scheme-to-SECD conversion in t
 
 TODO
 ----
+- [ ] alloc_array() : gaps
+- [ ] to write down the new memory layout in memory.c;
+- [ ] ATOM_STR;
+- [ ] read support for vectors;
+- [ ] ATOM_CHAR;
 - [ ] refactor out atom_type, reduce size to 4 words instead of 5;
 - [ ] '#f';
 - [ ] move to indexes instead of pointers;

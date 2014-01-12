@@ -26,7 +26,7 @@ void print_env(secd_t *secd) {
             if (atom_type(secd, sym) != ATOM_SYM)
                 errorf("print_env: not a symbol at *%p in vallist\n", sym);
             printf(";;    %s\t=>\t", symname(sym));
-            print_cell(secd, val);
+            dbg_print_cell(secd, val);
 
             symlist = list_next(secd, symlist);
             vallist = list_next(secd, vallist);

@@ -11,20 +11,81 @@
  *  TODO
  */
 
+/* extern declarations */
 bool is_control_compiled(cell_t *control);
 cell_t *compile_control_path(secd_t *secd, cell_t *control);
+
+/* internal declarations */
+void free_array(secd_t *secd, cell_t *this);
 
 /*
  *  Cell memory management
  */
 
-static inline cell_t*
-init_cons(secd_t *secd, cell_t *car, cell_t *cdr, cell_t *cell) {
-    cell->type = (intptr_t)secd | CELL_CONS;
-    cell->as.cons.car = share_cell(secd, car);
-    cell->as.cons.cdr = share_cell(secd, cdr);
+cell_t *init_with_copy(secd_t *secd, cell_t *cell, cell_t *with) {
+    memcpy(cell, with, sizeof(cell_t));
+
+    cell->type = (intptr_t)secd | cell_type(with);
+    cell->nref = 0;
+    switch (cell_type(with)) {
+      case CELL_CONS: case CELL_FRAME:
+        share_cell(secd, with->as.cons.car);
+        share_cell(secd, with->as.cons.cdr);
+        break;
+      case CELL_REF: 
+        share_cell(secd, with->as.ref); 
+        break;
+      case CELL_ARRAY: 
+        share_cell(secd, arr_meta(with->as.arr)); 
+        break;
+      case CELL_ERROR: 
+      case CELL_ATOM:
+      case CELL_UNDEF:
+        break;
+      case CELL_ARRMETA: case CELL_FREE: 
+        return new_error(secd, "trying to initialize with CELL_ARRMETA");
+    }
     return cell;
 }
+
+void free_atom(cell_t *cell) {
+    switch (cell->as.atom.type) {
+      case ATOM_SYM:
+        if (cell->as.atom.as.sym.size != DONT_FREE_THIS)
+            free((char *)cell->as.atom.as.sym.data); break;
+      default: return;
+    }
+}
+
+static cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
+    enum cell_type t = cell_type(c);
+    switch (t) {
+      case CELL_ATOM:
+        free_atom(c);
+        break;
+      case CELL_FRAME:
+      case CELL_CONS:
+        drop_cell(secd, get_car(c));
+        drop_cell(secd, get_cdr(c));
+        break;
+      case CELL_ARRAY: {
+        cell_t *meta = arr_meta(c->as.arr);
+        -- meta->nref;
+        if (0 == meta->nref) {
+            free_array(secd, c->as.arr);
+        }
+        } break;
+      case CELL_REF:
+        drop_cell(secd, c->as.ref);
+        break;
+      case CELL_ERROR:
+        return c;
+      default:
+        return new_error(secd, "free_cell: unknown cell_type 0x%x", t);
+    }
+    return c;
+}
+
 
 cell_t *pop_free(secd_t *secd) {
     cell_t *cell;
@@ -59,7 +120,7 @@ void push_free(secd_t *secd, cell_t *c) {
         /* just add the cell to the list secd->free */
         if (not_nil(secd->free))
             secd->free->as.cons.car = c;
-        c->type = CELL_UNDEF;
+        c->type = CELL_FREE;
         c->as.cons.car = SECD_NIL;
         c->as.cons.cdr = secd->free;
         secd->free = c;
@@ -69,8 +130,8 @@ void push_free(secd_t *secd, cell_t *c) {
                 cell_index(secd, c), secd->free_cells);
     } else {
         /* it is a cell adjacent to the free space */
-        c->type = CELL_UNDEF;
-        while (c->type == CELL_UNDEF) {
+        c->type = CELL_FREE;
+        while (c->type == CELL_FREE) {
             if (c != secd->free) {
                 cell_t *prev = c->as.cons.car;
                 cell_t *next = c->as.cons.cdr;
@@ -96,6 +157,20 @@ void push_free(secd_t *secd, cell_t *c) {
     }
 }
 
+static inline cell_t*
+init_cons(secd_t *secd, cell_t *cell, cell_t *car, cell_t *cdr) {
+    cell->type = (intptr_t)secd | CELL_CONS;
+    cell->as.cons.car = share_cell(secd, car);
+    cell->as.cons.cdr = share_cell(secd, cdr);
+    return cell;
+}
+
+static cell_t *init_meta(secd_t *secd, cell_t *cell, cell_t *prev, cell_t *next) {
+    init_cons(secd, cell, prev, next);
+    cell->type = (intptr_t)secd | CELL_ARRMETA;
+    return cell;
+}
+
 /*
  *      Array memory management
  */
@@ -108,17 +183,12 @@ static inline bool is_array_free(secd_t *secd, cell_t *metacons) {
 static inline void mark_free(cell_t *metacons) { metacons->nref = 0; }
 static inline void mark_used(cell_t *metacons) { metacons->nref = 1; }
 
-static inline size_t arr_size(secd_t *secd, cell_t *metacons) {
-    if (metacons == secd->arrlist) return 0;
-    return get_car(metacons) - metacons - 1;
-}
-
 cell_t *alloc_array(secd_t *secd, size_t size) {
     /* look through the list of arrays */
     cell_t *cur = secd->arrlist;
     while (not_nil(get_cdr(cur))) {
         if (is_array_free(secd, cur)) {
-            if (arr_size(secd, cur) >= size) {
+            if (arrmeta_size(secd, cur) >= size) {
                 /* allocate this gap */
                 return ;
             }
@@ -134,7 +204,7 @@ cell_t *alloc_array(secd_t *secd, size_t size) {
     cell_t *oldmeta = secd->arrayptr;
 
     cell_t *meta = oldmeta - size - 1;
-    init_cons(secd, meta, oldmeta, SECD_NIL);
+    init_meta(secd, meta, oldmeta, SECD_NIL);
     mark_used(meta);
 
     oldmeta->as.cons.cdr = meta;
@@ -145,15 +215,17 @@ cell_t *alloc_array(secd_t *secd, size_t size) {
 
 void free_array(secd_t *secd, cell_t *this) {
     assertv(this < secd->arrlist, "free_array: tried to free arrlist");
+    assertv(secd->arrayptr < this, "free_array: not an array");
 
-    cell_t *meta = this - 1;
+    cell_t *meta = arr_meta(this);
     cell_t *prev = get_car(meta);
-    size_t size = arr_size(secd, meta);
+    size_t size = arrmeta_size(secd, meta);
     int i;
 
     /* free the items */
     for (i = 0; i < size; ++i) {
-        free_cell(secd, this + i);
+        if (this[i].type != CELL_UNDEF) /* don't free uninitialized */
+            drop_dependencies(secd, this + i);
     }
 
     if (meta != secd->arrayptr) {
@@ -196,7 +268,7 @@ void print_array_layout(secd_t *secd) {
         cur = get_cdr(cur);
         errorf(";;  %ld\t%ld (size=%ld,\t%s)\n", 
                 cell_index(secd, cur), cell_index(secd, cur->as.cons.car),
-                arr_size(secd, cur), (is_array_free(secd, cur)? "free" : "used"));
+                arrmeta_size(secd, cur), (is_array_free(secd, cur)? "free" : "used"));
     }
 }
 
@@ -204,7 +276,7 @@ void print_array_layout(secd_t *secd) {
  *      "Constructors"
  */
 cell_t *new_cons(secd_t *secd, cell_t *car, cell_t *cdr) {
-    return init_cons(secd, car, cdr, pop_free(secd));
+    return init_cons(secd, pop_free(secd), car, cdr);
 }
 
 cell_t *new_frame(secd_t *secd, cell_t *syms, cell_t *vals) {
@@ -239,8 +311,9 @@ cell_t *new_op(secd_t *secd, opindex_t opind) {
     return cell;
 }
 
-cell_t *new_clone(secd_t *secd, const cell_t *from) {
+cell_t *new_const_clone(secd_t *secd, const cell_t *from) {
     if (!from) return NULL;
+
     cell_t *clone = pop_free(secd);
     memcpy(clone, from, sizeof(cell_t));
     clone->type = (intptr_t)secd | cell_type(from);
@@ -288,45 +361,14 @@ cell_t *new_array(secd_t *secd, size_t size) {
     cell_t *arr = pop_free(secd);
     arr->type |= CELL_ARRAY;
     arr->as.arr = mem;
+    mem->nref = 1;
     return arr;
 }
 
-void free_atom(cell_t *cell) {
-    switch (cell->as.atom.type) {
-      case ATOM_SYM:
-        if (cell->as.atom.as.sym.size != DONT_FREE_THIS)
-            free((char *)cell->as.atom.as.sym.data); break;
-      default: return;
-    }
-}
 
 cell_t *free_cell(secd_t *secd, cell_t *c) {
-    enum cell_type t = cell_type(c);
-    switch (t) {
-      case CELL_ATOM:
-        free_atom(c);
-        break;
-      case CELL_FRAME:
-        drop_cell(secd, get_car(c));
-        drop_cell(secd, get_cdr(c));
-        break;
-      case CELL_CONS:
-        drop_cell(secd, get_car(c));
-        drop_cell(secd, get_cdr(c));
-        break;
-      case CELL_ARRAY:
-        free_array(secd, c->as.arr);
-        break;
-      case CELL_REF:
-        drop_cell(secd, c->as.ref);
-        break;
-      case CELL_ERROR:
-        return c;
-      default:
-        return new_error(secd, "free_cell: unknown cell_type 0x%x", t);
-    }
-    push_free(secd, c);
-    return NULL;
+    push_free(secd, drop_dependencies(secd, c));
+    return SECD_NIL;
 }
 
 inline static cell_t *push(secd_t *secd, cell_t **to, cell_t *what) {
@@ -397,7 +439,7 @@ void init_mem(secd_t *secd, cell_t *heap, size_t size) {
     secd->arrayptr = secd->end - 1;
 
     secd->arrlist = secd->arrayptr;
-    init_cons(secd, SECD_NIL, SECD_NIL, secd->arrlist);
+    init_meta(secd, secd->arrlist, SECD_NIL, SECD_NIL);
     secd->arrlist->nref = 0;
 
     secd->used_stack = 0;

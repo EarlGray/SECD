@@ -228,6 +228,6 @@
 (begin
   (secd-bind! '*macros*
     (list
-      (cons 'define-macro secd-define-macro!)
-      (cons 'define secd-mdefine!)))
+      (cons 'define-macro   secd-define-macro!)
+      (cons 'define         secd-mdefine!)))
   (repl (interaction-environment))))

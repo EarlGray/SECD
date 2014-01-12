@@ -28,8 +28,9 @@ int main(int argc, char *argv[]) {
         printf("no commands.\n\n");
         return 0;
     }
-    if (is_error(inp)) { errorf("read_secd failed: %s", errmsg(inp));
-        printc(&secd, inp);
+    if (is_error(inp)) { 
+        errorf("read_secd failed: %s", errmsg(inp));
+        dbg_printc(&secd, inp);
         return 1;
     }
 
@@ -38,7 +39,7 @@ int main(int argc, char *argv[]) {
     /* print the head of the stack */
     if (not_nil(secd.stack)) {
         envdebugf("Stack head:\n");
-        printc(&secd, get_car(secd.stack));
+        dbg_printc(&secd, get_car(secd.stack));
     } else {
         envdebugf("Stack is empty\n");
     }

@@ -9,6 +9,8 @@
 #include <limits.h>
 #include <ctype.h>
 
+void sexp_print_array(secd_t *secd, cell_t *cell);
+
 void print_opcode(opindex_t op) {
     if (op < SECD_LAST) {
         printf("#%s# ", symname(opcode_table[op].sym));
@@ -17,7 +19,7 @@ void print_opcode(opindex_t op) {
     printf("#[%d]# ", op);
 }
 
-void secd_print_atom(secd_t *secd, const cell_t *c) {
+void sexp_print_atom(secd_t *secd, const cell_t *c) {
     switch (atom_type(secd, c)) {
       case ATOM_INT: printf("%d", c->as.atom.as.num); break;
       case ATOM_SYM: printf("%s", c->as.atom.as.sym.data); break;
@@ -27,7 +29,7 @@ void secd_print_atom(secd_t *secd, const cell_t *c) {
     }
 }
 
-void print_cell(secd_t *secd, const cell_t *c) {
+void dbg_print_cell(secd_t *secd, const cell_t *c) {
     if (is_nil(c)) {
          printf("NIL\n");
          return;
@@ -42,38 +44,51 @@ void print_cell(secd_t *secd, const cell_t *c) {
         printf("FRAME(syms: [%ld], vals: [%ld])\n",
                cell_index(secd, get_car(c)), cell_index(secd, get_cdr(c)));
         break;
-      case CELL_ATOM:
-        secd_print_atom(secd, c); printf("\n");
-        break;
-      default:
-        printf("unknown type: %d\n", cell_type(c));
+      case CELL_ATOM: sexp_print_atom(secd, c); printf("\n"); break;
+      case CELL_ARRAY: printf("ARR[%ld]\n", cell_index(secd, c->as.arr)); break;
+      case CELL_REF: printf("REF[%ld]\n", cell_index(secd, c->as.ref)); break;
+      default: printf("unknown type: %d\n", cell_type(c));
     }
 }
 
-void print_list(secd_t *secd, cell_t *list) {
+void dbg_print_list(secd_t *secd, cell_t *list) {
     printf("  -= ");
     while (not_nil(list)) {
         assertv(is_cons(list),
                 "Not a cons at [%ld]\n", cell_index(secd, list));
         printf("[%ld]:%ld\t", cell_index(secd, list), cell_index(secd, get_car(list)));
-        print_cell(secd, get_car(list));
+        dbg_print_cell(secd, get_car(list));
         printf("  -> ");
         list = list_next(secd, list);
     }
     printf("NIL\n");
 }
 
-void printc(secd_t *secd, cell_t *c) {
+void dbg_printc(secd_t *secd, cell_t *c) {
     if (is_cons(c))
-        print_list(secd, c);
+        dbg_print_list(secd, c);
     else
-        print_cell(secd, c);
+        dbg_print_cell(secd, c);
+}
+
+void sexp_print_array(secd_t *secd, cell_t *cell) {
+    cell_t *arr = cell->as.arr;
+    int i;
+    size_t len = arrmeta_size(secd, arr_meta(arr));
+
+    errorf(";; sexp_print_arr: arr_size = %ld\n", len);
+    printf("#(");
+    for (i = 0; i < len; ++i) {
+        sexp_print(secd, arr + i);
+        printf(" ");
+    }
+    printf(")");
 }
 
 void sexp_print(secd_t* secd, cell_t *cell) {
     switch (cell_type(cell)) {
       case CELL_ATOM:
-        secd_print_atom(secd, cell);
+        sexp_print_atom(secd, cell);
         break;
       case CELL_FRAME:
         printf("#<envframe> ");
@@ -93,8 +108,9 @@ void sexp_print(secd_t* secd, cell_t *cell) {
         }
         printf(") ");
         break;
-      case CELL_ERROR:
-        printf("???"); break;
+      case CELL_ARRAY: sexp_print_array(secd, cell); break;
+      case CELL_ERROR: printf("#!\"%s\"", errmsg(cell)); break;
+      case CELL_UNDEF: printf("#?"); break;
       default:
         errorf("sexp_print: unknown cell type %d", (int)cell_type(cell));
     }

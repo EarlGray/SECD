@@ -86,8 +86,10 @@ enum cell_type {
 
     /* compound types */
     CELL_CONS,
-    CELL_FRAME, // a environment frame, the same as CELL_CONS
     CELL_ARRAY, 
+    CELL_FRAME, // a environment frame, private; the same as CELL_CONS
+    CELL_ARRMETA,   // array metadata, private; a double linked node like CELL_CONS
+    CELL_FREE,  // free list node; a double linked node like CELL_CONS
 
     CELL_REF,   // a pivot point between compound and atomic types
 
@@ -245,12 +247,12 @@ inline static int numval(const cell_t *c) {
     return c->as.atom.as.num;
 }
 
-void print_cell(secd_t *secd, const cell_t *c);
+void dbg_print_cell(secd_t *secd, const cell_t *c);
 
 inline static cell_t *list_next(secd_t *secd, const cell_t *cons) {
     if (cell_type(cons) != CELL_CONS) {
         errorf("list_next: not a cons at [%ld]\n", cell_index(secd, cons));
-        print_cell(secd, cons);
+        dbg_print_cell(secd, cons);
         return NULL;
     }
     return cons->as.cons.cdr;
@@ -321,8 +323,8 @@ struct secd_stream {
     void *state;
 };
 
-void print_cell(secd_t *secd, const cell_t *c);
-void printc(secd_t *secd, cell_t *c);
+void dbg_print_cell(secd_t *secd, const cell_t *c);
+void dbg_printc(secd_t *secd, cell_t *c);
 
 void sexp_print(secd_t *secd, cell_t *c);
 
