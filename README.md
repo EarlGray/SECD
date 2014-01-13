@@ -5,7 +5,7 @@ This is a loose implementation of [SECD machine](http://en.wikipedia.org/wiki/SE
 
 Quick run (no prompt is displayed, just type in a form):
 ```
-$ ./secdrepl
+$ ./secdscheme
 (+ 2 2)     ;; input
 4
 
@@ -27,7 +27,7 @@ $ ./secdrepl
 (fact 10)    ;; input
 3628800
 
-(begin (display 'bye') (quit))  ;; input
+(begin (display 'bye) (quit))  ;; input
 bye
 $
 ```
