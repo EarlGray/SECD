@@ -8,7 +8,7 @@ int stdin_getc(void __unused *f) { return getc(stdin); }
 secd_stream_t posix_stdio = { .read = &posix_getc };
 secd_stream_t posix_stdin = { .read = &stdin_getc };
 
-secd_t __attribute__((aligned(1 << SECD_ALIGN))) secd;
+secd_t secd;
 
 int main(int argc, char *argv[]) {
     errorf(";;;   Welcome to SECD   \n");

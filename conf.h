@@ -2,7 +2,6 @@
 #define __SECD_CONF_H___
 
 #define N_CELLS     256 * 1024
-#define SECD_ALIGN  4
 
 #define TAILRECURSION 1
 #define CASESENSITIVE 0

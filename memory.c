@@ -52,7 +52,7 @@ hash_t memhash(const char *key, size_t len) {
 cell_t *init_with_copy(secd_t *secd, cell_t *cell, cell_t *with) {
     memcpy(cell, with, sizeof(cell_t));
 
-    cell->type = (intptr_t)secd | cell_type(with);
+    cell->type = cell_type(with);
     cell->nref = 0;
     switch (cell_type(with)) {
       case CELL_CONS: case CELL_FRAME:
@@ -137,7 +137,7 @@ cell_t *pop_free(secd_t *secd) {
         ++ secd->fixedptr;
         memdebugf("NEW [%ld] ++\n", cell_index(secd, cell));
     }
-    cell->type = (intptr_t)secd;
+    cell->type = CELL_UNDEF;
     cell->nref = 0;
     return cell;
 }
@@ -147,11 +147,11 @@ void push_free(secd_t *secd, cell_t *c) {
     assertv(c->nref == 0,
             "push_free: [%ld]->nref is %ld\n", cell_index(secd, c), c->nref);
 
+    c->type = CELL_FREE;
     if (c + 1 < secd->fixedptr) {
         /* just add the cell to the list secd->free */
         if (not_nil(secd->free))
             secd->free->as.cons.car = c;
-        c->type = CELL_FREE;
         c->as.cons.car = SECD_NIL;
         c->as.cons.cdr = secd->free;
         secd->free = c;
@@ -161,7 +161,6 @@ void push_free(secd_t *secd, cell_t *c) {
                 cell_index(secd, c), secd->free_cells);
     } else {
         /* it is a cell adjacent to the free space */
-        c->type = CELL_FREE;
         while (c->type == CELL_FREE) {
             if (c != secd->free) {
                 cell_t *prev = c->as.cons.car;
@@ -190,7 +189,7 @@ void push_free(secd_t *secd, cell_t *c) {
 
 static inline cell_t*
 init_cons(secd_t *secd, cell_t *cell, cell_t *car, cell_t *cdr) {
-    cell->type = (intptr_t)secd | CELL_CONS;
+    cell->type = CELL_CONS;
     cell->as.cons.car = share_cell(secd, car);
     cell->as.cons.cdr = share_cell(secd, cdr);
     return cell;
@@ -198,7 +197,7 @@ init_cons(secd_t *secd, cell_t *cell, cell_t *car, cell_t *cdr) {
 
 static cell_t *init_meta(secd_t *secd, cell_t *cell, cell_t *prev, cell_t *next) {
     init_cons(secd, cell, prev, next);
-    cell->type = (intptr_t)secd | CELL_ARRMETA;
+    cell->type = CELL_ARRMETA;
     return cell;
 }
 
@@ -212,7 +211,6 @@ static inline bool is_array_free(secd_t *secd, cell_t *metacons) {
     return metacons->nref == 0;
 }
 static inline void mark_free(cell_t *metacons) { metacons->nref = 0; }
-static inline void mark_used(cell_t *metacons) { metacons->nref = 1; }
 
 cell_t *alloc_array(secd_t *secd, size_t size) {
     /* look through the list of arrays */
@@ -242,7 +240,6 @@ cell_t *alloc_array(secd_t *secd, size_t size) {
 
     cell_t *meta = oldmeta - size - 1;
     init_meta(secd, meta, oldmeta, SECD_NIL);
-    mark_used(meta);
 
     oldmeta->as.cons.cdr = meta;
 
@@ -318,14 +315,13 @@ cell_t *new_cons(secd_t *secd, cell_t *car, cell_t *cdr) {
 
 cell_t *new_frame(secd_t *secd, cell_t *syms, cell_t *vals) {
     cell_t *cons = new_cons(secd, syms, vals);
-    cons->type &= (INTPTR_MAX << SECD_ALIGN);
-    cons->type |= CELL_FRAME;
+    cons->type = CELL_FRAME;
     return cons;
 }
 
 cell_t *new_number(secd_t *secd, int num) {
     cell_t *cell = pop_free(secd);
-    cell->type |= CELL_ATOM;
+    cell->type = CELL_ATOM;
     cell->as.atom.type = ATOM_INT;
     cell->as.atom.as.num = num;
     return cell;
@@ -333,7 +329,7 @@ cell_t *new_number(secd_t *secd, int num) {
 
 cell_t *new_symbol(secd_t *secd, const char *sym) {
     cell_t *cell = pop_free(secd);
-    cell->type |= CELL_ATOM;
+    cell->type = CELL_ATOM;
     cell->as.atom.type = ATOM_SYM;
     cell->as.atom.as.sym.size = strlen(sym);
     cell->as.atom.as.sym.data = strdup(sym);
@@ -353,7 +349,7 @@ cell_t *new_string(secd_t *secd, const char *str) {
     strcpy(mem.as_cstr, str);
 
     cell_t *cell = pop_free(secd);
-    cell->type |= CELL_STR;
+    cell->type = CELL_STR;
 
     share_cell(secd, arr_meta(mem.as_cell));
     cell->as.str.data = mem.as_cstr;
@@ -363,7 +359,7 @@ cell_t *new_string(secd_t *secd, const char *str) {
 
 cell_t *new_op(secd_t *secd, opindex_t opind) {
     cell_t *cell = pop_free(secd);
-    cell->type |= CELL_ATOM;
+    cell->type = CELL_ATOM;
     cell->as.atom.type = ATOM_OP;
     cell->as.atom.as.op = opind;
     return cell;
@@ -373,23 +369,18 @@ cell_t *new_const_clone(secd_t *secd, const cell_t *from) {
     if (is_nil(from)) return NULL;
 
     cell_t *clone = pop_free(secd);
-    memcpy(clone, from, sizeof(cell_t));
-    clone->type = (intptr_t)secd | cell_type(from);
-    clone->nref = 0;
-    return clone;
+    return init_with_copy(secd, clone, from);
 }
 
 cell_t *new_clone(secd_t *secd, cell_t *from) {
     cell_t *clone = pop_free(secd);
     assert_cell(clone, "new_clone: allocation failed");
 
-    memcpy(clone, from, sizeof(cell_t));
-    clone->nref = 0;
-    return clone;
+    return init_with_copy(secd, clone, from);
 }
 
 static cell_t *init_error(cell_t *cell, const char *buf) {
-    cell->type |= CELL_ERROR;
+    cell->type = CELL_ERROR;
     cell->as.err.len = strlen(buf);
     cell->as.err.msg = strdup(buf);
     return cell;
@@ -426,7 +417,7 @@ cell_t *new_array(secd_t *secd, size_t size) {
     assert_cell(mem, "new_array: memory allocation failed");
 
     cell_t *arr = pop_free(secd);
-    arr->type |= CELL_ARRAY;
+    arr->type = CELL_ARRAY;
     arr->as.arr = mem;
     mem->nref = 1;
     return arr;

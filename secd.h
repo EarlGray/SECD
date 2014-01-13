@@ -146,13 +146,12 @@ cell_t *new_error(secd_t *, const char *fmt, ...);
 cell_t *new_errorv(secd_t *secd, const char *fmt, va_list va);
 cell_t *new_error_with(secd_t *secd, cell_t *preverr, const char *fmt, ...);
 
+#define TYPE_SIZE  8
+#define NREF_SIZE  (8 * sizeof(size_t) - TYPE_SIZE)
 
 struct cell {
-    // this is a packed structure:
-    //      bits 0 .. SECD_ALIGN-1          - enum cell_type
-    //      bits SECD_ALIGN .. CHAR_BIT * (sizeof(intptr_t)-1)   - (secd_t *)
-    intptr_t type;
-    size_t nref;
+    enum cell_type type:TYPE_SIZE;
+    size_t nref:NREF_SIZE;
 
     union {
         atom_t  atom;
@@ -170,7 +169,7 @@ struct cell {
 
 typedef  struct secd_stat  secd_stat_t;
 
-// must be aligned at 1<<SECD_ALIGN
+
 struct secd {
     /**** memory layout ****/
     /* pointers: begin, fixedptr, arrayptr, end
@@ -216,11 +215,7 @@ struct secd {
 
 inline static enum cell_type cell_type(const cell_t *c) {
     if (!c) return CELL_CONS;
-    return ((1 << SECD_ALIGN) - 1) & c->type;
-}
-
-inline static secd_t *cell_secd(const cell_t *c) {
-    return (secd_t *)((INTPTR_MAX << SECD_ALIGN) & c->type);
+    return c->type;
 }
 
 inline static enum atom_type atom_type(secd_t *secd, const cell_t *c) {
