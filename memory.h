@@ -19,7 +19,10 @@ cell_t *new_clone(secd_t *secd, cell_t *from);
 cell_t *new_error(secd_t *secd, const char *fmt, ...);
 cell_t *new_array(secd_t *secd, size_t size);
 
-cell_t *init_with_copy(secd_t *secd, cell_t *cell, cell_t *with);
+cell_t *init_with_copy(
+        secd_t *secd,
+        cell_t *restrict cell,
+        const cell_t *restrict with);
 
 cell_t *free_cell(secd_t *, cell_t *c);
 

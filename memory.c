@@ -49,10 +49,12 @@ hash_t memhash(const char *key, size_t len) {
  *  Cell memory management
  */
 
-cell_t *init_with_copy(secd_t *secd, cell_t *cell, cell_t *with) {
+cell_t *init_with_copy(secd_t *secd,
+                       cell_t *restrict cell,
+                       const cell_t *restrict with)
+{
     memcpy(cell, with, sizeof(cell_t));
 
-    cell->type = cell_type(with);
     cell->nref = 0;
     switch (cell_type(with)) {
       case CELL_CONS: case CELL_FRAME:

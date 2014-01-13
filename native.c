@@ -154,9 +154,9 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
     if (atom_type(secd, arg1) == ATOM_SYM) {
         if (str_eq(symname(arg1), "free")) {
             printf(";; SECDCTL: \n");
-            printf(";;  size = %ld\n", secd->end - secd->begin);
-            printf(";;  fixedptr = %ld\n", secd->fixedptr - secd->begin);
-            printf(";;  arrayptr = %ld (%ld)\n",
+            printf(";;  size = %zd\n", secd->end - secd->begin);
+            printf(";;  fixedptr = %zd\n", secd->fixedptr - secd->begin);
+            printf(";;  arrayptr = %zd (%zd)\n",
                     secd->arrayptr - secd->begin, secd->arrayptr - secd->end);
             printf(";;  Fixed cells: %ld free, %ld dump\n", 
                     secd->free_cells, secd->used_dump);

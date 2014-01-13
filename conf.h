@@ -6,8 +6,11 @@
 #define TAILRECURSION 1
 #define CASESENSITIVE 0
 
+#define TYPE_BITS  8
+#define NREF_BITS  (8 * sizeof(size_t) - TYPE_BITS)
+
 #define EOF_OBJ     "#<eof>"
-#define DONT_FREE_THIS  INTPTR_MAX/2
+#define DONT_FREE_THIS  (1ul << (8 * sizeof(size_t) - TYPE_BITS - 2))
 
 #if CASESENSITIVE
 # define str_eq(s1, s2)  !strcmp(s1, s2)

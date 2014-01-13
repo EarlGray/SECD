@@ -146,12 +146,9 @@ cell_t *new_error(secd_t *, const char *fmt, ...);
 cell_t *new_errorv(secd_t *secd, const char *fmt, va_list va);
 cell_t *new_error_with(secd_t *secd, cell_t *preverr, const char *fmt, ...);
 
-#define TYPE_SIZE  8
-#define NREF_SIZE  (8 * sizeof(size_t) - TYPE_SIZE)
-
 struct cell {
-    enum cell_type type:TYPE_SIZE;
-    size_t nref:NREF_SIZE;
+    enum cell_type type:TYPE_BITS;
+    size_t nref:NREF_BITS;
 
     union {
         atom_t  atom;
