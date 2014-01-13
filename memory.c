@@ -5,7 +5,7 @@
 #include <stdarg.h>
 
 /*
- *      A short description of SECD memory layout 
+ *      A short description of SECD memory layout
  *                                          last updated: 12 Jan 2014
  *
  *  TODO
@@ -18,31 +18,61 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control);
 /* internal declarations */
 void free_array(secd_t *secd, cell_t *this);
 
+
+inline static size_t bytes_to_cell(size_t bytes) {
+    size_t ncell = bytes / sizeof(cell_t);
+    if (bytes % sizeof(cell_t))
+        ++ncell;
+    return ncell;
+}
+
+/* http://en.wikipedia.org/wiki/Jenkins_hash_function */
+static hash_t jenkins_hash(const char *key, size_t len) {
+    uint32_t hash, i;
+    for(hash = i = 0; i < len; ++i)
+    {
+        hash += key[i];
+        hash += (hash << 10);
+        hash ^= (hash >> 6);
+    }
+    hash += (hash << 3);
+    hash ^= (hash >> 11);
+    hash += (hash << 15);
+    return hash;
+}
+
+hash_t memhash(const char *key, size_t len) {
+    return jenkins_hash(key, len);
+}
+
 /*
  *  Cell memory management
  */
 
-cell_t *init_with_copy(secd_t *secd, cell_t *cell, cell_t *with) {
+cell_t *init_with_copy(secd_t *secd,
+                       cell_t *restrict cell,
+                       const cell_t *restrict with)
+{
     memcpy(cell, with, sizeof(cell_t));
 
-    cell->type = (intptr_t)secd | cell_type(with);
     cell->nref = 0;
     switch (cell_type(with)) {
       case CELL_CONS: case CELL_FRAME:
         share_cell(secd, with->as.cons.car);
         share_cell(secd, with->as.cons.cdr);
         break;
-      case CELL_REF: 
-        share_cell(secd, with->as.ref); 
+      case CELL_REF:
+        share_cell(secd, with->as.ref);
         break;
-      case CELL_ARRAY: 
-        share_cell(secd, arr_meta(with->as.arr)); 
+      case CELL_ARRAY:
+      case CELL_STR:
+        share_cell(secd, arr_meta(with->as.arr));
         break;
-      case CELL_ERROR: 
+      case CELL_ERROR:
       case CELL_ATOM:
       case CELL_UNDEF:
         break;
-      case CELL_ARRMETA: case CELL_FREE: 
+      case CELL_ARRMETA: case CELL_FREE:
         return new_error(secd, "trying to initialize with CELL_ARRMETA");
     }
     return cell;
@@ -62,6 +92,9 @@ static cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
     switch (t) {
       case CELL_ATOM:
         free_atom(c);
+        break;
+      case CELL_STR:
+        drop_cell(secd, arr_meta((cell_t *)c->as.str.data));
         break;
       case CELL_FRAME:
       case CELL_CONS:
@@ -106,7 +139,7 @@ cell_t *pop_free(secd_t *secd) {
         ++ secd->fixedptr;
         memdebugf("NEW [%ld] ++\n", cell_index(secd, cell));
     }
-    cell->type = (intptr_t)secd;
+    cell->type = CELL_UNDEF;
     cell->nref = 0;
     return cell;
 }
@@ -116,21 +149,20 @@ void push_free(secd_t *secd, cell_t *c) {
     assertv(c->nref == 0,
             "push_free: [%ld]->nref is %ld\n", cell_index(secd, c), c->nref);
 
+    c->type = CELL_FREE;
     if (c + 1 < secd->fixedptr) {
         /* just add the cell to the list secd->free */
         if (not_nil(secd->free))
             secd->free->as.cons.car = c;
-        c->type = CELL_FREE;
         c->as.cons.car = SECD_NIL;
         c->as.cons.cdr = secd->free;
         secd->free = c;
 
         ++secd->free_cells;
-        memdebugf("FREE[%ld], %ld free\n", 
+        memdebugf("FREE[%ld], %ld free\n",
                 cell_index(secd, c), secd->free_cells);
     } else {
         /* it is a cell adjacent to the free space */
-        c->type = CELL_FREE;
         while (c->type == CELL_FREE) {
             if (c != secd->free) {
                 cell_t *prev = c->as.cons.car;
@@ -159,7 +191,7 @@ void push_free(secd_t *secd, cell_t *c) {
 
 static inline cell_t*
 init_cons(secd_t *secd, cell_t *cell, cell_t *car, cell_t *cdr) {
-    cell->type = (intptr_t)secd | CELL_CONS;
+    cell->type = CELL_CONS;
     cell->as.cons.car = share_cell(secd, car);
     cell->as.cons.cdr = share_cell(secd, cdr);
     return cell;
@@ -167,7 +199,7 @@ init_cons(secd_t *secd, cell_t *cell, cell_t *car, cell_t *cdr) {
 
 static cell_t *init_meta(secd_t *secd, cell_t *cell, cell_t *prev, cell_t *next) {
     init_cons(secd, cell, prev, next);
-    cell->type = (intptr_t)secd | CELL_ARRMETA;
+    cell->type = CELL_ARRMETA;
     return cell;
 }
 
@@ -181,7 +213,6 @@ static inline bool is_array_free(secd_t *secd, cell_t *metacons) {
     return metacons->nref == 0;
 }
 static inline void mark_free(cell_t *metacons) { metacons->nref = 0; }
-static inline void mark_used(cell_t *metacons) { metacons->nref = 1; }
 
 cell_t *alloc_array(secd_t *secd, size_t size) {
     /* look through the list of arrays */
@@ -211,7 +242,6 @@ cell_t *alloc_array(secd_t *secd, size_t size) {
 
     cell_t *meta = oldmeta - size - 1;
     init_meta(secd, meta, oldmeta, SECD_NIL);
-    mark_used(meta);
 
     oldmeta->as.cons.cdr = meta;
 
@@ -272,7 +302,7 @@ void print_array_layout(secd_t *secd) {
     cell_t *cur = secd->arrlist;
     while (get_cdr(cur)) {
         cur = get_cdr(cur);
-        errorf(";;  %ld\t%ld (size=%ld,\t%s)\n", 
+        errorf(";;  %ld\t%ld (size=%ld,\t%s)\n",
                 cell_index(secd, cur), cell_index(secd, cur->as.cons.car),
                 arrmeta_size(secd, cur), (is_array_free(secd, cur)? "free" : "used"));
     }
@@ -287,14 +317,13 @@ cell_t *new_cons(secd_t *secd, cell_t *car, cell_t *cdr) {
 
 cell_t *new_frame(secd_t *secd, cell_t *syms, cell_t *vals) {
     cell_t *cons = new_cons(secd, syms, vals);
-    cons->type &= (INTPTR_MAX << SECD_ALIGN);
-    cons->type |= CELL_FRAME;
+    cons->type = CELL_FRAME;
     return cons;
 }
 
 cell_t *new_number(secd_t *secd, int num) {
     cell_t *cell = pop_free(secd);
-    cell->type |= CELL_ATOM;
+    cell->type = CELL_ATOM;
     cell->as.atom.type = ATOM_INT;
     cell->as.atom.as.num = num;
     return cell;
@@ -302,33 +331,58 @@ cell_t *new_number(secd_t *secd, int num) {
 
 cell_t *new_symbol(secd_t *secd, const char *sym) {
     cell_t *cell = pop_free(secd);
-    cell->type |= CELL_ATOM;
+    cell->type = CELL_ATOM;
     cell->as.atom.type = ATOM_SYM;
     cell->as.atom.as.sym.size = strlen(sym);
     cell->as.atom.as.sym.data = strdup(sym);
     return cell;
 }
 
+cell_t *new_string(secd_t *secd, const char *str) {
+    union {
+        char *as_cstr;
+        cell_t *as_cell;
+    } mem;
+
+    size_t len = strlen(str);
+    mem.as_cell = alloc_array(secd, bytes_to_cell(len + 1));
+    assert_cell(mem.as_cell, "new_string: alloc failed");
+
+    strcpy(mem.as_cstr, str);
+
+    cell_t *cell = pop_free(secd);
+    cell->type = CELL_STR;
+
+    share_cell(secd, arr_meta(mem.as_cell));
+    cell->as.str.data = mem.as_cstr;
+    cell->as.str.hash = memhash(mem.as_cstr, len);
+    return cell;
+}
+
 cell_t *new_op(secd_t *secd, opindex_t opind) {
     cell_t *cell = pop_free(secd);
-    cell->type |= CELL_ATOM;
+    cell->type = CELL_ATOM;
     cell->as.atom.type = ATOM_OP;
     cell->as.atom.as.op = opind;
     return cell;
 }
 
 cell_t *new_const_clone(secd_t *secd, const cell_t *from) {
-    if (!from) return NULL;
+    if (is_nil(from)) return NULL;
 
     cell_t *clone = pop_free(secd);
-    memcpy(clone, from, sizeof(cell_t));
-    clone->type = (intptr_t)secd | cell_type(from);
-    clone->nref = 0;
-    return clone;
+    return init_with_copy(secd, clone, from);
+}
+
+cell_t *new_clone(secd_t *secd, cell_t *from) {
+    cell_t *clone = pop_free(secd);
+    assert_cell(clone, "new_clone: allocation failed");
+
+    return init_with_copy(secd, clone, from);
 }
 
 static cell_t *init_error(cell_t *cell, const char *buf) {
-    cell->type |= CELL_ERROR;
+    cell->type = CELL_ERROR;
     cell->as.err.len = strlen(buf);
     cell->as.err.msg = strdup(buf);
     return cell;
@@ -365,7 +419,7 @@ cell_t *new_array(secd_t *secd, size_t size) {
     assert_cell(mem, "new_array: memory allocation failed");
 
     cell_t *arr = pop_free(secd);
-    arr->type |= CELL_ARRAY;
+    arr->type = CELL_ARRAY;
     arr->as.arr = mem;
     mem->nref = 1;
     return arr;
@@ -424,7 +478,7 @@ cell_t *pop_control(secd_t *secd) {
 cell_t *push_dump(secd_t *secd, cell_t *cell) {
     cell_t *top = push(secd, &secd->dump, cell);
     memdebugf("PUSH D[%ld] (%ld, %ld)\n", cell_index(secd, top),
-            cell_index(secd, get_car(top)), 
+            cell_index(secd, get_car(top)),
             cell_index(secd, get_cdr(top)));
     ++secd->used_dump;
     return top;

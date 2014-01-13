@@ -8,18 +8,21 @@
  *   Allocation
  */
 
-typedef  struct secd_memory  secd_memory_t;
-
 cell_t *new_cons(secd_t *secd, cell_t *car, cell_t *cdr);
 cell_t *new_frame(secd_t *secd, cell_t *syms, cell_t *vals);
 cell_t *new_number(secd_t *secd, int num);
 cell_t *new_symbol(secd_t *secd, const char *sym);
+cell_t *new_string(secd_t *secd, const char *str);
 cell_t *new_op(secd_t *secd, opindex_t opind);
 cell_t *new_const_clone(secd_t *secd, const cell_t *from);
+cell_t *new_clone(secd_t *secd, cell_t *from);
 cell_t *new_error(secd_t *secd, const char *fmt, ...);
 cell_t *new_array(secd_t *secd, size_t size);
 
-cell_t *init_with_copy(secd_t *secd, cell_t *cell, cell_t *with);
+cell_t *init_with_copy(
+        secd_t *secd,
+        cell_t *restrict cell,
+        const cell_t *restrict with);
 
 cell_t *free_cell(secd_t *, cell_t *c);
 
@@ -62,9 +65,7 @@ inline static cell_t *drop_cell(secd_t *secd, cell_t *c) {
 }
 
 static inline size_t arrmeta_size(secd_t *secd, cell_t *metacons) {
-    if (cell_type(metacons) != CELL_ARRMETA) {
-        *(int *)0 = 0;
-    }
+    asserti(cell_type(metacons) == CELL_ARRMETA, "arrmeta_size: not a meta");
     if (metacons == secd->arrlist) return 0;
     return get_car(metacons) - metacons - 1;
 }
@@ -77,10 +78,21 @@ static inline cell_t *arr_meta(cell_t *arr) {
     return arr - 1;
 }
 
+static inline size_t arr_size(secd_t *secd, cell_t *arr) {
+    return arrmeta_size(secd, arr_meta(arr->as.arr));
+}
+
 /*
  *
  */
 
 void init_mem(secd_t *secd, cell_t *heap, size_t size);
+
+/*
+ *    UTF-8
+ */
+typedef  unsigned long  unichar_t;
+
+char *utf8cpy(char *to, unichar_t ucs);
 
 #endif // __SECD_MEM_H__

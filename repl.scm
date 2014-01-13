@@ -173,6 +173,7 @@
   (cond
     ((symbol? s) (list 'LD s))
     ((number? s) (list 'LDC s))
+    ((string? s) (list 'LDC s))
     (else (compile-form s)))))
 
 (secd-make-executable (lambda (ctrlpath maybe-env)

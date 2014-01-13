@@ -3,19 +3,45 @@
 #include "env.h"
 
 #include <string.h>
+#include <stdint.h>
 
-/*
- * Some native functions
- */
+void print_array_layout(secd_t *secd);
 
 static inline cell_t *to_bool(secd_t *secd, bool cond) {
     return ((cond)? lookup_env(secd, "#t") : SECD_NIL);
 }
 
-cell_t *secdf_list(secd_t __unused *secd, cell_t *args) {
-    ctrldebugf("secdf_list\n");
-    return args;
+/*
+ *  UTF-8 processing
+ *
+ *  reference: http://en.wikipedia.org/wiki/UTF-8
+ */
+char *utf8cpy(char *to, unichar_t ucs) {
+    if (ucs < 0x80) {
+        *to = (uint8_t)ucs;
+        return ++to;
+    }
+
+    /* otherwise some bit-twiddling is inevitable */
+    int nbytes;
+    if (ucs <= 0x7FF)        nbytes = 2;
+    else if (ucs <= 0xFFFF)  nbytes = 3;
+    else if (ucs <= 0x10FFF) nbytes = 4;
+    else return NULL;   /* not a valid code point */
+
+    int i = nbytes;
+    while (--i > 0) {
+        to[i] = 0x80 | (0x3F & (uint8_t)ucs);
+        ucs >>= 6;
+    }
+    uint8_t mask = (1 << (8 - nbytes)) - 1;
+    to[0] = ~mask | ((mask >> 1) & (uint8_t)ucs);
+    return to + nbytes;
 }
+
+/*
+ *   List processing
+ */
 
 cell_t *secdf_null(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_nullp\n");
@@ -23,16 +49,9 @@ cell_t *secdf_null(secd_t *secd, cell_t *args) {
     return to_bool(secd, is_nil(list_head(args)));
 }
 
-cell_t *secdf_nump(secd_t *secd, cell_t *args) {
-    ctrldebugf("secdf_nump\n");
-    assert(not_nil(args), "secdf_copy: one argument expected");
-    return to_bool(secd, atom_type(secd, list_head(args)) == ATOM_INT);
-}
-
-cell_t *secdf_symp(secd_t *secd, cell_t *args) {
-    ctrldebugf("secdf_symp\n");
-    assert(not_nil(args), "secdf_copy: one argument expected");
-    return to_bool(secd, atom_type(secd, list_head(args)) == ATOM_SYM);
+cell_t *secdf_list(secd_t __unused *secd, cell_t *args) {
+    ctrldebugf("secdf_list\n");
+    return args;
 }
 
 static cell_t *list_copy(secd_t *secd, cell_t *list, cell_t **out_tail) {
@@ -102,6 +121,22 @@ cell_t *secdf_append(secd_t *secd, cell_t *args) {
     return sum;
 }
 
+/*
+ *   Misc native routines
+ */
+
+cell_t *secdf_nump(secd_t *secd, cell_t *args) {
+    ctrldebugf("secdf_nump\n");
+    assert(not_nil(args), "secdf_copy: one argument expected");
+    return to_bool(secd, atom_type(secd, list_head(args)) == ATOM_INT);
+}
+
+cell_t *secdf_symp(secd_t *secd, cell_t *args) {
+    ctrldebugf("secdf_symp\n");
+    assert(not_nil(args), "secdf_copy: one argument expected");
+    return to_bool(secd, atom_type(secd, list_head(args)) == ATOM_SYM);
+}
+
 cell_t *secdf_eofp(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_eofp\n");
     cell_t *arg1 = list_head(args);
@@ -109,8 +144,6 @@ cell_t *secdf_eofp(secd_t *secd, cell_t *args) {
         return SECD_NIL;
     return to_bool(secd, str_eq(symname(arg1), EOF_OBJ));
 }
-
-void print_array_layout(secd_t *secd);
 
 cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_ctl\n");
@@ -121,9 +154,10 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
     if (atom_type(secd, arg1) == ATOM_SYM) {
         if (str_eq(symname(arg1), "free")) {
             printf(";; SECDCTL: \n");
-            printf(";;  size = %ld\n", secd->end - secd->begin);
-            printf(";;  fixedptr = %ld\n", secd->fixedptr - secd->begin);
-            printf(";;  arrayptr = %ld\n", secd->arrayptr - secd->begin);
+            printf(";;  size = %zd\n", secd->end - secd->begin);
+            printf(";;  fixedptr = %zd\n", secd->fixedptr - secd->begin);
+            printf(";;  arrayptr = %zd (%zd)\n",
+                    secd->arrayptr - secd->begin, secd->arrayptr - secd->end);
             printf(";;  Fixed cells: %ld free, %ld dump\n", 
                     secd->free_cells, secd->used_dump);
         } else if (str_eq(symname(arg1), "env")) {
@@ -131,7 +165,7 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
         } else if (str_eq(symname(arg1), "heap")) {
             print_array_layout(secd);
         } else if (str_eq(symname(arg1), "tick")) {
-            printf("SECDCTL: tick = %lu\n", secd->tick);
+            printf(";; tick = %lu\n", secd->tick);
             return new_number(secd, secd->tick);
         } else {
             goto help;
@@ -140,8 +174,8 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
     return new_symbol(secd, "ok");
 help:
     errorf(";; Options are 'tick', 'heap', 'env', 'free'\n");
-    errorf(";; Use them like (secdctl 'env)\n");
-    errorf(";; If you're here first time, explore (secdctl 'env)\n");
+    errorf(";; Use them like (secd 'env)\n");
+    errorf(";; If you're here first time, explore (secd 'env)\n");
     errorf(";;    to get some idea of what is available\n");
     return new_symbol(secd, "see?");
 }
@@ -205,9 +239,9 @@ cell_t *secdv_make(secd_t *secd, cell_t *args) {
 
     int i;
     size_t len = numval(num);
-    errorf(";; secdv_make: allocating %ld\n", len);
+    //errorf(";; secdv_make: allocating %ld\n", len);
     cell_t *arr = new_array(secd, len);
-    errorf(";; secdv_make: allocated %ld\n", arrmeta_size(secd, arr_meta(arr->as.arr)));
+    //errorf(";; secdv_make: allocated %ld\n", arrmeta_size(secd, arr_meta(arr->as.arr)));
 
     if (not_nil(list_next(secd, args))) {
         cell_t *fill = get_car(list_next(secd, args));
@@ -221,6 +255,34 @@ cell_t *secdv_make(secd_t *secd, cell_t *args) {
     return arr;
 }
 
+cell_t *secdv_ref(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdv_ref: no arguments");
+    assert(is_cons(args), "secdv_ref: invalid arguments");
+
+    cell_t *arr = get_car(args);
+    assert(cell_type(arr) == CELL_ARRAY, "secdv_ref: array expected");
+
+    args = list_next(secd, args);
+    assert(not_nil(args), "secdv_ref: a second argument expected");
+
+    cell_t *num = get_car(args);
+    assert(atom_type(secd, num) == ATOM_INT, "secdv_ref: an index expected");
+    int ind = numval(num);
+
+    assert(ind < arr_size(secd, arr), "secdv_ref: index is out of range");
+
+    return new_clone(secd, arr->as.arr + ind);
+}
+
+/*
+ *    String functions
+ */
+cell_t *secdstr_is(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdstr_is: no arguments");
+
+    cell_t *obj = get_car(args);
+    return to_bool(secd, cell_type(obj) == CELL_STR);
+}
 
 /*
  *    Native function mapping table
@@ -232,12 +294,15 @@ const cell_t nullp_sym  = INIT_SYM("null?");
 const cell_t nump_sym   = INIT_SYM("number?");
 const cell_t symp_sym   = INIT_SYM("symbol?");
 const cell_t eofp_sym   = INIT_SYM("eof-object?");
-const cell_t debug_sym  = INIT_SYM("secdctl");
+const cell_t debug_sym  = INIT_SYM("secd");
 const cell_t env_sym    = INIT_SYM("interaction-environment");
 const cell_t bind_sym   = INIT_SYM("secd-bind!");
 /* vector routines */
 const cell_t vp_sym     = INIT_SYM("vector?");
 const cell_t vmake_sym  = INIT_SYM("make-vector");
+const cell_t vref_sym   = INIT_SYM("vector-ref");
+/* string functions */
+const cell_t sp_sym     = INIT_SYM("string?");
 
 const cell_t list_func  = INIT_FUNC(secdf_list);
 const cell_t appnd_func = INIT_FUNC(secdf_append);
@@ -252,6 +317,9 @@ const cell_t bind_func  = INIT_FUNC(secdf_bind);
 /* vector routines */
 const cell_t vp_func    = INIT_FUNC(secdv_is);
 const cell_t vmake_func = INIT_FUNC(secdv_make);
+const cell_t vref_func  = INIT_FUNC(secdv_ref);
+/* string routines */
+const cell_t sp_func    = INIT_FUNC(secdstr_is);
 
 const cell_t t_sym      = INIT_SYM("#t");
 const cell_t f_sym      = INIT_SYM("#f");
@@ -270,8 +338,11 @@ const struct {
     { &err_nil_sym, &secd_nil_failure },
     { &err_sym,     &secd_failure },
 
+    { &sp_sym,      &sp_func    },
+
     { &vp_sym,      &vp_func    },
     { &vmake_sym,   &vmake_func },
+    { &vref_sym,    &vref_func  },
 
     // native functions
     { &list_sym,    &list_func  },

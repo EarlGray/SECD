@@ -1,8 +1,6 @@
 #include "secd.h"
 #include "env.h"
-
 #include "memory.h"
-#include "native.h"
 
 #include <string.h>
 
