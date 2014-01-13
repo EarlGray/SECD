@@ -215,7 +215,8 @@ token_t lexnext(secd_parser_t *p) {
     if (isdigit(p->lc)) {
         char *s = p->symtok;
         do {
-            *s++ = p->lc; nextchar(p);
+            *s++ = p->lc; 
+            nextchar(p);
         } while (isdigit(p->lc));
         *s = '\0';
 
@@ -225,9 +226,15 @@ token_t lexnext(secd_parser_t *p) {
 
     if (p->issymbc[(unsigned char)p->lc]) {
         char *s = p->symtok;
+        size_t read_count = 1;
         do {
             *s++ = p->lc;
             nextchar(p);
+            if (++read_count >= MAX_LEXEME_SIZE) {
+                *s = '\0';
+                errorf("lexnext: lexeme is too large: %s\n", p->symtok);
+                return (p->token = TOK_ERR);
+            }
         } while (p->issymbc[(unsigned char)p->lc]);
         *s = '\0';
 
@@ -270,7 +277,7 @@ cell_t *read_list(secd_t *secd, secd_parser_t *p) {
               if (p->token == TOK_ERR) {
                   free_cell(secd, head);
                   errorf("read_list: TOK_ERR\n");
-                  return NULL;
+                  return new_error(secd, "read_list: error reading subexpression");
               }
               if (p->token == TOK_EOF) {
                   free_cell(secd, head);
@@ -284,14 +291,15 @@ cell_t *read_list(secd_t *secd, secd_parser_t *p) {
               const char *formname = special_form_for(tok);
               assert(formname, "No formname for token=%d\n", tok);
               val = sexp_read(secd, p);
+              assert_cell(val, "read_list: sexp_read failed");
               val = new_cons(secd, new_symbol(secd, formname),
                                    new_cons(secd, val, SECD_NIL));
               } break;
 
            default:
-              errorf("Unknown token: %1$d ('%1$c')", tok);
+              errorf("Unknown token: %1$d ('%1$c')\n", tok);
               free_cell(secd, head);
-              return NULL;
+              return new_error(secd, "read_list: unknown token %d\n", tok);
         }
 
         newtail = new_cons(secd, val, SECD_NIL);
@@ -313,7 +321,8 @@ cell_t *sexp_read(secd_t *secd, secd_parser_t *p) {
         if (p->token != ')') {
             errorf("read_secd: failed\n");
             if (inp) drop_cell(secd, inp);
-            return NULL;
+            return new_error(secd, 
+                            "sexp_read: read_list failed on token %d\n", p->token);
         }
         break;
       case TOK_NUM:
@@ -330,13 +339,14 @@ cell_t *sexp_read(secd_t *secd, secd_parser_t *p) {
         const char *formname = special_form_for(tok);
         assert(formname, "No  special form for token=%d\n", tok);
         inp = sexp_read(secd, p);
+        assert_cell(inp, "sexp_read: reading subexpression failed");
         inp = new_cons(secd, new_symbol(secd, formname),
                              new_cons(secd, inp, SECD_NIL));
         } break;
 
       default:
-        errorf("Unknown token: %1$d ('%1$c')", tok);
-        return NULL;
+        errorf("Unknown token: %1$d ('%1$c')\n", tok);
+        return new_error(secd, "parsing error: TOK_ERR");
     }
     return inp;
 }
@@ -353,14 +363,14 @@ cell_t *read_secd(secd_t *secd, secd_stream_t *f) {
 
     if (lexnext(&p) != '(') {
         errorf("read_secd: a list of commands expected\n");
-        return NULL;
+        return new_error(secd, "read_secd: a list expected");
     }
 
     cell_t *result = read_list(secd, &p);
     if (p.token != ')') {
         errorf("read_secd: the end bracket expected\n");
         if (result) drop_cell(secd, result);
-        return NULL;
+        return new_error(secd, "read_secd: read_list failed at token %d\n", p.token);
     }
     return result;
 }
