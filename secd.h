@@ -40,7 +40,7 @@
 
 typedef enum { false, true } bool;
 
-typedef  uint32_t  hash_t;
+typedef  uint32_t       hash_t;
 
 typedef  struct secd    secd_t;
 typedef  struct cell    cell_t;

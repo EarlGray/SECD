@@ -13,7 +13,7 @@ secd_t __attribute__((aligned(1 << SECD_ALIGN))) secd;
 int main(int argc, char *argv[]) {
     errorf(";;;   Welcome to SECD   \n");
     errorf(";;;     sizeof(cell_t) is %ld\n", sizeof(cell_t));
-    errorf(";;;     Type (secdctl) to get some help.\n\n");
+    errorf(";;;     Type (secd) to get some help.\n\n");
 
     init_secd(&secd, &posix_stdin);
 

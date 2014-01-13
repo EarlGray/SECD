@@ -8,8 +8,6 @@
  *   Allocation
  */
 
-typedef  struct secd_memory  secd_memory_t;
-
 cell_t *new_cons(secd_t *secd, cell_t *car, cell_t *cdr);
 cell_t *new_frame(secd_t *secd, cell_t *syms, cell_t *vals);
 cell_t *new_number(secd_t *secd, int num);
@@ -86,5 +84,12 @@ static inline size_t arr_size(secd_t *secd, cell_t *arr) {
  */
 
 void init_mem(secd_t *secd, cell_t *heap, size_t size);
+
+/*
+ *    UTF-8
+ */
+typedef  unsigned long  unichar_t;
+
+char *utf8cpy(char *to, unichar_t ucs);
 
 #endif // __SECD_MEM_H__

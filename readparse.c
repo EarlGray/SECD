@@ -57,7 +57,9 @@ void dbg_print_list(secd_t *secd, cell_t *list) {
     while (not_nil(list)) {
         assertv(is_cons(list),
                 "Not a cons at [%ld]\n", cell_index(secd, list));
-        printf("[%ld]:%ld\t", cell_index(secd, list), cell_index(secd, get_car(list)));
+        printf("[%ld]:%ld\t",
+                cell_index(secd, list),
+                cell_index(secd, get_car(list)));
         dbg_print_cell(secd, get_car(list));
         printf("  -> ");
         list = list_next(secd, list);
@@ -74,10 +76,9 @@ void dbg_printc(secd_t *secd, cell_t *c) {
 
 void sexp_print_array(secd_t *secd, cell_t *cell) {
     cell_t *arr = cell->as.arr;
+    size_t len = arr_size(secd, cell);
     int i;
-    size_t len = arrmeta_size(secd, arr_meta(arr));
 
-    errorf(";; sexp_print_arr: arr_size = %ld\n", len);
     printf("#(");
     for (i = 0; i < len; ++i) {
         sexp_print(secd, arr + i);
@@ -111,8 +112,7 @@ void sexp_print(secd_t* secd, cell_t *cell) {
       case CELL_ARRAY:  sexp_print_array(secd, cell); break;
       case CELL_STR:    printf("\"%s\"", strval(cell)); break;
       case CELL_ERROR:  printf("#!\"%s\"", errmsg(cell)); break;
-      default:
-        errorf("sexp_print: unknown cell type %d", (int)cell_type(cell));
+      default: errorf("sexp_print: unknown cell type %d", (int)cell_type(cell));
     }
 }
 
@@ -132,11 +132,12 @@ enum {
     TOK_EOF = -1,
     TOK_SYM = -2,
     TOK_NUM = -3,
+    TOK_STR = -4,
 
-    TOK_QUOTE = -4,
-    TOK_QQ = -5,
-    TOK_UQ = -6,
-    TOK_UQSPL = -7,
+    TOK_QUOTE = -5,
+    TOK_QQ = -6,
+    TOK_UQ = -7,
+    TOK_UQSPL = -8,
 
     TOK_ERR = -65536
 };
@@ -178,16 +179,109 @@ inline static int nextchar(secd_parser_t *p) {
     return p->lc = f->read(f->state);
 }
 
+inline static token_t lexnumber(secd_parser_t *p) {
+    char *s = p->symtok;
+    do {
+        *s++ = p->lc;
+        nextchar(p);
+    } while (isdigit(p->lc));
+    *s = '\0';
+
+    p->numtok = atoi(p->symtok);
+    return (p->token = TOK_NUM);
+}
+
+inline static token_t lexsymbol(secd_parser_t *p) {
+    char *s = p->symtok;
+    size_t read_count = 1;
+    do {
+        *s++ = p->lc;
+        nextchar(p);
+        if (++read_count >= MAX_LEXEME_SIZE) {
+            *s = '\0';
+            errorf("lexnext: lexeme is too large: %s\n", p->symtok);
+            return (p->token = TOK_ERR);
+        }
+    } while (p->issymbc[(unsigned char)p->lc]);
+    *s = '\0';
+
+    return (p->token = TOK_SYM);
+}
+
+inline static token_t lexstring(secd_parser_t *p) {
+    size_t bufsize = 256;      /* initial size since string size is not limited */
+    size_t read_count = 0;
+    char *buf = malloc(bufsize); /* to be freed after p->strtok is consumed */
+    while (1) {
+        nextchar(p);
+        switch (p->lc) {
+          case '\\':
+            nextchar(p);
+            switch (p->lc) {
+              case 'a' : buf[read_count++] = '\x07'; break;
+              case 'b' : buf[read_count++] = '\x08'; break;
+              case 't' : buf[read_count++] = '\x09'; break;
+              case 'n' : buf[read_count++] = '\x0A'; break;
+              case 'x': {
+                    char hexbuf[10];
+                    char *hxb = hexbuf;
+
+                    nextchar(p);
+                    if (!isxdigit(p->lc))
+                        goto cleanup_and_exit;
+                    do {
+                        *hxb++ = p->lc;
+                        nextchar(p);
+                    } while ((hxb - hexbuf < 9) && isxdigit(p->lc));
+                    if (p->lc != ';')
+                        goto cleanup_and_exit;
+                    nextchar(p);
+
+                    *hxb = '\0';
+                    unichar_t charcode = (int)strtol(hexbuf, NULL, 16);
+                    char *after = utf8cpy(buf + read_count, charcode);
+                    if (!after)
+                        goto cleanup_and_exit;
+
+                    read_count = after - buf;
+                } break;
+              default:
+                buf[read_count++] = p->lc;
+            }
+            break;
+          case '"':
+            nextchar(p);
+            buf[read_count] = '\0';
+            p->strtok = buf;    /* don't forget to free */
+            return (p->token = TOK_STR);
+          default:
+            buf[read_count] = p->lc;
+            ++read_count;
+            if (read_count + 4 >= bufsize) { // +4 because of utf8cpy
+                /* reallocate */
+                bufsize *= 2;
+                buf = realloc(buf, bufsize);
+                if (!buf) {
+                    errorf("lexstring: not enough memory for a string\n");
+                    return TOK_ERR;
+                }
+            }
+        }
+    }
+cleanup_and_exit:
+    free(buf);
+    return (p->token = TOK_ERR);
+}
+
 token_t lexnext(secd_parser_t *p) {
     /* skip spaces */
     while (isspace(p->lc))
         nextchar(p);
 
     switch (p->lc) {
-      case EOF:
-        return (p->token = TOK_EOF);
+      case EOF: return (p->token = TOK_EOF);
       case ';':
-        /* comment */
+        /* consume comment */
         do nextchar(p); while (p->lc != '\n');
         return lexnext(p);
 
@@ -210,37 +304,17 @@ token_t lexnext(secd_parser_t *p) {
             return (p->token = TOK_UQSPL);
         }
         return (p->token = TOK_UQ);
+      case '"':
+        return lexstring(p);
     }
 
-    if (isdigit(p->lc)) {
-        char *s = p->symtok;
-        do {
-            *s++ = p->lc; 
-            nextchar(p);
-        } while (isdigit(p->lc));
-        *s = '\0';
+    if (isdigit(p->lc))
+        return lexnumber(p);
 
-        p->numtok = atoi(p->symtok);
-        return (p->token = TOK_NUM);
-    }
+    if (p->issymbc[(unsigned char)p->lc])
+        return lexsymbol(p);
 
-    if (p->issymbc[(unsigned char)p->lc]) {
-        char *s = p->symtok;
-        size_t read_count = 1;
-        do {
-            *s++ = p->lc;
-            nextchar(p);
-            if (++read_count >= MAX_LEXEME_SIZE) {
-                *s = '\0';
-                errorf("lexnext: lexeme is too large: %s\n", p->symtok);
-                return (p->token = TOK_ERR);
-            }
-        } while (p->issymbc[(unsigned char)p->lc]);
-        *s = '\0';
-
-        return (p->token = TOK_SYM);
-    }
-    return TOK_ERR;
+    return TOK_ERR; /* nothing fits */
 }
 
 static const char * special_form_for(int token) {
@@ -264,6 +338,10 @@ cell_t *read_list(secd_t *secd, secd_parser_t *p) {
         switch (tok) {
           case TOK_SYM:
               val = new_symbol(secd, p->symtok);
+              break;
+          case TOK_STR:
+              val = new_string(secd, p->strtok);
+              free(p->strtok);
               break;
           case TOK_NUM:
               val = new_number(secd, p->numtok);
@@ -321,7 +399,7 @@ cell_t *sexp_read(secd_t *secd, secd_parser_t *p) {
         if (p->token != ')') {
             errorf("read_secd: failed\n");
             if (inp) drop_cell(secd, inp);
-            return new_error(secd, 
+            return new_error(secd,
                             "sexp_read: read_list failed on token %d\n", p->token);
         }
         break;
@@ -330,6 +408,10 @@ cell_t *sexp_read(secd_t *secd, secd_parser_t *p) {
         break;
       case TOK_SYM:
         inp = new_symbol(secd, p->symtok);
+        break;
+      case TOK_STR:
+        inp = new_string(secd, p->strtok);
+        free(p->strtok);
         break;
       case TOK_EOF:
         return new_symbol(secd, EOF_OBJ);

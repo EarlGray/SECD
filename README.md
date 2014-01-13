@@ -100,7 +100,7 @@ Notation: `(x.s)` means cons of value `x` and list `s`. Recursively, `(x.y.s)` m
 There are some functions implemented in C for efficiency:
 - `append`, `list`, `null?`, `copy`: are heavily used by the compiler, native for efficiency;
 - `number?`, `symbol?`, `eof-object?`: may be implemented in native code only;
-- `secdctl`: takes a symbol as the first arguments, outputs the following: current tick number with `(secdctl 'tick)`, prints current environment for `(secdctl 'env)`, shows how many cells are available with `(secdctl 'free)`;
+- `secd`: takes a symbol as the first arguments, outputs the following: current tick number with `(secd 'tick)`, prints current environment for `(secd 'env)`, shows how many cells are available with `(secd 'free)`;
 - `interaction-environment` - this native form gets the current environment (there's no distinction between lexical and dynamical environment as in other Scheme implementations).
 
 **About types:**
