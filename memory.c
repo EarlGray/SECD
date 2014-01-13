@@ -5,7 +5,7 @@
 #include <stdarg.h>
 
 /*
- *      A short description of SECD memory layout 
+ *      A short description of SECD memory layout
  *                                          last updated: 12 Jan 2014
  *
  *  TODO
@@ -17,6 +17,33 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control);
 
 /* internal declarations */
 void free_array(secd_t *secd, cell_t *this);
+
+
+inline static size_t bytes_to_cell(size_t bytes) {
+    size_t ncell = bytes / sizeof(cell_t);
+    if (bytes % sizeof(cell_t))
+        ++ncell;
+    return ncell;
+}
+
+/* http://en.wikipedia.org/wiki/Jenkins_hash_function */
+static hash_t jenkins_hash(const char *key, size_t len) {
+    uint32_t hash, i;
+    for(hash = i = 0; i < len; ++i)
+    {
+        hash += key[i];
+        hash += (hash << 10);
+        hash ^= (hash >> 6);
+    }
+    hash += (hash << 3);
+    hash ^= (hash >> 11);
+    hash += (hash << 15);
+    return hash;
+}
+
+hash_t memhash(const char *key, size_t len) {
+    return jenkins_hash(key, len);
+}
 
 /*
  *  Cell memory management
@@ -32,17 +59,18 @@ cell_t *init_with_copy(secd_t *secd, cell_t *cell, cell_t *with) {
         share_cell(secd, with->as.cons.car);
         share_cell(secd, with->as.cons.cdr);
         break;
-      case CELL_REF: 
-        share_cell(secd, with->as.ref); 
+      case CELL_REF:
+        share_cell(secd, with->as.ref);
         break;
-      case CELL_ARRAY: 
-        share_cell(secd, arr_meta(with->as.arr)); 
+      case CELL_ARRAY:
+      case CELL_STR:
+        share_cell(secd, arr_meta(with->as.arr));
         break;
-      case CELL_ERROR: 
+      case CELL_ERROR:
       case CELL_ATOM:
       case CELL_UNDEF:
         break;
-      case CELL_ARRMETA: case CELL_FREE: 
+      case CELL_ARRMETA: case CELL_FREE:
         return new_error(secd, "trying to initialize with CELL_ARRMETA");
     }
     return cell;
@@ -62,6 +90,9 @@ static cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
     switch (t) {
       case CELL_ATOM:
         free_atom(c);
+        break;
+      case CELL_STR:
+        drop_cell(secd, arr_meta((cell_t *)c->as.str.data));
         break;
       case CELL_FRAME:
       case CELL_CONS:
@@ -126,7 +157,7 @@ void push_free(secd_t *secd, cell_t *c) {
         secd->free = c;
 
         ++secd->free_cells;
-        memdebugf("FREE[%ld], %ld free\n", 
+        memdebugf("FREE[%ld], %ld free\n",
                 cell_index(secd, c), secd->free_cells);
     } else {
         /* it is a cell adjacent to the free space */
@@ -272,7 +303,7 @@ void print_array_layout(secd_t *secd) {
     cell_t *cur = secd->arrlist;
     while (get_cdr(cur)) {
         cur = get_cdr(cur);
-        errorf(";;  %ld\t%ld (size=%ld,\t%s)\n", 
+        errorf(";;  %ld\t%ld (size=%ld,\t%s)\n",
                 cell_index(secd, cur), cell_index(secd, cur->as.cons.car),
                 arrmeta_size(secd, cur), (is_array_free(secd, cur)? "free" : "used"));
     }
@@ -309,6 +340,27 @@ cell_t *new_symbol(secd_t *secd, const char *sym) {
     return cell;
 }
 
+cell_t *new_string(secd_t *secd, const char *str) {
+    union {
+        char *as_cstr;
+        cell_t *as_cell;
+    } mem;
+
+    size_t len = strlen(str);
+    mem.as_cell = alloc_array(secd, bytes_to_cell(len + 1));
+    assert_cell(mem.as_cell, "new_string: alloc failed");
+
+    strcpy(mem.as_cstr, str);
+
+    cell_t *cell = pop_free(secd);
+    cell->type |= CELL_STR;
+
+    share_cell(secd, arr_meta(mem.as_cell));
+    cell->as.str.data = mem.as_cstr;
+    cell->as.str.hash = memhash(mem.as_cstr, len);
+    return cell;
+}
+
 cell_t *new_op(secd_t *secd, opindex_t opind) {
     cell_t *cell = pop_free(secd);
     cell->type |= CELL_ATOM;
@@ -318,11 +370,20 @@ cell_t *new_op(secd_t *secd, opindex_t opind) {
 }
 
 cell_t *new_const_clone(secd_t *secd, const cell_t *from) {
-    if (!from) return NULL;
+    if (is_nil(from)) return NULL;
 
     cell_t *clone = pop_free(secd);
     memcpy(clone, from, sizeof(cell_t));
     clone->type = (intptr_t)secd | cell_type(from);
+    clone->nref = 0;
+    return clone;
+}
+
+cell_t *new_clone(secd_t *secd, cell_t *from) {
+    cell_t *clone = pop_free(secd);
+    assert_cell(clone, "new_clone: allocation failed");
+
+    memcpy(clone, from, sizeof(cell_t));
     clone->nref = 0;
     return clone;
 }
@@ -424,7 +485,7 @@ cell_t *pop_control(secd_t *secd) {
 cell_t *push_dump(secd_t *secd, cell_t *cell) {
     cell_t *top = push(secd, &secd->dump, cell);
     memdebugf("PUSH D[%ld] (%ld, %ld)\n", cell_index(secd, top),
-            cell_index(secd, get_car(top)), 
+            cell_index(secd, get_car(top)),
             cell_index(secd, get_cdr(top)));
     ++secd->used_dump;
     return top;

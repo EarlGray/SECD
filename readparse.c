@@ -24,7 +24,7 @@ void sexp_print_atom(secd_t *secd, const cell_t *c) {
       case ATOM_INT: printf("%d", c->as.atom.as.num); break;
       case ATOM_SYM: printf("%s", c->as.atom.as.sym.data); break;
       case ATOM_OP: print_opcode(c->as.atom.as.op); break;
-      case ATOM_FUNC: printf("(0x%p)()", c->as.atom.as.ptr); break;
+      case ATOM_FUNC: printf("*0x%p()", c->as.atom.as.ptr); break;
       case NOT_AN_ATOM: printf("???");
     }
 }
@@ -46,6 +46,7 @@ void dbg_print_cell(secd_t *secd, const cell_t *c) {
         break;
       case CELL_ATOM: sexp_print_atom(secd, c); printf("\n"); break;
       case CELL_ARRAY: printf("ARR[%ld]\n", cell_index(secd, c->as.arr)); break;
+      case CELL_STR: printf("STR[%ld]\n", cell_index(secd, c->as.arr)); break;
       case CELL_REF: printf("REF[%ld]\n", cell_index(secd, c->as.ref)); break;
       default: printf("unknown type: %d\n", cell_type(c));
     }
@@ -85,32 +86,31 @@ void sexp_print_array(secd_t *secd, cell_t *cell) {
     printf(")");
 }
 
+static void sexp_print_list(secd_t *secd, cell_t *cell) {
+    printf("(");
+    cell_t *iter = cell;
+    while (not_nil(iter)) {
+        if (iter != cell) printf(" ");
+        if (cell_type(iter) != CELL_CONS) {
+            printf(". "); sexp_print(secd, iter); break;
+        }
+
+        cell_t *head = get_car(iter);
+        sexp_print(secd, head);
+        iter = list_next(secd, iter);
+    }
+    printf(") ");
+}
+
 void sexp_print(secd_t* secd, cell_t *cell) {
     switch (cell_type(cell)) {
-      case CELL_ATOM:
-        sexp_print_atom(secd, cell);
-        break;
-      case CELL_FRAME:
-        printf("#<envframe> ");
-        break;
-      case CELL_CONS:
-        printf("(");
-        cell_t *iter = cell;
-        while (not_nil(iter)) {
-            if (iter != cell) printf(" ");
-            if (cell_type(iter) != CELL_CONS) {
-                printf(". "); sexp_print(secd, iter); break;
-            }
-
-            cell_t *head = get_car(iter);
-            sexp_print(secd, head);
-            iter = list_next(secd, iter);
-        }
-        printf(") ");
-        break;
-      case CELL_ARRAY: sexp_print_array(secd, cell); break;
-      case CELL_ERROR: printf("#!\"%s\"", errmsg(cell)); break;
-      case CELL_UNDEF: printf("#?"); break;
+      case CELL_UNDEF:  printf("#?"); break;
+      case CELL_ATOM:   sexp_print_atom(secd, cell); break;
+      case CELL_FRAME:  printf("#<envframe> "); break;
+      case CELL_CONS:   sexp_print_list(secd, cell); break; break;
+      case CELL_ARRAY:  sexp_print_array(secd, cell); break;
+      case CELL_STR:    printf("\"%s\"", strval(cell)); break;
+      case CELL_ERROR:  printf("#!\"%s\"", errmsg(cell)); break;
       default:
         errorf("sexp_print: unknown cell type %d", (int)cell_type(cell));
     }
@@ -130,7 +130,7 @@ typedef  struct secd_parser secd_parser_t;
 
 enum {
     TOK_EOF = -1,
-    TOK_STR = -2,
+    TOK_SYM = -2,
     TOK_NUM = -3,
 
     TOK_QUOTE = -4,
@@ -150,8 +150,10 @@ struct secd_parser {
     /* lexer guts */
     int lc;
     int numtok;
-    char strtok[MAX_LEXEME_SIZE];
+    char symtok[MAX_LEXEME_SIZE];
     char issymbc[UCHAR_MAX + 1];
+
+    char *strtok;
 
     int nested;
 };
@@ -211,25 +213,25 @@ token_t lexnext(secd_parser_t *p) {
     }
 
     if (isdigit(p->lc)) {
-        char *s = p->strtok;
+        char *s = p->symtok;
         do {
             *s++ = p->lc; nextchar(p);
         } while (isdigit(p->lc));
         *s = '\0';
 
-        p->numtok = atoi(p->strtok);
+        p->numtok = atoi(p->symtok);
         return (p->token = TOK_NUM);
     }
 
     if (p->issymbc[(unsigned char)p->lc]) {
-        char *s = p->strtok;
+        char *s = p->symtok;
         do {
             *s++ = p->lc;
             nextchar(p);
         } while (p->issymbc[(unsigned char)p->lc]);
         *s = '\0';
 
-        return (p->token = TOK_STR);
+        return (p->token = TOK_SYM);
     }
     return TOK_ERR;
 }
@@ -253,8 +255,8 @@ cell_t *read_list(secd_t *secd, secd_parser_t *p) {
     while (true) {
         int tok = lexnext(p);
         switch (tok) {
-          case TOK_STR:
-              val = new_symbol(secd, p->strtok);
+          case TOK_SYM:
+              val = new_symbol(secd, p->symtok);
               break;
           case TOK_NUM:
               val = new_number(secd, p->numtok);
@@ -317,8 +319,8 @@ cell_t *sexp_read(secd_t *secd, secd_parser_t *p) {
       case TOK_NUM:
         inp = new_number(secd, p->numtok);
         break;
-      case TOK_STR:
-        inp = new_symbol(secd, p->strtok);
+      case TOK_SYM:
+        inp = new_symbol(secd, p->symtok);
         break;
       case TOK_EOF:
         return new_symbol(secd, EOF_OBJ);

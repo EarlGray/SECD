@@ -40,6 +40,7 @@
 
 typedef enum { false, true } bool;
 
+typedef  uint32_t  hash_t;
 
 typedef  struct secd    secd_t;
 typedef  struct cell    cell_t;
@@ -85,8 +86,9 @@ enum cell_type {
     CELL_UNDEF, // also marks secd->free
 
     /* compound types */
-    CELL_CONS,
-    CELL_ARRAY, 
+    CELL_CONS,  // shares two other cells, car and cdr
+    CELL_STR,   // shares a pointer to a UTF8 byte sequence
+    CELL_ARRAY, // shares a pointer to cell_t[] in array heap.
     CELL_FRAME, // a environment frame, private; the same as CELL_CONS
     CELL_ARRMETA,   // array metadata, private; a double linked node like CELL_CONS
     CELL_FREE,  // free list node; a double linked node like CELL_CONS
@@ -94,7 +96,7 @@ enum cell_type {
     CELL_REF,   // a pivot point between compound and atomic types
 
     /* atomic types */
-    CELL_ATOM,
+    CELL_ATOM,  // one of commented:
     /* atoms
     CELL_INT,
     CELL_SYM,
@@ -156,6 +158,10 @@ struct cell {
         atom_t  atom;
         cons_t  cons;
         error_t err;
+        struct {
+            const char *data;
+            hash_t hash;
+        } str;
 
         cell_t *arr; // array
         cell_t *ref; // pointer
@@ -245,6 +251,9 @@ inline static const char * errmsg(const cell_t *err) {
 
 inline static int numval(const cell_t *c) {
     return c->as.atom.as.num;
+}
+inline static const char *strval(const cell_t *c) {
+    return c->as.str.data;
 }
 
 void dbg_print_cell(secd_t *secd, const cell_t *c);
@@ -337,5 +346,10 @@ cell_t *read_secd(secd_t *secd, secd_stream_t *f);
 
 secd_t * init_secd(secd_t *secd, secd_stream_t *readstream);
 cell_t * run_secd(secd_t *secd, cell_t *ctrl);
+
+/*
+ * utilities
+ */
+hash_t memhash(const char*, size_t);
 
 #endif //__SECD_H__

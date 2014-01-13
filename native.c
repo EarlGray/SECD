@@ -205,9 +205,9 @@ cell_t *secdv_make(secd_t *secd, cell_t *args) {
 
     int i;
     size_t len = numval(num);
-    errorf(";; secdv_make: allocating %ld\n", len);
+    //errorf(";; secdv_make: allocating %ld\n", len);
     cell_t *arr = new_array(secd, len);
-    errorf(";; secdv_make: allocated %ld\n", arrmeta_size(secd, arr_meta(arr->as.arr)));
+    //errorf(";; secdv_make: allocated %ld\n", arrmeta_size(secd, arr_meta(arr->as.arr)));
 
     if (not_nil(list_next(secd, args))) {
         cell_t *fill = get_car(list_next(secd, args));
@@ -219,6 +219,25 @@ cell_t *secdv_make(secd_t *secd, cell_t *args) {
     }
 
     return arr;
+}
+
+cell_t *secdv_ref(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdv_ref: no arguments");
+    assert(is_cons(args), "secdv_ref: invalid arguments");
+
+    cell_t *arr = get_car(args);
+    assert(cell_type(arr) == CELL_ARRAY, "secdv_ref: array expected");
+
+    args = list_next(secd, args);
+    assert(not_nil(args), "secdv_ref: a second argument expected");
+
+    cell_t *num = get_car(args);
+    assert(atom_type(secd, num) == ATOM_INT, "secdv_ref: an index expected");
+    int ind = numval(num);
+
+    assert(ind < arr_size(secd, arr), "secdv_ref: index is out of range");
+
+    return new_clone(secd, arr->as.arr + ind);
 }
 
 
@@ -238,6 +257,7 @@ const cell_t bind_sym   = INIT_SYM("secd-bind!");
 /* vector routines */
 const cell_t vp_sym     = INIT_SYM("vector?");
 const cell_t vmake_sym  = INIT_SYM("make-vector");
+const cell_t vref_sym   = INIT_SYM("vector-ref");
 
 const cell_t list_func  = INIT_FUNC(secdf_list);
 const cell_t appnd_func = INIT_FUNC(secdf_append);
@@ -252,6 +272,7 @@ const cell_t bind_func  = INIT_FUNC(secdf_bind);
 /* vector routines */
 const cell_t vp_func    = INIT_FUNC(secdv_is);
 const cell_t vmake_func = INIT_FUNC(secdv_make);
+const cell_t vref_func  = INIT_FUNC(secdv_ref);
 
 const cell_t t_sym      = INIT_SYM("#t");
 const cell_t f_sym      = INIT_SYM("#f");
@@ -272,6 +293,7 @@ const struct {
 
     { &vp_sym,      &vp_func    },
     { &vmake_sym,   &vmake_func },
+    { &vref_sym,    &vref_func  },
 
     // native functions
     { &list_sym,    &list_func  },
