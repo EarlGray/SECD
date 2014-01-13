@@ -210,8 +210,8 @@
 
 (secd-mdefine! (lambda (definition initval)
   (if (symbol? definition)
-      (secd-bind! definition (eval initval))
-      (display 'Error:_define_is_not_implemented_for_functions))))
+      (list 'secd-bind! `(quote ,definition) initval)
+      ''Error:_define_is_not_implemented_for_functions)))
 
 (secd-from-scheme (lambda (s)
     (secd-make-executable (secd-compile s) nil)))
