@@ -12,7 +12,7 @@ secd_t secd;
 
 int main(int argc, char *argv[]) {
     errorf(";;;   Welcome to SECD   \n");
-    errorf(";;;     sizeof(cell_t) is %ld\n", sizeof(cell_t));
+    errorf(";;;     sizeof(cell_t) is %zd\n", sizeof(cell_t));
     errorf(";;;     Type (secd) to get some help.\n\n");
 
     init_secd(&secd, &posix_stdin);

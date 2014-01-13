@@ -50,8 +50,8 @@ hash_t memhash(const char *key, size_t len) {
  */
 
 cell_t *init_with_copy(secd_t *secd,
-                       cell_t *restrict cell,
-                       const cell_t *restrict with)
+                       cell_t *__restrict cell,
+                       const cell_t *__restrict with)
 {
     memcpy(cell, with, sizeof(cell_t));
 
@@ -147,7 +147,7 @@ cell_t *pop_free(secd_t *secd) {
 void push_free(secd_t *secd, cell_t *c) {
     assertv(c, "push_free(NULL)");
     assertv(c->nref == 0,
-            "push_free: [%ld]->nref is %ld\n", cell_index(secd, c), c->nref);
+            "push_free: [%ld]->nref is %ld\n", cell_index(secd, c), (long)c->nref);
 
     c->type = CELL_FREE;
     if (c + 1 < secd->fixedptr) {
@@ -302,7 +302,7 @@ void print_array_layout(secd_t *secd) {
     cell_t *cur = secd->arrlist;
     while (get_cdr(cur)) {
         cur = get_cdr(cur);
-        errorf(";;  %ld\t%ld (size=%ld,\t%s)\n",
+        errorf(";;  %ld\t%ld (size=%zd,\t%s)\n",
                 cell_index(secd, cur), cell_index(secd, cur->as.cons.car),
                 arrmeta_size(secd, cur), (is_array_free(secd, cur)? "free" : "used"));
     }

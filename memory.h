@@ -21,8 +21,8 @@ cell_t *new_array(secd_t *secd, size_t size);
 
 cell_t *init_with_copy(
         secd_t *secd,
-        cell_t *restrict cell,
-        const cell_t *restrict with);
+        cell_t *__restrict cell,
+        const cell_t *__restrict with);
 
 cell_t *free_cell(secd_t *, cell_t *c);
 

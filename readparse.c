@@ -34,7 +34,7 @@ void dbg_print_cell(secd_t *secd, const cell_t *c) {
          printf("NIL\n");
          return;
     }
-    printf("[%ld]^%ld: ", cell_index(secd, c), c->nref);
+    printf("[%ld]^%ld: ", cell_index(secd, c), (long)c->nref);
     switch (cell_type(c)) {
       case CELL_CONS:
         printf("CONS([%ld], [%ld])\n",

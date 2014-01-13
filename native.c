@@ -158,7 +158,7 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
             printf(";;  fixedptr = %zd\n", secd->fixedptr - secd->begin);
             printf(";;  arrayptr = %zd (%zd)\n",
                     secd->arrayptr - secd->begin, secd->arrayptr - secd->end);
-            printf(";;  Fixed cells: %ld free, %ld dump\n", 
+            printf(";;  Fixed cells: %zd free, %zd dump\n", 
                     secd->free_cells, secd->used_dump);
         } else if (str_eq(symname(arg1), "env")) {
             print_env(secd);
