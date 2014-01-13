@@ -188,9 +188,15 @@ cell_t *alloc_array(secd_t *secd, size_t size) {
     cell_t *cur = secd->arrlist;
     while (not_nil(get_cdr(cur))) {
         if (is_array_free(secd, cur)) {
-            if (arrmeta_size(secd, cur) >= size) {
+            size_t cursize = arrmeta_size(secd, cur);
+            if (cursize >= size) {
                 /* allocate this gap */
-                return ;
+                if (cursize > size + 1) {
+                    cell_t *newmeta = cur + size + 1;
+                    init_meta(secd, newmeta, get_car(cur), cur);
+                    mark_free(newmeta);
+                }
+                return cur + 1;
             }
         }
         cur = get_cdr(cur);
