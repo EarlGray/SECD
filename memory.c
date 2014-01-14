@@ -145,15 +145,10 @@ cell_t *pop_free(secd_t *secd) {
     return cell;
 }
 
-#include <signal.h>
-
 void push_free(secd_t *secd, cell_t *c) {
     assertv(c, "push_free(NULL)");
     assertv(c->nref == 0,
             "push_free: [%ld]->nref is %ld\n", cell_index(secd, c), (long)c->nref);
-    if (c >= secd->fixedptr) 
-        kill(getpid(), SIGTRAP);
-
     assertv(c < secd->fixedptr, "push_free: Trying to free array cell");
 
     c->type = CELL_FREE;

@@ -294,7 +294,9 @@ cell_t *secdv_set(secd_t *secd, cell_t *args) {
     cell_t *obj = get_car(args);
     cell_t *ref = arr->as.arr + ind;
     drop_dependencies(secd, ref);
-    return init_with_copy(secd, ref, obj);
+    init_with_copy(secd, ref, obj);
+
+    return arr;
 }
 
 
