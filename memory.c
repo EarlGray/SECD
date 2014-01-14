@@ -87,7 +87,7 @@ void free_atom(cell_t *cell) {
     }
 }
 
-static cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
+cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
     enum cell_type t = cell_type(c);
     switch (t) {
       case CELL_ATOM:
@@ -112,9 +112,10 @@ static cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
         drop_cell(secd, c->as.ref);
         break;
       case CELL_ERROR:
+      case CELL_UNDEF:
         return c;
       default:
-        return new_error(secd, "free_cell: unknown cell_type 0x%x", t);
+        return new_error(secd, "drop_dependencies: unknown cell_type 0x%x", t);
     }
     return c;
 }
@@ -144,10 +145,16 @@ cell_t *pop_free(secd_t *secd) {
     return cell;
 }
 
+#include <signal.h>
+
 void push_free(secd_t *secd, cell_t *c) {
     assertv(c, "push_free(NULL)");
     assertv(c->nref == 0,
             "push_free: [%ld]->nref is %ld\n", cell_index(secd, c), (long)c->nref);
+    if (c >= secd->fixedptr) 
+        kill(getpid(), SIGTRAP);
+
+    assertv(c < secd->fixedptr, "push_free: Trying to free array cell");
 
     c->type = CELL_FREE;
     if (c + 1 < secd->fixedptr) {

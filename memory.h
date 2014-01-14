@@ -23,6 +23,7 @@ cell_t *init_with_copy(
         secd_t *secd,
         cell_t *__restrict cell,
         const cell_t *__restrict with);
+cell_t *drop_dependencies(secd_t *secd, cell_t *c);
 
 cell_t *free_cell(secd_t *, cell_t *c);
 
