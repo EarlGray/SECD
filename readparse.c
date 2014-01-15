@@ -235,7 +235,6 @@ inline static token_t lexstring(secd_parser_t *p) {
                     } while ((hxb - hexbuf < 9) && isxdigit(p->lc));
                     if (p->lc != ';')
                         goto cleanup_and_exit;
-                    nextchar(p);
 
                     *hxb = '\0';
                     unichar_t charcode = (int)strtol(hexbuf, NULL, 16);
