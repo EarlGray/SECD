@@ -207,19 +207,18 @@ Use `secd-compile` function to examine results of Scheme-to-SECD conversion in t
 
 TODO
 ----
-- [ ] alloc_array() : gaps
+- [ ] ATOM_CHAR, string->list, list->string, string->vector, vector->string;
 - [ ] to write down the new memory layout in memory.c;
-- [ ] ATOM_STR;
-- [ ] read support for vectors;
-- [ ] ATOM_CHAR;
-- [ ] refactor out atom_type, reduce size to 4 words instead of 5;
-- [ ] '#f';
+- [ ] reader: dot-lists;
+- [ ] refactor out atom_type;
 - [ ] move to indexes instead of pointers;
+- [ ] '#f';
 - [ ] abstract out system memory management: no direct calloc/free references;
-- [ ] support for more Scheme types: `bytestring`, `string` (list of chars?), `port`;
-- [ ] dot-lists;
+- [ ] support for more Scheme types: `bytestring`, `port`;
 - [ ] make symbol storage: quick access (balanced binary search tree or hashtable?), reuse string resources;
-- [ ] optional garbage-collector, compare RefCount and GC speed.
+- [ ] large: green threads + non-blocking IO;
+- [ ] large: FFI system;
+- [ ] large: optional garbage-collector, compare RefCount and GC speed.
 - [ ] LLVM backend?
 Optimization:
 - [ ] fast symbol lookup;
