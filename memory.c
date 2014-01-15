@@ -493,6 +493,35 @@ cell_t *pop_dump(secd_t *secd) {
     return cell;
 }
 
+/*
+ *     List/vector/string utilities
+ */
+
+size_t list_length(secd_t *secd, cell_t *lst) {
+    size_t res = 0;
+    while (not_nil(lst)) {
+        if (! is_cons(lst))
+            break;
+        lst = list_next(secd, lst);
+        ++res;
+    }
+    return res;
+}
+
+cell_t *vector_from_list(secd_t *secd, cell_t *lst) {
+    int i;
+    size_t len = list_length(secd, lst);
+    cell_t *arr = new_array(secd, len);
+    assert_cell(arr, "vector_from_list: allocation failed");
+
+    for (i = 0; i < len; ++i) {
+        init_with_copy(secd, arr->as.arr + i, get_car(lst));
+        lst = list_next(secd, lst);
+    }
+    return arr;
+}
+
+
 void init_mem(secd_t *secd, cell_t *heap, size_t size) {
     secd->begin = heap;
     secd->end = heap + size;

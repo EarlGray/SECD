@@ -160,6 +160,8 @@ struct secd_parser {
 };
 
 cell_t *sexp_read(secd_t *secd, secd_parser_t *p);
+cell_t *read_list(secd_t *secd, secd_parser_t *p);
+
 
 secd_parser_t *init_parser(secd_parser_t *p, secd_stream_t *f) {
     p->lc = ' ';
@@ -285,6 +287,7 @@ token_t lexnext(secd_parser_t *p) {
         return lexnext(p);
 
       case '(': case ')':
+      case '#':
         /* one-char tokens */
         p->token = p->lc;
         nextchar(p);
@@ -326,81 +329,15 @@ static const char * special_form_for(int token) {
     return NULL;
 }
 
-cell_t *read_list(secd_t *secd, secd_parser_t *p) {
-    cell_t *head = SECD_NIL;
-    cell_t *tail = SECD_NIL;
-
-    cell_t *newtail, *val;
-
-    while (true) {
-        int tok = lexnext(p);
-        switch (tok) {
-          case TOK_SYM:
-              val = new_symbol(secd, p->symtok);
-              break;
-          case TOK_STR:
-              val = new_string(secd, p->strtok);
-              free(p->strtok);
-              break;
-          case TOK_NUM:
-              val = new_number(secd, p->numtok);
-              break;
-          case TOK_EOF: case ')':
-              -- p->nested;
-              return head;
-          case '(':
-              ++ p->nested;
-              val = read_list(secd, p);
-              if (p->token == TOK_ERR) {
-                  free_cell(secd, head);
-                  errorf("read_list: TOK_ERR\n");
-                  return new_error(secd, "read_list: error reading subexpression");
-              }
-              if (p->token == TOK_EOF) {
-                  free_cell(secd, head);
-                  errorf("read_list: TOK_EOF, ')' expected\n");
-              }
-              assert(p->token == ')', "read_list: not a closing bracket");
-              break;
-
-           case TOK_QUOTE: case TOK_QQ:
-           case TOK_UQ: case TOK_UQSPL: {
-              const char *formname = special_form_for(tok);
-              assert(formname, "No formname for token=%d\n", tok);
-              val = sexp_read(secd, p);
-              assert_cell(val, "read_list: sexp_read failed");
-              val = new_cons(secd, new_symbol(secd, formname),
-                                   new_cons(secd, val, SECD_NIL));
-              } break;
-
-           default:
-              errorf("Unknown token: %1$d ('%1$c')\n", tok);
-              free_cell(secd, head);
-              return new_error(secd, "read_list: unknown token %d\n", tok);
-        }
-
-        newtail = new_cons(secd, val, SECD_NIL);
-        if (not_nil(head)) {
-            tail->as.cons.cdr = share_cell(secd, newtail);
-            tail = newtail;
-        } else {
-            head = tail = newtail;
-        }
-    }
-}
-
-cell_t *sexp_read(secd_t *secd, secd_parser_t *p) {
-    cell_t *inp = SECD_NIL;
+static cell_t *read_token(secd_t *secd, secd_parser_t *p) {
     int tok;
-    switch (tok = lexnext(p)) {
+    cell_t *inp = &secd_nil_failure;
+    switch (tok = p->token) {
       case '(':
+        ++p->nested;
         inp = read_list(secd, p);
-        if (p->token != ')') {
-            errorf("read_secd: failed\n");
-            if (inp) drop_cell(secd, inp);
-            return new_error(secd,
-                            "sexp_read: read_list failed on token %d\n", p->token);
-        }
+        if (p->token != ')')
+            goto error_exit;
         break;
       case TOK_NUM:
         inp = new_number(secd, p->numtok);
@@ -425,11 +362,81 @@ cell_t *sexp_read(secd_t *secd, secd_parser_t *p) {
                              new_cons(secd, inp, SECD_NIL));
         } break;
 
+      case '#':
+        switch (tok = lexnext(p)) {
+          case '(': {
+              cell_t *tmplist = read_list(secd, p);
+              if (p->token != ')')
+                  goto error_exit;
+              inp = vector_from_list(secd, tmplist);
+              drop_dependencies(secd, tmplist);
+            } break;
+        }
+        break;
+
       default:
         errorf("Unknown token: %1$d ('%1$c')\n", tok);
         return new_error(secd, "parsing error: TOK_ERR");
     }
     return inp;
+
+error_exit:
+    errorf("read_secd: failed\n");
+    if (inp) drop_cell(secd, inp);
+    return new_error(secd,
+                    "sexp_read: read_list failed on token %d\n", p->token);
+}
+
+cell_t *read_list(secd_t *secd, secd_parser_t *p) {
+    cell_t *head = SECD_NIL;
+    cell_t *tail = SECD_NIL;
+
+    cell_t *newtail, *val;
+
+    while (true) {
+        int tok = lexnext(p);
+        switch (tok) {
+          case TOK_EOF: case ')':
+              -- p->nested;
+              return head;
+
+          case '(':
+              ++ p->nested;
+              val = read_list(secd, p);
+              if (p->token == TOK_ERR) {
+                  free_cell(secd, head);
+                  errorf("read_list: TOK_ERR\n");
+                  return new_error(secd, "read_list: error reading subexpression");
+              }
+              if (p->token == TOK_EOF) {
+                  free_cell(secd, head);
+                  errorf("read_list: TOK_EOF, ')' expected\n");
+              }
+              assert(p->token == ')', "read_list: not a closing bracket");
+              break;
+
+           default:
+              val = read_token(secd, p);
+              if (is_error(val)) {
+                  free_cell(secd, head);
+                  errorf("read_list: read_token failed\n");
+                  return val;
+              }
+        }
+
+        newtail = new_cons(secd, val, SECD_NIL);
+        if (not_nil(head)) {
+            tail->as.cons.cdr = share_cell(secd, newtail);
+            tail = newtail;
+        } else {
+            head = tail = newtail;
+        }
+    }
+}
+
+cell_t *sexp_read(secd_t *secd, secd_parser_t *p) {
+    lexnext(p);
+    return read_token(secd, p);
 }
 
 cell_t *sexp_parse(secd_t *secd, secd_stream_t *f) {
