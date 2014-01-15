@@ -299,32 +299,13 @@ cell_t *secdv_set(secd_t *secd, cell_t *args) {
     return arr;
 }
 
-static size_t list_length(secd_t *secd, cell_t *lst) {
-    size_t res = 0;
-    while (not_nil(lst)) {
-        if (! is_cons(lst))
-            break;
-        lst = list_next(secd, lst);
-        ++res;
-    }
-    return res;
-}
-
 cell_t *secdv_from_list(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "secdv_from_list: no arguments");
 
     cell_t *lst = get_car(args);
     assert(is_cons(lst), "secdv_from_list: not a list");
     
-    int i;
-    size_t len = list_length(secd, lst);
-    cell_t *arr = new_array(secd, len);
-    for (i = 0; i < len; ++i) {
-        init_with_copy(secd, arr->as.arr + i, get_car(lst));
-        lst = list_next(secd, lst);
-    }
-
-    return arr;
+    return vector_from_list(secd, lst);
 }
 
 /*

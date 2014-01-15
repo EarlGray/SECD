@@ -95,4 +95,7 @@ typedef  unsigned long  unichar_t;
 
 char *utf8cpy(char *to, unichar_t ucs);
 
+size_t list_length(secd_t *secd, cell_t *lst);
+cell_t *vector_from_list(secd_t *secd, cell_t *lst);
+
 #endif // __SECD_MEM_H__
