@@ -1,28 +1,41 @@
-libobjs := interp.o machine.o env.o memory.o native.o readparse.o
-objs := $(libobjs) secd.o
+objs := interp.o machine.o env.o memory.o native.o readparse.o
 
 CFLAGS := -O2 -g -Wno-shift-overflow
+VM := ./secd
 
-secd: $(objs)
-	$(CC) $(CFLAGS) $(objs) -o $@
+$(VM): $(objs) secd.o
+	$(CC) $(CFLAGS) $(objs) secd.o -o $@
+
+sos: $(objs) secd.o repl.o
+	$(CC) $(CFLAGS) $(objs) secd.o repl.o -o $@
 
 repl.secd: repl.scm
-	./secd scm2secd.secd < $< > $@
+	$(VM) scm2secd.secd < $< > $@
 
 %.o : %.c
 	$(CC) $(CFLAGS) -c $< -o $@ -Wall
 
-libsecd: $(libobjs)
-	ar -r libsecd.a $(libobjs)
+%.o : %.secd
+	$(CC) -r -b binary -o $@ $<
+
+%.secd: %.scm $(VM)
+	$(VM) scm2secd.secd < $< > tmp.secd && mv tmp.secd $@
+
+libsecd: $(objs) repl.o
+	ar -r libsecd.a $(objs) repl.o
 
 .PHONY: clean
 clean:
 	rm secd *.o libsecd* || true
 
-interp.o : interp.c
-machine.o : machine.c
-env.o : env.c
-native.o : native.c
-memory.o : memory.c
-readparse.o : readparse.c
-secd.o : secd.c
+interp.o : interp.c memory.h secdops.h env.h
+machine.o : machine.c memory.h secdops.h env.h
+env.o : env.c memory.h env.h
+native.o : native.c memory.h env.h
+memory.o : memory.c memory.h
+readparse.o : readparse.c memory.h secdops.h
+secd.o : secd.c secd.h
+memory.h : secd.h
+secd.h: conf.h debug.h
+repl.o: repl.secd
+repl.secd: repl.scm

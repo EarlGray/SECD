@@ -1,7 +1,6 @@
 #ifndef __SECD_MEM_H__
 #define __SECD_MEM_H__
 
-#include "conf.h"
 #include "secd.h"
 
 /*
