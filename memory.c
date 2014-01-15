@@ -53,7 +53,7 @@ cell_t *init_with_copy(secd_t *secd,
                        cell_t *__restrict cell,
                        const cell_t *__restrict with)
 {
-    memcpy(cell, with, sizeof(cell_t));
+    *cell = *with;
 
     cell->nref = 0;
     switch (cell_type(with)) {
@@ -423,7 +423,7 @@ cell_t *new_array(secd_t *secd, size_t size) {
     cell_t *arr = pop_free(secd);
     arr->type = CELL_ARRAY;
     arr->as.arr = mem;
-    mem->nref = 1;
+    arr_meta(mem)->nref = 1;
     return arr;
 }
 

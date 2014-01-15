@@ -299,6 +299,33 @@ cell_t *secdv_set(secd_t *secd, cell_t *args) {
     return arr;
 }
 
+static size_t list_length(secd_t *secd, cell_t *lst) {
+    size_t res = 0;
+    while (not_nil(lst)) {
+        if (! is_cons(lst))
+            break;
+        lst = list_next(secd, lst);
+        ++res;
+    }
+    return res;
+}
+
+cell_t *secdv_from_list(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdv_from_list: no arguments");
+
+    cell_t *lst = get_car(args);
+    assert(is_cons(lst), "secdv_from_list: not a list");
+    
+    int i;
+    size_t len = list_length(secd, lst);
+    cell_t *arr = new_array(secd, len);
+    for (i = 0; i < len; ++i) {
+        init_with_copy(secd, arr->as.arr + i, get_car(lst));
+        lst = list_next(secd, lst);
+    }
+
+    return arr;
+}
 
 /*
  *    String functions
@@ -328,6 +355,7 @@ const cell_t vp_sym     = INIT_SYM("vector?");
 const cell_t vmake_sym  = INIT_SYM("make-vector");
 const cell_t vref_sym   = INIT_SYM("vector-ref");
 const cell_t vset_sym   = INIT_SYM("vector-set!");
+const cell_t vlist_sym  = INIT_SYM("list->vector");
 /* string functions */
 const cell_t sp_sym     = INIT_SYM("string?");
 
@@ -346,6 +374,7 @@ const cell_t vp_func    = INIT_FUNC(secdv_is);
 const cell_t vmake_func = INIT_FUNC(secdv_make);
 const cell_t vref_func  = INIT_FUNC(secdv_ref);
 const cell_t vset_func  = INIT_FUNC(secdv_set);
+const cell_t vlist_func = INIT_FUNC(secdv_from_list);
 /* string routines */
 const cell_t sp_func    = INIT_FUNC(secdstr_is);
 
@@ -372,6 +401,7 @@ const struct {
     { &vmake_sym,   &vmake_func },
     { &vref_sym,    &vref_func  },
     { &vset_sym,    &vset_func  },
+    { &vlist_sym,   &vlist_func },
 
     // native functions
     { &list_sym,    &list_func  },
