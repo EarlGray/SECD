@@ -6,8 +6,8 @@ VM := ./secd
 $(VM): $(objs) secd.o
 	$(CC) $(CFLAGS) $(objs) secd.o -o $@
 
-sos: $(objs) secd.o repl.o
-	$(CC) $(CFLAGS) $(objs) secd.o repl.o -o $@
+sos: $(objs) sos.o repl.o
+	$(CC) $(CFLAGS) $(objs) sos.o repl.o -o $@
 
 repl.secd: repl.scm
 	$(VM) scm2secd.secd < $< > $@
@@ -16,7 +16,7 @@ repl.secd: repl.scm
 	$(CC) $(CFLAGS) -c $< -o $@ -Wall
 
 %.o : %.secd
-	$(CC) -r -b binary -o $@ $<
+	$(LD) -r -b binary -o $@ $<
 
 %.secd: %.scm $(VM)
 	$(VM) scm2secd.secd < $< > tmp.secd && mv tmp.secd $@
@@ -35,6 +35,7 @@ native.o : native.c memory.h env.h
 memory.o : memory.c memory.h
 readparse.o : readparse.c memory.h secdops.h
 secd.o : secd.c secd.h
+sos.o: sos.c
 memory.h : secd.h
 secd.h: conf.h debug.h
 repl.o: repl.secd
