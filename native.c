@@ -39,6 +39,22 @@ char *utf8cpy(char *to, unichar_t ucs) {
     return to + nbytes;
 }
 
+size_t utf8strlen(const char *str) {
+    size_t result = 0;
+    char c;
+    while ((c = *str++)) {
+        if (c & 0x80) {
+            c <<= 1;
+            do {
+                ++str;
+                c <<= 1;
+            } while (c & 0x80);
+        }
+        ++result;
+    }
+    return result;
+}
+
 /*
  *   List processing
  */
@@ -318,6 +334,14 @@ cell_t *secdstr_is(secd_t *secd, cell_t *args) {
     return to_bool(secd, cell_type(obj) == CELL_STR);
 }
 
+cell_t *secdstr_len(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdstr_len: no arguments");
+
+    cell_t *str = get_car(args);
+    assert(cell_type(str) == CELL_STR, "not a string");
+    return new_number(secd, utf8strlen((const char *)str->as.str.data));
+}
+
 /*
  *    Native function mapping table
  */
@@ -339,6 +363,7 @@ const cell_t vset_sym   = INIT_SYM("vector-set!");
 const cell_t vlist_sym  = INIT_SYM("list->vector");
 /* string functions */
 const cell_t sp_sym     = INIT_SYM("string?");
+const cell_t slen_sym   = INIT_SYM("string-length");
 
 const cell_t list_func  = INIT_FUNC(secdf_list);
 const cell_t appnd_func = INIT_FUNC(secdf_append);
@@ -358,6 +383,7 @@ const cell_t vset_func  = INIT_FUNC(secdv_set);
 const cell_t vlist_func = INIT_FUNC(secdv_from_list);
 /* string routines */
 const cell_t sp_func    = INIT_FUNC(secdstr_is);
+const cell_t slen_func  = INIT_FUNC(secdstr_len);
 
 const cell_t t_sym      = INIT_SYM("#t");
 const cell_t f_sym      = INIT_SYM("#f");
@@ -377,6 +403,7 @@ const struct {
     { &err_sym,     &secd_failure },
 
     { &sp_sym,      &sp_func    },
+    { &slen_sym,    &slen_func  },
 
     { &vp_sym,      &vp_func    },
     { &vmake_sym,   &vmake_func },
