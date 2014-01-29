@@ -339,6 +339,10 @@ cell_t *read_secd(secd_t *secd, secd_stream_t *f);
 secd_t * init_secd(secd_t *secd, secd_stream_t *readstream);
 cell_t * run_secd(secd_t *secd, cell_t *ctrl);
 
+/* control path */
+bool is_control_compiled(secd_t *secd, cell_t *control);
+cell_t *compile_control_path(secd_t *secd, cell_t *control);
+
 /*
  * utilities
  */

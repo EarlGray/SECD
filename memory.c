@@ -11,10 +11,6 @@
  *  TODO
  */
 
-/* extern declarations */
-bool is_control_compiled(cell_t *control);
-cell_t *compile_control_path(secd_t *secd, cell_t *control);
-
 /* internal declarations */
 void free_array(secd_t *secd, cell_t *this);
 
@@ -473,7 +469,7 @@ cell_t *pop_stack(secd_t *secd) {
 cell_t *set_control(secd_t *secd, cell_t *opcons) {
     assert(is_cons(opcons),
            "set_control: failed, not a cons at [%ld]\n", cell_index(secd, opcons));
-    if (! is_control_compiled(opcons)) {
+    if (! is_control_compiled(secd, opcons)) {
         opcons = compile_control_path(secd, opcons);
         assert_cell(opcons, "set_control: failed to compile control path");
     }
