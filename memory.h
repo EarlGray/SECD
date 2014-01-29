@@ -39,7 +39,7 @@ cell_t *pop_dump(secd_t *secd);
  * Reference-counting
  */
 
-inline static cell_t *share_cell(secd_t *secd, cell_t *c) {
+inline static cell_t *share_cell(secd_t __unused *secd, cell_t *c) {
     if (not_nil(c)) {
         ++c->nref;
         memtracef("share[%ld] %ld\n", cell_index(c), c->nref);

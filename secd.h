@@ -215,7 +215,7 @@ inline static enum cell_type cell_type(const cell_t *c) {
     return c->type;
 }
 
-inline static enum atom_type atom_type(secd_t *secd, const cell_t *c) {
+inline static enum atom_type atom_type(secd_t __unused *secd, const cell_t *c) {
     if (cell_type(c) != CELL_ATOM) return NOT_AN_ATOM;
     return (enum atom_type)(c->as.atom.type);
 }

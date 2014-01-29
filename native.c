@@ -253,7 +253,7 @@ cell_t *secdv_make(secd_t *secd, cell_t *args) {
     cell_t *num = get_car(args);
     assert(atom_type(secd, num) == ATOM_INT, "secdv_make: a number expected");
 
-    int i;
+    size_t i;
     size_t len = numval(num);
     //errorf(";; secdv_make: allocating %ld\n", len);
     cell_t *arr = new_array(secd, len);
@@ -284,7 +284,7 @@ cell_t *secdv_ref(secd_t *secd, cell_t *args) {
     assert(atom_type(secd, num) == ATOM_INT, "secdv_ref: an index expected");
     int ind = numval(num);
 
-    assert(ind < arr_size(secd, arr), "secdv_ref: index is out of range");
+    assert(ind < (int)arr_size(secd, arr), "secdv_ref: index is out of range");
 
     return new_clone(secd, arr->as.arr + ind);
 }
@@ -302,7 +302,7 @@ cell_t *secdv_set(secd_t *secd, cell_t *args) {
     assert(atom_type(secd, num) == ATOM_INT, "secdv_set: an index expected");
 
     int ind = numval(num);
-    assert(ind < arr_size(secd, arr), "secdv_set: index is out of range");
+    assert(ind < (int)arr_size(secd, arr), "secdv_set: index is out of range");
 
     args = list_next(secd, args);
     assert(not_nil(args), "secdv_set: third argument expected");

@@ -78,7 +78,7 @@ void dbg_printc(secd_t *secd, cell_t *c) {
 void sexp_print_array(secd_t *secd, cell_t *cell) {
     cell_t *arr = cell->as.arr;
     size_t len = arr_size(secd, cell);
-    int i;
+    size_t i;
 
     printf("#(");
     for (i = 0; i < len; ++i) {

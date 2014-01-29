@@ -165,7 +165,7 @@ void push_free(secd_t *secd, cell_t *c) {
         secd->free = c;
 
         ++secd->free_cells;
-        memdebugf("FREE[%ld], %ld free\n",
+        memdebugf("FREE[%ld], %zd free\n",
                 cell_index(secd, c), secd->free_cells);
     } else {
         memdebugf("FREE[%ld] --\n", cell_index(secd, c));
@@ -186,9 +186,7 @@ void push_free(secd_t *secd, cell_t *c) {
                 cell_t *next = c->as.cons.cdr;
                 if (not_nil(next))
                     next->as.cons.car = SECD_NIL;
-                else {
-                    memdebugf(";;  warning: data->free = nil");
-                }
+
                 secd->free = next;
             }
             memdebugf("FREE[%ld] --\n", cell_index(secd, c));
@@ -245,7 +243,7 @@ cell_t *alloc_array(secd_t *secd, size_t size) {
     }
 
     /* no chunks of sufficient size found, move secd->arrayptr */
-    if (secd->arrayptr - secd->fixedptr <= size)
+    if (secd->arrayptr - secd->fixedptr <= (int)size)
         return &secd_out_of_memory;
 
     /* create new metadata cons at arrayptr - size - 1 */
@@ -267,7 +265,7 @@ void free_array(secd_t *secd, cell_t *this) {
     cell_t *meta = arr_meta(this);
     cell_t *prev = get_car(meta);
     size_t size = arrmeta_size(secd, meta);
-    int i;
+    size_t i;
 
     /* free the items */
     for (i = 0; i < size; ++i) {
@@ -518,7 +516,7 @@ size_t list_length(secd_t *secd, cell_t *lst) {
 }
 
 cell_t *vector_from_list(secd_t *secd, cell_t *lst) {
-    int i;
+    size_t i;
     size_t len = list_length(secd, lst);
     cell_t *arr = new_array(secd, len);
     assert_cell(arr, "vector_from_list: allocation failed");
