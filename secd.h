@@ -155,7 +155,7 @@ struct cell {
         cons_t  cons;
         error_t err;
         struct {
-            const char *data;
+            char *data;
             hash_t hash;
         } str;
 
@@ -245,6 +245,9 @@ inline static int numval(const cell_t *c) {
     return c->as.atom.as.num;
 }
 inline static const char *strval(const cell_t *c) {
+    return c->as.str.data;
+}
+inline static char *strmem(cell_t *c) {
     return c->as.str.data;
 }
 

@@ -12,6 +12,7 @@ cell_t *new_frame(secd_t *secd, cell_t *syms, cell_t *vals);
 cell_t *new_number(secd_t *secd, int num);
 cell_t *new_symbol(secd_t *secd, const char *sym);
 cell_t *new_string(secd_t *secd, const char *str);
+cell_t *new_string_of_size(secd_t *secd, size_t size);
 cell_t *new_op(secd_t *secd, opindex_t opind);
 cell_t *new_const_clone(secd_t *secd, const cell_t *from);
 cell_t *new_clone(secd_t *secd, cell_t *from);

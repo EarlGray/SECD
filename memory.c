@@ -90,7 +90,7 @@ cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
         free_atom(c);
         break;
       case CELL_STR:
-        drop_cell(secd, arr_meta((cell_t *)c->as.str.data));
+        drop_cell(secd, arr_meta((cell_t *)strmem(c)));
         break;
       case CELL_FRAME:
       case CELL_CONS:
@@ -128,7 +128,7 @@ cell_t *pop_free(secd_t *secd) {
         memdebugf("NEW [%ld]\n", cell_index(secd, cell));
         -- secd->free_cells;
     } else {
-        assert(secd->free_cells == 0, 
+        assert(secd->free_cells == 0,
                "pop_free: free=NIL when nfree=%zd\n", secd->free_cells);
         /* move fixedptr */
         if (secd->fixedptr >= secd->arrayptr)
@@ -343,24 +343,39 @@ cell_t *new_symbol(secd_t *secd, const char *sym) {
     return cell;
 }
 
-cell_t *new_string(secd_t *secd, const char *str) {
-    union {
-        char *as_cstr;
-        cell_t *as_cell;
-    } mem;
+typedef union {
+    char *as_cstr;
+    cell_t *as_cell;
+} arrref_t;
 
-    size_t len = strlen(str);
-    mem.as_cell = alloc_array(secd, bytes_to_cell(len + 1));
-    assert_cell(mem.as_cell, "new_string: alloc failed");
-
-    strcpy(mem.as_cstr, str);
-
-    cell_t *cell = pop_free(secd);
+static cell_t *init_strref(secd_t *secd, cell_t *cell, arrref_t mem, size_t size) {
     cell->type = CELL_STR;
 
     share_cell(secd, arr_meta(mem.as_cell));
     cell->as.str.data = mem.as_cstr;
-    cell->as.str.hash = memhash(mem.as_cstr, len);
+    cell->as.str.hash = memhash(mem.as_cstr, size);
+    return cell;
+}
+
+cell_t *new_strref(secd_t *secd, arrref_t mem, size_t size) {
+    cell_t *ref = pop_free(secd);
+    assert_cell(ref, "new_strref: allocation failed");
+    return init_strref(secd, ref, mem, size);
+}
+
+cell_t *new_string_of_size(secd_t *secd, size_t size) {
+    arrref_t mem;
+    mem.as_cell = alloc_array(secd, bytes_to_cell(size));
+    assert_cell(mem.as_cell, "new_string_of_size: alloc failed");
+
+    return new_strref(secd, mem, size);
+}
+
+cell_t *new_string(secd_t *secd, const char *str) {
+    size_t size = strlen(str) + 1;
+    cell_t *cell = new_string_of_size(secd, size);
+
+    strcpy(strmem(cell), str);
     return cell;
 }
 
