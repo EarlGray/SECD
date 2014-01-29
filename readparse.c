@@ -24,7 +24,7 @@ void sexp_print_atom(secd_t *secd, const cell_t *c) {
       case ATOM_INT: printf("%d", c->as.atom.as.num); break;
       case ATOM_SYM: printf("%s", c->as.atom.as.sym.data); break;
       case ATOM_OP: print_opcode(c->as.atom.as.op); break;
-      case ATOM_FUNC: printf("*0x%p()", c->as.atom.as.ptr); break;
+      case ATOM_FUNC: printf("*%p()", c->as.atom.as.ptr); break;
       case NOT_AN_ATOM: printf("???");
     }
 }
@@ -34,7 +34,11 @@ void dbg_print_cell(secd_t *secd, const cell_t *c) {
          printf("NIL\n");
          return;
     }
-    printf("[%ld]^%ld: ", cell_index(secd, c), (long)c->nref);
+    char buf[128];
+    if (c->nref > DONT_FREE_THIS - 100000) strncpy(buf, "-", 64);
+    else snprintf(buf, 128, "%ld", (long)c->nref);
+    printf("[%ld]^%s: ", cell_index(secd, c), buf);
+
     switch (cell_type(c)) {
       case CELL_CONS:
         printf("CONS([%ld], [%ld])\n",

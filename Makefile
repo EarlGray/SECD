@@ -1,6 +1,6 @@
 objs := interp.o machine.o env.o memory.o native.o readparse.o
 
-CFLAGS := -O2 -g -Wno-shift-overflow
+CFLAGS := -O2 -g -Wno-shift-overflow -Wall -Wextra
 VM := ./secd
 
 $(VM): $(objs) secd.o
