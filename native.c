@@ -55,6 +55,56 @@ size_t utf8strlen(const char *str) {
     return result;
 }
 
+unichar_t utf8get(const char *u8, const char **next) {
+    if ((0x80 & *u8) == 0) {
+        if (next) *next = u8 + 1;
+        return *u8;
+    }
+
+    unichar_t res;
+    int nbytes;
+    char head = *u8;
+
+    if ((0xE0 & head) == 0xC0) {
+        res = head & 0x1F;
+        nbytes = 2;
+    } else if ((0xF0 & head) == 0xE0) {
+        res = head & 0x0F;
+        nbytes = 3;
+    } else if ((0xF8 & head) == 0xF0) {
+        res = head & 0x07;
+        nbytes = 4;
+    } else goto decode_error;
+
+    switch (nbytes) {
+      case 4:
+        ++u8;
+        if ((0xC0 & *u8) != 0x80) 
+            goto decode_error;
+        res <<= 6;
+        res |= *u8 & 0x3F;
+      case 3:
+        ++u8;
+        if ((0xC0 & *u8) != 0x80) 
+            goto decode_error;
+        res <<= 6;
+        res |= *u8 & 0x3F;
+      case 2:
+        ++u8;
+        if ((0xC0 & *u8) != 0x80) 
+            goto decode_error;
+        res <<= 6;
+        res |= *u8 & 0x3F;
+    }
+
+    if (next) *next = ++u8;
+    return res;
+
+decode_error:
+    if (next) *next = NULL;
+    return 0;
+}
+
 /*
  *   List processing
  */
@@ -342,19 +392,75 @@ cell_t *secdstr_len(secd_t *secd, cell_t *args) {
     return new_number(secd, utf8strlen((const char *)str->as.str.data));
 }
 
+cell_t *secdstr2sym(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdstr2sym: no arguments");
+
+    cell_t *str = get_car(args);
+    assert(cell_type(str) == CELL_STR, "not a string");
+    return new_symbol(secd, strval(str));
+}
+
+cell_t *secdsym2str(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdsym2str: no arguments");
+
+    cell_t *sym = get_car(args);
+    assert(atom_type(secd, sym) == ATOM_SYM, "not a symbol");
+    return new_string(secd, symname(sym));
+}
+
+static cell_t *string_to_list(secd_t *secd, const char *cstr) {
+    cell_t *res = SECD_NIL;
+    cell_t *cur;
+
+    unichar_t codepoint;
+    while (1) {
+        const char *cnxt;
+        codepoint = utf8get(cstr, &cnxt);
+
+        if (!cnxt) {
+            errorf("secdstr2lst: utf8 decoding failed\n");
+            return new_error(secd, "utf8 decoding failed");
+        }
+        cstr = cnxt;
+
+        if (codepoint == 0) 
+            return res;
+
+        cell_t *nchr = new_number(secd, codepoint);
+        cell_t *ncons = new_cons(secd, nchr, SECD_NIL);
+        if (not_nil(res)) {
+            cur->as.cons.cdr = share_cell(secd, ncons);
+            cur = list_next(secd, cur);
+        } else
+            res = cur = ncons;
+    }
+}
+
+cell_t *secdstr2lst(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdstr2lst: no arguments");
+
+    cell_t *str = get_car(args);
+    assert(cell_type(str) == CELL_STR, "not a string");
+
+    return string_to_list(secd, strval(str));
+}
+
 /*
  *    Native function mapping table
  */
-const cell_t list_sym   = INIT_SYM("list");
-const cell_t append_sym = INIT_SYM("append");
-const cell_t copy_sym   = INIT_SYM("list-copy");
-const cell_t nullp_sym  = INIT_SYM("null?");
+
+/* misc */
 const cell_t nump_sym   = INIT_SYM("number?");
 const cell_t symp_sym   = INIT_SYM("symbol?");
 const cell_t eofp_sym   = INIT_SYM("eof-object?");
 const cell_t debug_sym  = INIT_SYM("secd");
 const cell_t env_sym    = INIT_SYM("interaction-environment");
 const cell_t bind_sym   = INIT_SYM("secd-bind!");
+/* list routines */
+const cell_t list_sym   = INIT_SYM("list");
+const cell_t append_sym = INIT_SYM("append");
+const cell_t copy_sym   = INIT_SYM("list-copy");
+const cell_t nullp_sym  = INIT_SYM("null?");
 /* vector routines */
 const cell_t vp_sym     = INIT_SYM("vector?");
 const cell_t vmake_sym  = INIT_SYM("make-vector");
@@ -364,6 +470,9 @@ const cell_t vlist_sym  = INIT_SYM("list->vector");
 /* string functions */
 const cell_t sp_sym     = INIT_SYM("string?");
 const cell_t slen_sym   = INIT_SYM("string-length");
+const cell_t symstr_sym = INIT_SYM("symbol->string");
+const cell_t strsym_sym = INIT_SYM("string->symbol");
+const cell_t strlst_sym = INIT_SYM("string->list");
 
 const cell_t list_func  = INIT_FUNC(secdf_list);
 const cell_t appnd_func = INIT_FUNC(secdf_append);
@@ -384,6 +493,9 @@ const cell_t vlist_func = INIT_FUNC(secdv_from_list);
 /* string routines */
 const cell_t sp_func    = INIT_FUNC(secdstr_is);
 const cell_t slen_func  = INIT_FUNC(secdstr_len);
+const cell_t strsym_fun = INIT_FUNC(secdstr2sym);
+const cell_t symstr_fun = INIT_FUNC(secdsym2str);
+const cell_t strlst_fun = INIT_FUNC(secdstr2lst);
 
 const cell_t t_sym      = INIT_SYM("#t");
 const cell_t f_sym      = INIT_SYM("#f");
@@ -404,6 +516,9 @@ const struct {
 
     { &sp_sym,      &sp_func    },
     { &slen_sym,    &slen_func  },
+    { &symstr_sym,  &symstr_fun },
+    { &strsym_sym,  &strsym_fun },
+    { &strlst_sym,  &strlst_fun },
 
     { &vp_sym,      &vp_func    },
     { &vmake_sym,   &vmake_func },
