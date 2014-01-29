@@ -48,6 +48,7 @@ void dbg_print_cell(secd_t *secd, const cell_t *c) {
       case CELL_ARRAY: printf("ARR[%ld]\n", cell_index(secd, c->as.arr)); break;
       case CELL_STR: printf("STR[%ld]\n", cell_index(secd, c->as.arr)); break;
       case CELL_REF: printf("REF[%ld]\n", cell_index(secd, c->as.ref)); break;
+      case CELL_ERROR: printf("ERR[%s]\n", errmsg(c)); break;
       default: printf("unknown type: %d\n", cell_type(c));
     }
 }
@@ -287,10 +288,22 @@ token_t lexnext(secd_parser_t *p) {
         return lexnext(p);
 
       case '(': case ')':
+        p->token = p->lc;
+        nextchar(p);
+        return p->token;
+
       case '#':
         /* one-char tokens */
         p->token = p->lc;
         nextchar(p);
+        switch (p->lc) {
+            case 'f': case 't':
+                p->symtok[0] = '#';
+                p->symtok[1] = p->lc;
+                p->symtok[2] = '\0';
+                nextchar(p);
+                return (p->token = TOK_SYM);
+        }
         return p->token;
       case '\'':
         nextchar(p);
