@@ -157,10 +157,15 @@ struct cell {
         struct {
             char *data;
             hash_t hash;
+            off_t offset; // bytes
         } str;
 
-        cell_t *arr; // array
-        cell_t *ref; // pointer
+        struct {
+            cell_t *data; // array
+            off_t offset; // cells
+        } arr;
+
+        cell_t *ref;
     } as;
 };
 

@@ -80,7 +80,7 @@ static inline cell_t *arr_meta(cell_t *arr) {
 }
 
 static inline size_t arr_size(secd_t *secd, cell_t *arr) {
-    return arrmeta_size(secd, arr_meta(arr->as.arr));
+    return arrmeta_size(secd, arr_meta(arr->as.arr.data));
 }
 
 /*

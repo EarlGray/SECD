@@ -62,7 +62,7 @@ cell_t *init_with_copy(secd_t *secd,
         break;
       case CELL_ARRAY:
       case CELL_STR:
-        share_cell(secd, arr_meta(with->as.arr));
+        share_cell(secd, arr_meta(with->as.arr.data));
         break;
       case CELL_ERROR:
       case CELL_ATOM:
@@ -98,10 +98,10 @@ cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
         drop_cell(secd, get_cdr(c));
         break;
       case CELL_ARRAY: {
-        cell_t *meta = arr_meta(c->as.arr);
+        cell_t *meta = arr_meta(c->as.arr.data);
         -- meta->nref;
         if (0 == meta->nref) {
-            free_array(secd, c->as.arr);
+            free_array(secd, c->as.arr.data);
         }
         } break;
       case CELL_REF:
@@ -440,7 +440,7 @@ cell_t *new_array(secd_t *secd, size_t size) {
 
     cell_t *arr = pop_free(secd);
     arr->type = CELL_ARRAY;
-    arr->as.arr = mem;
+    arr->as.arr.data = mem;
     arr_meta(mem)->nref = 1;
     return arr;
 }
@@ -533,7 +533,7 @@ cell_t *vector_from_list(secd_t *secd, cell_t *lst) {
     assert_cell(arr, "vector_from_list: allocation failed");
 
     for (i = 0; i < len; ++i) {
-        init_with_copy(secd, arr->as.arr + i, get_car(lst));
+        init_with_copy(secd, arr->as.arr.data + i, get_car(lst));
         lst = list_next(secd, lst);
     }
     return arr;

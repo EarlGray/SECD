@@ -312,10 +312,10 @@ cell_t *secdv_make(secd_t *secd, cell_t *args) {
     if (not_nil(list_next(secd, args))) {
         cell_t *fill = get_car(list_next(secd, args));
         for (i = 0; i < len; ++i)
-            init_with_copy(secd, arr->as.arr + i, fill);
+            init_with_copy(secd, arr->as.arr.data + i, fill);
     } else {
         /* make it CELL_UNDEF */
-        memset(arr->as.arr, 0, sizeof(cell_t) * len);
+        memset(arr->as.arr.data, 0, sizeof(cell_t) * len);
     }
 
     return arr;
@@ -336,7 +336,7 @@ cell_t *secdv_ref(secd_t *secd, cell_t *args) {
 
     assert(ind < (int)arr_size(secd, arr), "secdv_ref: index is out of range");
 
-    return new_clone(secd, arr->as.arr + ind);
+    return new_clone(secd, arr->as.arr.data + ind);
 }
 
 cell_t *secdv_set(secd_t *secd, cell_t *args) {
@@ -358,7 +358,7 @@ cell_t *secdv_set(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "secdv_set: third argument expected");
 
     cell_t *obj = get_car(args);
-    cell_t *ref = arr->as.arr + ind;
+    cell_t *ref = arr->as.arr.data + ind;
     drop_dependencies(secd, ref);
     init_with_copy(secd, ref, obj);
 

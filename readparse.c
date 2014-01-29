@@ -49,8 +49,8 @@ void dbg_print_cell(secd_t *secd, const cell_t *c) {
                cell_index(secd, get_car(c)), cell_index(secd, get_cdr(c)));
         break;
       case CELL_ATOM: sexp_print_atom(secd, c); printf("\n"); break;
-      case CELL_ARRAY: printf("ARR[%ld]\n", cell_index(secd, c->as.arr)); break;
-      case CELL_STR: printf("STR[%ld]\n", cell_index(secd, c->as.arr)); break;
+      case CELL_ARRAY: printf("ARR[%ld]\n", cell_index(secd, c->as.arr.data)); break;
+      case CELL_STR: printf("STR[%ld]\n", cell_index(secd, (cell_t*)c->as.str.data)); break;
       case CELL_REF: printf("REF[%ld]\n", cell_index(secd, c->as.ref)); break;
       case CELL_ERROR: printf("ERR[%s]\n", errmsg(c)); break;
       default: printf("unknown type: %d\n", cell_type(c));
@@ -80,7 +80,7 @@ void dbg_printc(secd_t *secd, cell_t *c) {
 }
 
 void sexp_print_array(secd_t *secd, cell_t *cell) {
-    cell_t *arr = cell->as.arr;
+    cell_t *arr = cell->as.arr.data;
     size_t len = arr_size(secd, cell);
     size_t i;
 

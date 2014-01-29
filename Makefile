@@ -13,7 +13,7 @@ repl.secd: repl.scm
 	$(VM) scm2secd.secd < $< > $@
 
 %.o : %.c
-	$(CC) $(CFLAGS) -c $< -o $@ -Wall
+	$(CC) $(CFLAGS) -c $< -o $@
 
 %.o : %.secd
 	$(LD) -r -b binary -o $@ $<
