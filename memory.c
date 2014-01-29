@@ -132,6 +132,8 @@ cell_t *pop_free(secd_t *secd) {
         memdebugf("NEW [%ld]\n", cell_index(secd, cell));
         -- secd->free_cells;
     } else {
+        assert(secd->free_cells == 0, 
+               "pop_free: free=NIL when nfree=%zd\n", secd->free_cells);
         /* move fixedptr */
         if (secd->fixedptr >= secd->arrayptr)
             return &secd_out_of_memory;
@@ -140,6 +142,7 @@ cell_t *pop_free(secd_t *secd) {
         ++ secd->fixedptr;
         memdebugf("NEW [%ld] ++\n", cell_index(secd, cell));
     }
+
     cell->type = CELL_UNDEF;
     cell->nref = 0;
     return cell;
@@ -176,18 +179,22 @@ void push_free(secd_t *secd, cell_t *c) {
                     next->as.cons.car = prev;
                 }
             } else {
-                cell_t *prev = c->as.cons.car;
-                if (not_nil(prev))
-                    prev->as.cons.cdr = SECD_NIL;
-                secd->free = prev;
+                cell_t *next = c->as.cons.cdr;
+                if (not_nil(next))
+                    next->as.cons.car = SECD_NIL;
+                else {
+                    memdebugf(";;  warning: data->free = nil");
+                }
+                secd->free = next;
             }
             memdebugf("FREE[%ld] --\n", cell_index(secd, c));
             --c;
             --secd->free_cells;
         }
 
+        ++secd->free_cells; // to compensate the newly added last cell
         secd->fixedptr = c + 1;
-        memdebugf("FREE[], %ld free\n", secd->free_cells);
+        memdebugf("FREE: fixedptr at %ld\n", cell_index(secd, secd->fixedptr));
     }
 }
 
