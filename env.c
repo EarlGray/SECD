@@ -21,8 +21,10 @@ void print_env(secd_t *secd) {
         while (not_nil(symlist)) {
             cell_t *sym = get_car(symlist);
             cell_t *val = get_car(vallist);
-            if (atom_type(secd, sym) != ATOM_SYM)
-                errorf("print_env: not a symbol at *%p in vallist\n", sym);
+            if (atom_type(secd, sym) != ATOM_SYM) {
+                errorf("print_env: not a symbol at *%p in symlist\n", sym);
+                dbg_printc(secd, sym);
+            }
             printf(";;    %s\t=>\t", symname(sym));
             dbg_print_cell(secd, val);
 

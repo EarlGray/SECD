@@ -154,21 +154,25 @@ void push_free(secd_t *secd, cell_t *c) {
             "push_free: [%ld]->nref is %ld\n", cell_index(secd, c), (long)c->nref);
     assertv(c < secd->fixedptr, "push_free: Trying to free array cell");
 
-    c->type = CELL_FREE;
     if (c + 1 < secd->fixedptr) {
         /* just add the cell to the list secd->free */
-        if (not_nil(secd->free))
-            secd->free->as.cons.car = c;
+        c->type = CELL_FREE;
         c->as.cons.car = SECD_NIL;
         c->as.cons.cdr = secd->free;
+
+        if (not_nil(secd->free))
+            secd->free->as.cons.car = c;
         secd->free = c;
 
         ++secd->free_cells;
         memdebugf("FREE[%ld], %ld free\n",
                 cell_index(secd, c), secd->free_cells);
     } else {
-        /* it is a cell adjacent to the free space */
+        memdebugf("FREE[%ld] --\n", cell_index(secd, c));
+        --c;
+
         while (c->type == CELL_FREE) {
+            /* it is a cell adjacent to the free space */
             if (c != secd->free) {
                 cell_t *prev = c->as.cons.car;
                 cell_t *next = c->as.cons.cdr;
@@ -192,9 +196,7 @@ void push_free(secd_t *secd, cell_t *c) {
             --secd->free_cells;
         }
 
-        ++secd->free_cells; // to compensate the newly added last cell
         secd->fixedptr = c + 1;
-        memdebugf("FREE: fixedptr at %ld\n", cell_index(secd, secd->fixedptr));
     }
 }
 
