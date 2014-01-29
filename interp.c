@@ -82,6 +82,7 @@ cell_t* compiled_ctrl(secd_t *secd, cell_t *ctrl) {
     if (is_control_compiled(secd, ctrl))
         return SECD_NIL;
 
+    ctrldebugf(" compiling control path\n");
     cell_t *compiled = compile_control_path(secd, ctrl);
     assert(compiled, "compiled_ctrl: NIL");
     assert_cell(compiled, "compiled_ctrl: failed");
@@ -138,7 +139,7 @@ cell_t *secd_cdr(secd_t *secd) {
 }
 
 cell_t *secd_ldc(secd_t *secd) {
-    ctrldebugf("LDC ");
+    ctrldebugf("LDC\n");
 
     cell_t *arg = pop_control(secd);
     assert_cell(arg, "secd_ldc: pop_control failed");
@@ -150,7 +151,7 @@ cell_t *secd_ldc(secd_t *secd) {
 }
 
 cell_t *secd_ld(secd_t *secd) {
-    ctrldebugf("LD ");
+    ctrldebugf("LD\n");
 
     cell_t *arg = pop_control(secd);
     assert_cell(arg, "secd_ld: stack empty");
@@ -304,7 +305,7 @@ cell_t *secd_leq(secd_t *secd) {
 }
 
 cell_t *secd_sel(secd_t *secd) {
-    ctrldebugf("SEL ");
+    ctrldebugf("SEL\n");
 
     cell_t *condcell = pop_stack(secd);
     if (CTRLDEBUG) dbg_printc(secd, condcell);
@@ -424,17 +425,13 @@ cell_t *secd_ap(secd_t *secd) {
 
     cell_t *closure = pop_stack(secd);
     assert_cell(closure, "secd_ap: pop_stack(closure) failed");
-    assert(is_cons(closure), "secd_ap: closure is not a cons");
 
     cell_t *argvals = extract_argvals(secd);
     assert_cell(argvals, "secd_ap: no arguments on stack");
     assert(is_cons(argvals), "secd_ap: a list expected for arguments");
 
-    cell_t *func = get_car(closure);
-    cell_t *newenv = get_cdr(closure);
-
-    if (atom_type(secd, func) == ATOM_FUNC) {
-        secd_nativefunc_t native = (secd_nativefunc_t)func->as.atom.as.ptr;
+    if (atom_type(secd, closure) == ATOM_FUNC) {
+        secd_nativefunc_t native = (secd_nativefunc_t)closure->as.atom.as.ptr;
         cell_t *result = native(secd, argvals);
         assert_cell(result, "secd_ap: a built-in routine failed");
         push_stack(secd, result);
@@ -442,7 +439,19 @@ cell_t *secd_ap(secd_t *secd) {
         drop_cell(secd, closure); drop_cell(secd, argvals);
         return result;
     }
+
+    assert(is_cons(closure), "secd_ap: closure is not a cons");
+    cell_t *func = get_car(closure);
+    cell_t *newenv = get_cdr(closure);
+
     assert(is_cons(func), "secd_ap: not a cons at func definition");
+    assert(is_cons(newenv), "secd_ap: not a cons at env in closure");
+    assert(not_nil(newenv), "secd_ap: nil env");
+    if (list_head(newenv)->type != CELL_FRAME) {
+        errorf("secd_ap: env holds not a frame\n");
+        dbg_printc(secd, newenv);
+        return new_error(secd, "not a frame");
+    }
 
     cell_t *argnames = get_car(func);
     cell_t *control = list_head(list_next(secd, func));
@@ -456,6 +465,7 @@ cell_t *secd_ap(secd_t *secd) {
         cell_t *dump = secd->dump;
         secd->dump = share_cell(secd, new_dump);
         drop_cell(secd, dump);  // dump may be new_dump, so don't drop before share
+        ctrldebugf("secd_ap: tailrec\n");
     } else {
         push_dump(secd, secd->control);
         push_dump(secd, secd->env);
@@ -471,12 +481,17 @@ cell_t *secd_ap(secd_t *secd) {
     secd->stack = SECD_NIL;
 
     cell_t *frame = new_frame(secd, argnames, argvals);
-    cell_t *oldenv = secd->env;
-    drop_cell(secd, oldenv);
-    secd->env = share_cell(secd, new_cons(secd, frame, newenv));
 
-    drop_cell(secd, secd->control);
+    cell_t *oldenv = secd->env;
+    memdebugf("secd_ap: dropping env[%ld]\n", cell_index(secd, oldenv));
+    secd->env = share_cell(secd, new_cons(secd, frame, newenv));
+    drop_cell(secd, oldenv);
+
+    if (ENVDEBUG) print_env(secd);
+
+    cell_t *oldctrl = secd->control;
     secd->control = share_cell(secd, control);
+    drop_cell(secd, oldctrl);
 
     drop_cell(secd, closure); drop_cell(secd, argvals);
     return control;

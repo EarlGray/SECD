@@ -438,9 +438,8 @@ cell_t * make_frame_of_natives(secd_t *secd) {
         cell_t *sym = new_const_clone(secd, native_functions[i].sym);
         cell_t *val = new_const_clone(secd, native_functions[i].val);
         sym->nref = val->nref = DONT_FREE_THIS;
-        cell_t *closure = new_cons(secd, val, SECD_NIL);
         symlist = new_cons(secd, sym, symlist);
-        vallist = new_cons(secd, closure, vallist);
+        vallist = new_cons(secd, val, vallist);
     }
 
     cell_t *sym = new_const_clone(secd, &nil_sym);
