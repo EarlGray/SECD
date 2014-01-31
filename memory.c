@@ -94,8 +94,10 @@ cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
         break;
       case CELL_FRAME:
       case CELL_CONS:
-        drop_cell(secd, get_car(c));
-        drop_cell(secd, get_cdr(c));
+        if (not_nil(c)) {
+            drop_cell(secd, get_car(c));
+            drop_cell(secd, get_cdr(c));
+        }
         break;
       case CELL_ARRAY: {
         cell_t *meta = arr_meta(c->as.arr.data);
@@ -255,7 +257,7 @@ cell_t *alloc_array(secd_t *secd, size_t size) {
 }
 
 void free_array(secd_t *secd, cell_t *this) {
-    assertv(this < secd->arrlist, "free_array: tried to free arrlist");
+    assertv(this <= secd->arrlist, "free_array: tried to free arrlist");
     assertv(secd->arrayptr < this, "free_array: not an array");
 
     cell_t *meta = arr_meta(this);
