@@ -356,4 +356,7 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control);
  */
 hash_t memhash(const char*, size_t);
 
+/* in the sense of 'equal?' */
+bool is_equal(secd_t *secd, const cell_t *a, const cell_t *b);
+
 #endif //__SECD_H__

@@ -189,28 +189,68 @@ bool atom_eq(secd_t *secd, const cell_t *a1, const cell_t *a2) {
 
 bool list_eq(secd_t *secd, const cell_t *xs, const cell_t *ys) {
     asserti(is_cons(xs), "list_eq: [%ld] is not a cons", cell_index(secd, xs));
-    if (xs == ys)   return true;
+
+    if (xs == ys)
+        return true;
     while (not_nil(xs)) {
-        if (!is_cons(xs)) return atom_eq(secd, xs, ys);
-        if (is_nil(ys)) return false;
-        if (!is_cons(ys)) return false;
+        if (!is_cons(xs))
+            return is_equal(secd, xs, ys);
+        if (cell_type(xs) != cell_type(ys))
+            return false;
+        if (is_nil(ys))
+            return false;
+
         const cell_t *x = get_car(xs);
         const cell_t *y = get_car(ys);
-        if (not_nil(x)) {
-            if (is_nil(y)) return false;
-            if (is_cons(x)) {
-                if (!list_eq(secd, x, y)) return false;
-            } else {
-                if (!atom_eq(secd, x, y)) return false;
-            }
-        } else {
-            if (not_nil(y)) return false;
-        }
+        if (not_nil(x) ? is_nil(y) : not_nil(y))
+            return false;
+        if (!is_equal(secd, x, y))
+            return false;
 
         xs = list_next(secd, xs);
         ys = list_next(secd, ys);
     }
     return is_nil(ys);
+}
+
+bool array_eq(secd_t *secd, const cell_t *a, const cell_t *b) {
+    if (a == b)
+        return true;
+
+    size_t len = arr_size(secd, a);
+    if (len != arr_size(secd, b))
+        return false;
+
+    size_t i;
+    for (i = 0; i < len; ++i) {
+        if (!is_equal(secd, arr_val(a, i), arr_val(b, i)))
+            return false;
+    }
+
+    return true;
+}
+
+bool is_equal(secd_t *secd, const cell_t *a, const cell_t *b) {
+    if (a == b)
+        return true;
+    if (is_nil(a))
+        return is_nil(b);
+    if (cell_type(a) != cell_type(b))
+        return false;
+
+    switch (cell_type(a)) {
+      case CELL_CONS: return list_eq(secd, a, b);
+      case CELL_ATOM: return atom_eq(secd, a, b);
+      case CELL_STR:  return !strcmp(strval(a), strval(b));
+      case CELL_ARRAY: return array_eq(secd, a, b);
+      case CELL_UNDEF: return true;
+
+      case CELL_ARRMETA: case CELL_ERROR:
+      case CELL_FREE: case CELL_FRAME:
+      case CELL_REF:
+           errorf("is_equal: comparing internal data");
+    }
+    return false;
 }
 
 cell_t *secd_atom(secd_t *secd) {
@@ -232,9 +272,7 @@ cell_t *secd_eq(secd_t *secd) {
     cell_t *b = pop_stack(secd);
     assert_cell(b, "secd_eq: pop_stack(b) failed");
 
-    bool eq = (is_cons(a) ? list_eq(secd, a, b) : atom_eq(secd, a, b));
-
-    cell_t *val = to_bool(secd, eq);
+    cell_t *val = to_bool(secd, is_equal(secd, a, b));
     drop_cell(secd, a); drop_cell(secd, b);
     return push_stack(secd, val);
 }

@@ -79,8 +79,17 @@ static inline cell_t *arr_meta(cell_t *arr) {
     return arr - 1;
 }
 
-static inline size_t arr_size(secd_t *secd, cell_t *arr) {
+static inline size_t arr_size(secd_t *secd, const cell_t *arr) {
     return arrmeta_size(secd, arr_meta(arr->as.arr.data));
+}
+
+static inline cell_t *arr_ref(cell_t *arr, size_t index) {
+    return arr->as.arr.data + index;
+}
+
+static inline const cell_t *
+arr_val(const cell_t *arr, size_t index) {
+    return arr->as.arr.data + index;
 }
 
 /*
