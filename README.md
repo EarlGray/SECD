@@ -204,28 +204,3 @@ Use `secd-compile` function to examine results of Scheme-to-SECD conversion in t
 > (eval '(+ 2 2) (interaction-environment))
 4
 ```
-
-TODO
-----
-- [ ] ATOM_CHAR, string->list, list->string, string->vector, vector->string;
-- [ ] to write down the new memory layout in memory.c;
-- [ ] reader: dot-lists;
-- [ ] refactor out atom_type;
-- [ ] move to indexes instead of pointers;
-- [ ] '#f';
-- [ ] abstract out system memory management: no direct calloc/free references;
-- [ ] support for more Scheme types: `bytestring`, `port`;
-- [ ] make symbol storage: quick access (balanced binary search tree or hashtable?), reuse string resources;
-- [ ] large: green threads + non-blocking IO;
-- [ ] large: FFI system;
-- [ ] large: optional garbage-collector, compare RefCount and GC speed.
-- [ ] LLVM backend?
-Optimization:
-- [ ] fast symbol lookup;
-- [ ] remove JOIN/RTN/LD/LDC?
-
-Done:
-- [x] `define`, interpreter environment!
-- [x] `AP n`: treat n values on top of the stack as arguments for a function call instead of always creating a list.
-- [x] don't look up opcodes on its execution;
-- [x] tail-recursion/purity analysis on LDF when possible;
