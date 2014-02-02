@@ -65,7 +65,7 @@ inline static cell_t *drop_cell(secd_t *secd, cell_t *c) {
     return free_cell(secd, c);
 }
 
-static inline size_t arrmeta_size(secd_t *secd, cell_t *metacons) {
+static inline size_t arrmeta_size(secd_t *secd, const cell_t *metacons) {
     asserti(cell_type(metacons) == CELL_ARRMETA, "arrmeta_size: not a meta");
     if (metacons == secd->arrlist) return 0;
     return metacons->as.mcons.prev - metacons - 1;
@@ -79,17 +79,21 @@ static inline cell_t *arr_meta(cell_t *arr) {
     return arr - 1;
 }
 
-static inline size_t arr_size(secd_t *secd, const cell_t *arr) {
-    return arrmeta_size(secd, arr_meta(arr->as.arr.data));
-}
-
-static inline cell_t *arr_ref(cell_t *arr, size_t index) {
-    return arr->as.arr.data + index;
-}
-
 static inline const cell_t *
 arr_val(const cell_t *arr, size_t index) {
     return arr->as.arr.data + index;
+}
+
+static inline cell_t *arr_mem(cell_t *arr) {
+    return arr->as.arr.data;
+}
+
+static inline size_t arr_size(secd_t *secd, const cell_t *arr) {
+    return arrmeta_size(secd, arr_val(arr, -1));
+}
+
+static inline cell_t *arr_ref(cell_t *arr, size_t index) {
+    return arr_mem(arr) + index;
 }
 
 cell_t *fill_array(secd_t *secd, cell_t *arr, cell_t *with);

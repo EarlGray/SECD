@@ -27,7 +27,6 @@ Defects Pending:
 ===============
 | Defect| Description
 |-------|--------------------
-| D2    | Crash on reading `#()`
 | D3    | Crash on `(make-vector 1 '())`
 | D4    | Crash on freeing result of `(make-vector 2 'any)` -- part of T1
 
@@ -36,3 +35,4 @@ Defects Fixed:
 | Defect| Description
 |-------|--------------------
 |  D1   |  `(eq? "str" "str")` not handled
+| D2    | Crash on reading `#()`

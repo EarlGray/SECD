@@ -100,7 +100,7 @@ cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
         break;
       case CELL_STR:
       case CELL_ARRAY: {
-        cell_t *arr = c->as.arr.data;
+        cell_t *arr = arr_ref(c, 0);
         cell_t *meta = arr_meta(arr);
         -- meta->nref;
         if (0 == meta->nref) {
@@ -282,18 +282,18 @@ void free_array(secd_t *secd, cell_t *this) {
         if (is_array_free(secd, prev)) {
             /* merge with the previous array */
             cell_t *pprev = prev->as.mcons.prev;
-            pprev->as.mcons.next = this;
-            this->as.mcons.prev = pprev;
+            pprev->as.mcons.next = meta;
+            meta->as.mcons.prev = pprev;
         }
 
-        cell_t *next = get_cdr(this);
+        cell_t *next = mcons_next(meta);
         if (is_array_free(secd, next)) {
             /* merge with the next array */
-            cell_t *newprev = this->as.mcons.prev;
+            cell_t *newprev = meta->as.mcons.prev;
             next->as.mcons.prev = newprev;
             newprev->as.mcons.next = next;
         }
-        mark_free(this);
+        mark_free(meta);
     } else {
         /* move arrayptr into the array area */
         prev->as.mcons.next = SECD_NIL;
@@ -554,10 +554,10 @@ cell_t *vector_from_list(secd_t *secd, cell_t *lst) {
     assert_cell(arr, "vector_from_list: allocation failed");
 
     for (i = 0; i < len; ++i) {
-        init_with_copy(secd, arr->as.arr.data + i, get_car(lst));
+        if (is_nil(lst)) break;
+        init_with_copy(secd, arr_ref(arr, i), get_car(lst));
         lst = list_next(secd, lst);
     }
-    arr_meta(arr)->as.mcons.cells = true;
     return arr;
 }
 
