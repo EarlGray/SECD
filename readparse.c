@@ -49,10 +49,17 @@ void dbg_print_cell(secd_t *secd, const cell_t *c) {
                cell_index(secd, get_car(c)), cell_index(secd, get_cdr(c)));
         break;
       case CELL_ATOM: sexp_print_atom(secd, c); printf("\n"); break;
-      case CELL_ARRAY: printf("ARR[%ld]\n", cell_index(secd, c->as.arr.data)); break;
-      case CELL_STR: printf("STR[%ld]\n", cell_index(secd, (cell_t*)c->as.str.data)); break;
+      case CELL_ARRAY: printf("ARR[%ld]\n",
+                               cell_index(secd, c->as.arr.data)); break;
+      case CELL_STR: printf("STR[%ld]\n",
+                             cell_index(secd, (cell_t*)c->as.str.data)); break;
       case CELL_REF: printf("REF[%ld]\n", cell_index(secd, c->as.ref)); break;
       case CELL_ERROR: printf("ERR[%s]\n", errmsg(c)); break;
+      case CELL_ARRMETA: printf("META[%ld, %ld]\n",
+                                 cell_index(secd, mcons_prev((cell_t*)c)),
+                                 cell_index(secd, mcons_next((cell_t*)c))); break;
+      case CELL_UNDEF: printf("#?\n"); break;
+      case CELL_FREE: printf("FREE\n"); break;
       default: printf("unknown type: %d\n", cell_type(c));
     }
 }

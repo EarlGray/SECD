@@ -51,6 +51,56 @@ cell_t * run_secd(secd_t *secd, cell_t *ctrl) {
     }
 }
 
+/*
+ *  Serialization
+ */
+
+cell_t *serialize_cell(secd_t *secd, cell_t *cell) {
+    cell_t *opt;
+    switch (cell_type(cell)) {
+      case CELL_CONS: {
+            cell_t *cdrc = new_cons(secd,
+                    new_number(secd, cell_index(secd, get_cdr(cell))), SECD_NIL);
+            cell_t *carc = new_cons(secd,
+                    new_number(secd, cell_index(secd, get_car(cell))), cdrc);
+            opt = new_cons(secd, new_symbol(secd, "cons"), carc);
+        } break;
+      case CELL_ERROR: {
+            cell_t *msgc = new_cons(secd,
+                    new_string(secd, errmsg(cell)), SECD_NIL);
+            opt = new_cons(secd, new_symbol(secd, "err"), msgc);
+        } break;
+      case CELL_UNDEF:
+        opt = new_cons(secd, new_symbol(secd, "#?"), SECD_NIL);
+        break;
+      case CELL_ARRAY: {
+           cell_t *metac = new_cons(secd,
+                   new_number(secd, cell_index(secd, arr_meta(cell->as.arr.data))),
+                   SECD_NIL);
+           opt = new_cons(secd, new_symbol(secd, "array"), metac);
+        } break;
+      case CELL_STR: {
+           cell_t *metac = new_cons(secd,
+                   new_number(secd, cell_index(secd, arr_meta((cell_t *)strmem(cell)))),
+                   SECD_NIL);
+           opt = new_cons(secd, new_symbol(secd, "str"), metac);
+        } break;
+      default: return SECD_NIL;
+    }
+    cell_t *refc = new_cons(secd, new_number(secd, cell->nref), opt);
+    return new_cons(secd, new_number(secd, cell - secd->begin), refc);
+}
+
+cell_t *secd_mem_info(secd_t *secd) {
+    cell_t *arrptr
+        = new_cons(secd, new_number(secd, secd->arrayptr - secd->begin), SECD_NIL);
+    cell_t *fxdptr
+        = new_cons(secd, new_number(secd, secd->fixedptr - secd->begin), arrptr);
+    cell_t *freec =
+        new_cons(secd, new_number(secd, secd->free_cells), fxdptr);
+    return new_cons(secd, new_number(secd, secd->end - secd->begin), freec);
+}
+
 
 /*
  * Errors

@@ -133,6 +133,12 @@ struct cons {
     cell_t *cdr;    // shares
 };
 
+struct metacons {
+    cell_t *prev;   // prev from arrlist, arrlist-ward
+    cell_t *next;   // next from arrlist, arrptr-ward
+    bool cells;     // does area contain cells
+};
+
 struct error {
     size_t len;
     const char *msg; // owns
@@ -166,6 +172,7 @@ struct cell {
         } arr;
 
         cell_t *ref;
+        struct metacons mcons;
     } as;
 };
 
@@ -287,6 +294,13 @@ inline static bool is_error(const cell_t *cell) {
     return cell_type(cell) == CELL_ERROR;
 }
 
+inline static cell_t *mcons_prev(cell_t *mcons) {
+    return mcons->as.mcons.prev;
+}
+inline static cell_t *mcons_next(cell_t *mcons) {
+    return mcons->as.mcons.next;
+}
+
 #define INIT_SYM(name) {    \
     .type = CELL_ATOM,      \
     .nref = DONT_FREE_THIS, \
@@ -346,6 +360,10 @@ cell_t *read_secd(secd_t *secd, secd_stream_t *f);
 
 secd_t * init_secd(secd_t *secd, secd_stream_t *readstream);
 cell_t * run_secd(secd_t *secd, cell_t *ctrl);
+
+/* serialization */
+cell_t *serialize_cell(secd_t *secd, cell_t *cell);
+cell_t *secd_mem_info(secd_t *secd);
 
 /* control path */
 bool is_control_compiled(secd_t *secd, cell_t *control);

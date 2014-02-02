@@ -61,8 +61,10 @@ cell_t *init_with_copy(secd_t *secd,
         share_cell(secd, with->as.ref);
         break;
       case CELL_ARRAY:
-      case CELL_STR:
         share_cell(secd, arr_meta(with->as.arr.data));
+        break;
+      case CELL_STR:
+        share_cell(secd, arr_meta((cell_t *)strmem((cell_t *)with)));
         break;
       case CELL_ERROR:
       case CELL_ATOM:
@@ -89,9 +91,6 @@ cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
       case CELL_ATOM:
         free_atom(c);
         break;
-      case CELL_STR:
-        drop_cell(secd, arr_meta((cell_t *)strmem(c)));
-        break;
       case CELL_FRAME:
       case CELL_CONS:
         if (not_nil(c)) {
@@ -99,11 +98,25 @@ cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
             drop_cell(secd, get_cdr(c));
         }
         break;
+      case CELL_STR:
       case CELL_ARRAY: {
-        cell_t *meta = arr_meta(c->as.arr.data);
+        cell_t *arr = c->as.arr.data;
+        cell_t *meta = arr_meta(arr);
         -- meta->nref;
         if (0 == meta->nref) {
-            free_array(secd, c->as.arr.data);
+            if (meta->as.mcons.cells) {
+                size_t size = arrmeta_size(secd, meta);
+                size_t i;
+
+                /* free the items */
+                for (i = 0; i < size; ++i) {
+                    /* don't free uninitialized */
+                    if (cell_type(arr + i) != CELL_UNDEF)
+                        drop_dependencies(secd, arr + i);
+                }
+            }
+
+            free_array(secd, arr);
         }
         } break;
       case CELL_REF:
@@ -204,9 +217,11 @@ init_cons(secd_t *secd, cell_t *cell, cell_t *car, cell_t *cdr) {
     return cell;
 }
 
-static cell_t *init_meta(secd_t *secd, cell_t *cell, cell_t *prev, cell_t *next) {
-    init_cons(secd, cell, prev, next);
+static cell_t *init_meta(secd_t __unused *secd, cell_t *cell, cell_t *prev, cell_t *next) {
     cell->type = CELL_ARRMETA;
+    cell->as.mcons.prev = prev;
+    cell->as.mcons.next = next;
+    cell->as.mcons.cells = false;
     return cell;
 }
 
@@ -224,20 +239,20 @@ static inline void mark_free(cell_t *metacons) { metacons->nref = 0; }
 cell_t *alloc_array(secd_t *secd, size_t size) {
     /* look through the list of arrays */
     cell_t *cur = secd->arrlist;
-    while (not_nil(get_cdr(cur))) {
+    while (not_nil(mcons_next(cur))) {
         if (is_array_free(secd, cur)) {
             size_t cursize = arrmeta_size(secd, cur);
             if (cursize >= size) {
                 /* allocate this gap */
                 if (cursize > size + 1) {
                     cell_t *newmeta = cur + size + 1;
-                    init_meta(secd, newmeta, get_car(cur), cur);
+                    init_meta(secd, newmeta, mcons_prev(cur), cur);
                     mark_free(newmeta);
                 }
                 return cur + 1;
             }
         }
-        cur = get_cdr(cur);
+        cur = mcons_next(cur);
     }
 
     /* no chunks of sufficient size found, move secd->arrayptr */
@@ -250,7 +265,7 @@ cell_t *alloc_array(secd_t *secd, size_t size) {
     cell_t *meta = oldmeta - size - 1;
     init_meta(secd, meta, oldmeta, SECD_NIL);
 
-    oldmeta->as.cons.cdr = meta;
+    oldmeta->as.mcons.next = meta;
 
     secd->arrayptr = meta;
     return meta + 1;
@@ -261,41 +276,33 @@ void free_array(secd_t *secd, cell_t *this) {
     assertv(secd->arrayptr < this, "free_array: not an array");
 
     cell_t *meta = arr_meta(this);
-    cell_t *prev = get_car(meta);
-    size_t size = arrmeta_size(secd, meta);
-    size_t i;
-
-    /* free the items */
-    for (i = 0; i < size; ++i) {
-        if (this[i].type != CELL_UNDEF) /* don't free uninitialized */
-            drop_dependencies(secd, this + i);
-    }
+    cell_t *prev = mcons_prev(meta);
 
     if (meta != secd->arrayptr) {
         if (is_array_free(secd, prev)) {
             /* merge with the previous array */
-            cell_t *pprev = get_car(prev);
-            pprev->as.cons.cdr = this;
-            this->as.cons.car = pprev;
+            cell_t *pprev = prev->as.mcons.prev;
+            pprev->as.mcons.next = this;
+            this->as.mcons.prev = pprev;
         }
 
         cell_t *next = get_cdr(this);
         if (is_array_free(secd, next)) {
             /* merge with the next array */
-            cell_t *newprev = get_car(this);
-            next->as.cons.car = newprev;
-            newprev->as.cons.cdr = next;
+            cell_t *newprev = this->as.mcons.prev;
+            next->as.mcons.prev = newprev;
+            newprev->as.mcons.next = next;
         }
         mark_free(this);
     } else {
         /* move arrayptr into the array area */
-        prev->as.cons.cdr = SECD_NIL;
+        prev->as.mcons.next = SECD_NIL;
         secd->arrayptr = prev;
 
         if (is_array_free(secd, prev)) {
             /* at most one array after 'arr' may be free */
-            cell_t *pprev = get_car(prev);
-            pprev->as.cons.cdr = SECD_NIL;
+            cell_t *pprev = prev->as.mcons.prev;
+            pprev->as.mcons.next = SECD_NIL;
             secd->arrayptr = pprev;
         }
     }
@@ -307,12 +314,23 @@ void print_array_layout(secd_t *secd) {
     errorf(";;  arrlist  = %ld\n", cell_index(secd, secd->arrlist));
     errorf(";; Array list is:\n");
     cell_t *cur = secd->arrlist;
-    while (get_cdr(cur)) {
-        cur = get_cdr(cur);
-        errorf(";;  %ld\t%ld (size=%zd,\t%s)\n",
-                cell_index(secd, cur), cell_index(secd, cur->as.cons.car),
-                arrmeta_size(secd, cur), (is_array_free(secd, cur)? "free" : "used"));
+    while (not_nil(mcons_next(cur))) {
+        cur = mcons_next(cur);
+        errorf(";;  %ld\t%ld (size=%zd,\t%s)\n", cell_index(secd, cur), 
+                cell_index(secd, mcons_prev(cur)), arrmeta_size(secd, cur), 
+                (is_array_free(secd, cur)? "free" : "used"));
     }
+}
+
+cell_t *fill_array(secd_t *secd, cell_t *arr, cell_t *with) {
+    cell_t *data = arr->as.arr.data;
+    size_t len = arr_size(secd, arr);
+    size_t i;
+
+    for (i = 0; i < len; ++i)
+        init_with_copy(secd, data + i, with);
+
+    return arr;
 }
 
 /*
@@ -444,6 +462,7 @@ cell_t *new_array(secd_t *secd, size_t size) {
     arr->type = CELL_ARRAY;
     arr->as.arr.data = mem;
     arr_meta(mem)->nref = 1;
+    arr_meta(mem)->as.mcons.cells = true;
     return arr;
 }
 
@@ -538,6 +557,7 @@ cell_t *vector_from_list(secd_t *secd, cell_t *lst) {
         init_with_copy(secd, arr->as.arr.data + i, get_car(lst));
         lst = list_next(secd, lst);
     }
+    arr_meta(arr)->as.mcons.cells = true;
     return arr;
 }
 

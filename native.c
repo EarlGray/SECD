@@ -220,16 +220,37 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
 
     cell_t *arg1 = list_head(args);
     if (atom_type(secd, arg1) == ATOM_SYM) {
-        if (str_eq(symname(arg1), "free")) {
-            printf(";; SECDCTL: \n");
+        if (str_eq(symname(arg1), "mem")) {
             printf(";;  size = %zd\n", secd->end - secd->begin);
             printf(";;  fixedptr = %zd\n", secd->fixedptr - secd->begin);
             printf(";;  arrayptr = %zd (%zd)\n",
                     secd->arrayptr - secd->begin, secd->arrayptr - secd->end);
             printf(";;  Fixed cells: %zd free, %zd dump\n",
                     secd->free_cells, secd->used_dump);
+            return secd_mem_info(secd);
         } else if (str_eq(symname(arg1), "env")) {
             print_env(secd);
+        } else if (str_eq(symname(arg1), "cell")) {
+            if (is_nil(list_next(secd, args)))
+                goto help;
+            cell_t *numc = get_car(list_next(secd, args));
+            if (atom_type(secd, numc) != ATOM_INT) {
+                printf(";; cell number must be int\n");
+                return SECD_NIL;
+            }
+            int num = numval(numc);
+            cell_t *c = secd->begin + num;
+            if (c >= secd->end) {
+                printf(";; cell number is out of SECD heap\n");
+                return SECD_NIL;
+            }
+            dbg_printc(secd, c);
+            return serialize_cell(secd, c);
+        } else if (str_eq(symname(arg1), "where")) {
+            if (is_nil(list_next(secd, args)))
+                goto help;
+            cell_t *c = get_car(list_next(secd, args));
+            return new_number(secd, c - secd->begin);
         } else if (str_eq(symname(arg1), "heap")) {
             print_array_layout(secd);
         } else if (str_eq(symname(arg1), "tick")) {
@@ -241,8 +262,9 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
     }
     return new_symbol(secd, "ok");
 help:
-    errorf(";; Options are 'tick', 'heap', 'env', 'free'\n");
-    errorf(";; Use them like (secd 'env)\n");
+    errorf(";; Options are 'tick, 'heap, 'env, 'mem, \n");
+    errorf(";;         'where <smth>, 'cell <num>\n");
+    errorf(";; Use them like (secd 'env) or (secd 'cell 12)\n");
     errorf(";; If you're here first time, explore (secd 'env)\n");
     errorf(";;    to get some idea of what is available\n");
     return new_symbol(secd, "see?");
@@ -305,18 +327,15 @@ cell_t *secdv_make(secd_t *secd, cell_t *args) {
     cell_t *num = get_car(args);
     assert(atom_type(secd, num) == ATOM_INT, "secdv_make: a number expected");
 
-    size_t i;
     size_t len = numval(num);
     cell_t *arr = new_array(secd, len);
 
     if (not_nil(list_next(secd, args))) {
         cell_t *fill = get_car(list_next(secd, args));
-        for (i = 0; i < len; ++i)
-            init_with_copy(secd, arr->as.arr.data + i, fill);
-    } else {
+        return fill_array(secd, arr, fill);
+    } else
         /* make it CELL_UNDEF */
         memset(arr->as.arr.data, 0, sizeof(cell_t) * len);
-    }
 
     return arr;
 }

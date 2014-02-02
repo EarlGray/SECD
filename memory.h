@@ -68,7 +68,7 @@ inline static cell_t *drop_cell(secd_t *secd, cell_t *c) {
 static inline size_t arrmeta_size(secd_t *secd, cell_t *metacons) {
     asserti(cell_type(metacons) == CELL_ARRMETA, "arrmeta_size: not a meta");
     if (metacons == secd->arrlist) return 0;
-    return get_car(metacons) - metacons - 1;
+    return metacons->as.mcons.prev - metacons - 1;
 }
 
 static inline cell_t *arr_meta(cell_t *arr) {
@@ -91,6 +91,9 @@ static inline const cell_t *
 arr_val(const cell_t *arr, size_t index) {
     return arr->as.arr.data + index;
 }
+
+cell_t *fill_array(secd_t *secd, cell_t *arr, cell_t *with);
+
 
 /*
  *
