@@ -88,6 +88,28 @@ cell_t *serialize_cell(secd_t *secd, cell_t *cell) {
                    SECD_NIL);
            opt = new_cons(secd, new_symbol(secd, "str"), metac);
         } break;
+      case CELL_PORT: {
+           cell_t *portc;
+           if (cell->as.port.file) {
+               portc = new_cons(secd, new_symbol(secd, "file"), SECD_NIL);
+           } else {
+               cell_t *strc = new_cons(secd, 
+                       new_number(secd, cell_index(secd, (cell_t*)strval(cell->as.port.as.str))), 
+                       SECD_NIL);
+               portc = new_cons(secd, new_symbol(secd, "str"), strc);
+           }
+           opt = new_cons(secd, new_symbol(secd, "port"), portc);
+        } break;
+      case CELL_ATOM: {
+          switch (atom_type(secd, cell)) {
+            case ATOM_INT: case ATOM_SYM: {
+              cell_t *valc = new_cons(secd, cell, SECD_NIL);
+              opt = new_cons(secd, new_symbol(secd, (atom_type(secd, cell) == ATOM_INT ? "int": "sym")), valc);
+            } break;
+            default: 
+              opt = new_cons(secd, new_symbol(secd, "some_atom"), SECD_NIL);
+          }
+        } break;
       default: return SECD_NIL;
     }
     cell_t *refc = new_cons(secd, new_number(secd, cell->nref), opt);

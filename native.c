@@ -237,7 +237,6 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
                 printf(";; cell number is out of SECD heap\n");
                 return SECD_NIL;
             }
-            dbg_printc(secd, c);
             return serialize_cell(secd, c);
         } else if (str_eq(symname(arg1), "where")) {
             if (is_nil(list_next(secd, args)))

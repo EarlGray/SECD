@@ -32,7 +32,7 @@ cell_t *secd_fopen(secd_t *secd, const char *fname, const char *mode) {
 }
 
 long secd_portsize(secd_t *secd, cell_t *port) {
-    io_assert(cell_type(port) == CELL_PORT, "secd_portsize: not a port");
+    io_assert(cell_type(port) == CELL_PORT, "secd_portsize: not a port\n");
 
     if (port->as.port.file) {
         FILE *f = port->as.port.as.file;
@@ -51,7 +51,8 @@ long secd_portsize(secd_t *secd, cell_t *port) {
 }
 
 int secd_pclose(secd_t *secd, cell_t *port) {
-    io_assert(cell_type(port) == CELL_PORT, "secd_pclose: not a port");
+    io_assert(cell_type(port) == CELL_PORT, "secd_pclose: not a port\n");
+    io_assert(port->as.port.as.file, "secd_pclose: already closed\n");
 
     int ret = 0;
     if (port->as.port.file) {
@@ -70,8 +71,8 @@ int secd_pclose(secd_t *secd, cell_t *port) {
  * Port-reading
  */
 int secd_getc(secd_t *secd, cell_t *port) {
-    io_assert(cell_type(port) == CELL_PORT, "secd_getc: not a port");
-    io_assert(is_input(port), "secd_getc: not an input port");
+    io_assert(cell_type(port) == CELL_PORT, "secd_getc: not a port\n");
+    io_assert(is_input(port), "secd_getc: not an input port\n");
 
     if (port->as.port.file) {
         int c = fgetc(port->as.port.as.file);
@@ -91,8 +92,8 @@ int secd_getc(secd_t *secd, cell_t *port) {
 }
 
 size_t secd_fread(secd_t *secd, cell_t *port, char *s, int size) {
-    io_assert(cell_type(port) == CELL_PORT, "secd_fread: not a port");
-    io_assert(is_input(port), "secd_fread: not an input port");
+    io_assert(cell_type(port) == CELL_PORT, "secd_fread: not a port\n");
+    io_assert(is_input(port), "secd_fread: not an input port\n");
 
     if (port->as.port.file) {
         FILE *f = port->as.port.as.file;
@@ -111,8 +112,8 @@ size_t secd_fread(secd_t *secd, cell_t *port, char *s, int size) {
  * Port-printing
  */
 int secd_vprintf(secd_t *secd, cell_t *port, const char *format, va_list ap) {
-    io_assert(cell_type(port) == CELL_PORT, "vpprintf: not a port");
-    io_assert(is_output(port), "vpprintf: not an output port");
+    io_assert(cell_type(port) == CELL_PORT, "vpprintf: not a port\n");
+    io_assert(is_output(port), "vpprintf: not an output port\n");
     int ret;
 
     if (port->as.port.file) {
