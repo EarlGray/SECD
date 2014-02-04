@@ -1,4 +1,5 @@
 #include "secd.h"
+#include "secd_io.h"
 #include "memory.h"
 #include "env.h"
 #include "secdops.h"
@@ -18,10 +19,11 @@ secd_t * init_secd(secd_t *secd) {
         secd->control = secd->env = SECD_NIL;
 
     init_mem(secd, heap, N_CELLS);
-    init_env(secd);
 
     secd->input_port = secd_stdin(secd);
     secd->output_port = secd_stdout(secd);
+
+    init_env(secd);
 
     secd->tick = 0;
     return secd;

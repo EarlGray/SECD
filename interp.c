@@ -459,6 +459,7 @@ static cell_t *extract_argvals(secd_t *secd) {
 }
 
 static cell_t *new_frame_io(secd_t *secd, cell_t *frame, cell_t *prevenv) {
+    /* check if there are *stdin* or *stdout* in new frame */
     cell_t *frame_io = SECD_NIL;
     cell_t *symlist = get_car(frame);
     cell_t *vallist = get_cdr(frame);
@@ -486,7 +487,7 @@ static cell_t *new_frame_io(secd_t *secd, cell_t *frame, cell_t *prevenv) {
     }
     cell_t *prev_io = get_car(prevenv)->as.frame.io;
     if (is_nil(frame_io))
-        return share_cell(secd, prev_io);
+        return prev_io;
 
     if (is_nil(get_car(frame_io)))
         frame_io->as.cons.car = share_cell(secd, get_car(prev_io));
@@ -556,8 +557,9 @@ cell_t *secd_ap(secd_t *secd) {
     secd->stack = SECD_NIL;
 
     cell_t *frame = new_frame(secd, argnames, argvals);
-    frame->as.frame.io = share_cell(secd, new_frame_io(secd, frame, newenv));
-    assert_cell(frame->as.frame.io, "secd_ap: failed to set new frame I/O\n");
+    cell_t *new_io = new_frame_io(secd, frame, newenv);
+    assert_cell(new_io, "secd_ap: failed to set new frame I/O\n");
+    frame->as.frame.io = share_cell(secd, new_io);
 
     cell_t *oldenv = secd->env;
     memdebugf("secd_ap: dropping env[%ld]\n", cell_index(secd, oldenv));
@@ -629,8 +631,10 @@ cell_t *secd_rap(secd_t *secd) {
     push_dump(secd, secd->stack);
 
     cell_t *frame = new_frame(secd, argnames, argvals);
-    frame->as.frame.io = new_frame_io(secd, frame, newenv);
-    assert_cell(frame->as.frame.io, "secd_rap: failed to set new frame I/O\n");
+    /* list_next(newenv) because it has a dummy frame here */
+    cell_t *new_io = new_frame_io(secd, frame, list_next(secd, newenv));
+    assert_cell(new_io, "secd_rap: failed to set new frame I/O\n");
+    frame->as.frame.io = share_cell(secd, new_io);
 
 #if CTRLDEBUG
     printf("new frame: \n"); dbg_printc(secd, frame);

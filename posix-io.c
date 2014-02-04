@@ -76,6 +76,7 @@ int secd_vprintf(secd_t *secd, cell_t *port, const char *format, va_list ap) {
     }
     return ret;
 }
+
 int secd_printf(secd_t *secd, cell_t *port, const char *format, ...) {
     va_list ap;
 

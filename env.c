@@ -40,8 +40,7 @@ void print_env(secd_t *secd) {
 void init_env(secd_t *secd) {
     cell_t *frame = make_frame_of_natives(secd);
 
-    cell_t *frame_io = new_cons(secd, secd_stdin(secd), 
-                                      secd_stdout(secd));
+    cell_t *frame_io = new_cons(secd, secd->input_port, secd->output_port);
     frame->as.frame.io = share_cell(secd, frame_io);
 
     cell_t *env = new_cons(secd, frame, SECD_NIL);
