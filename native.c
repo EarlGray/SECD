@@ -1,4 +1,5 @@
 #include "secd.h"
+#include "secd_io.h"
 #include "memory.h"
 #include "env.h"
 
@@ -203,14 +204,6 @@ cell_t *secdf_symp(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_symp\n");
     assert(not_nil(args), "secdf_copy: one argument expected");
     return to_bool(secd, atom_type(secd, list_head(args)) == ATOM_SYM);
-}
-
-cell_t *secdf_eofp(secd_t *secd, cell_t *args) {
-    ctrldebugf("secdf_eofp\n");
-    cell_t *arg1 = list_head(args);
-    if (atom_type(secd, arg1) != ATOM_SYM)
-        return SECD_NIL;
-    return to_bool(secd, str_eq(symname(arg1), EOF_OBJ));
 }
 
 cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
@@ -514,6 +507,83 @@ cell_t *secdf_lst2str(secd_t *secd, cell_t *args) {
 }
 
 /*
+ *    I/O ports
+ */
+
+/* (open-input-file) */
+cell_t *secdf_ifopen(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdf_open: no arguments");
+
+    cell_t *filename = get_car(args);
+    assert(cell_type(filename) == CELL_STR, "secdf_open: a filename string expected");
+
+    return secd_fopen(secd, strval(filename), "r");
+}
+
+cell_t *secdf_readstring(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "(read-string k): k expected");
+
+    long size;
+    cell_t *k = get_car(args);
+    assert(cell_type(k), "(read-string): a size number expected");
+    size = numval(k);
+
+    args = list_next(secd, args);
+
+    cell_t *port = SECD_NIL;
+    if (not_nil(args)) {
+        port = get_car(args);
+        assert(cell_type(port) == CELL_PORT, "(read-char <port>): port expected");
+    } else { // second argument is optional
+        port = secd->input_port;
+    }
+
+    cell_t *res = new_string_of_size(secd, size);
+    assert_cellf(res, "(read-string): failed to allocate string of size %ld", size);
+
+    char *mem = strmem(res);
+    if (secd_fread(secd, port, mem, size) > 0)
+        return res;
+    return new_error(secd, "(read-string): failed to get data");
+}
+
+cell_t *secdf_readchar(secd_t *secd, cell_t *args) {
+    cell_t *port = SECD_NIL;
+    if (not_nil(args)) {
+        port = get_car(args);
+        assert(cell_type(port) == CELL_PORT, "(read-char <port>): port expected");
+    } else {
+        port = secd->input_port;
+    }
+
+    // TODO: UTF-8
+    int c = secd_getc(secd, port);
+    if (c != SECD_EOF)
+        return new_number(secd, c);
+
+    return new_symbol(secd, EOF_OBJ);
+}
+
+cell_t *secdf_eofp(secd_t *secd, cell_t *args) {
+    ctrldebugf("secdf_eofp\n");
+    cell_t *arg1 = list_head(args);
+    if (atom_type(secd, arg1) != ATOM_SYM)
+        return SECD_NIL;
+    return to_bool(secd, str_eq(symname(arg1), EOF_OBJ));
+}
+
+cell_t *secdf_pclose(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "(port-close): no arguments");
+
+    cell_t *port = get_car(args);
+    assert(cell_type(port) == CELL_PORT, "(port-close): a port expected");
+
+    secd_pclose(secd, port);
+    return port;
+}
+
+
+/*
  *    Native function mapping table
  */
 
@@ -542,6 +612,11 @@ const cell_t symstr_sym = INIT_SYM("symbol->string");
 const cell_t strsym_sym = INIT_SYM("string->symbol");
 const cell_t strlst_sym = INIT_SYM("string->list");
 const cell_t lststr_sym = INIT_SYM("list->string");
+/* i/o port functions */
+const cell_t fopen_sym  = INIT_SYM("open-input-file");
+const cell_t fgetc_sym  = INIT_SYM("read-char");
+const cell_t fread_sym  = INIT_SYM("read-string");
+const cell_t pclose_sym = INIT_SYM("close-port");
 
 const cell_t list_func  = INIT_FUNC(secdf_list);
 const cell_t appnd_func = INIT_FUNC(secdf_append);
@@ -566,6 +641,11 @@ const cell_t strsym_fun = INIT_FUNC(secdf_str2sym);
 const cell_t symstr_fun = INIT_FUNC(secdf_sym2str);
 const cell_t strlst_fun = INIT_FUNC(secdf_str2lst);
 const cell_t lststr_fun = INIT_FUNC(secdf_lst2str);
+/* i/o ports */
+const cell_t fiopen_fun = INIT_FUNC(secdf_ifopen);
+const cell_t fgetc_fun  = INIT_FUNC(secdf_readchar);
+const cell_t fread_fun  = INIT_FUNC(secdf_readstring);
+const cell_t pclose_fun = INIT_FUNC(secdf_pclose);
 
 const cell_t t_sym      = INIT_SYM("#t");
 const cell_t f_sym      = INIT_SYM("#f");
@@ -596,6 +676,11 @@ const struct {
     { &vref_sym,    &vref_func  },
     { &vset_sym,    &vset_func  },
     { &vlist_sym,   &vlist_func },
+
+    { &fopen_sym,   &fiopen_fun },
+    { &fgetc_sym,   &fgetc_fun  },
+    { &fread_sym,   &fread_fun  },
+    { &pclose_sym,  &pclose_fun },
 
     // native functions
     { &list_sym,    &list_func  },

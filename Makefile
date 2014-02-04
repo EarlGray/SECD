@@ -3,7 +3,7 @@ objs := interp.o machine.o env.o memory.o native.o readparse.o
 # posix:
 objs += posix-io.o secd.o
 
-CFLAGS := -O0 -g -Wno-shift-overflow -Wall -Wextra
+CFLAGS := -O2 -g -Wno-shift-overflow -Wall -Wextra
 VM := ./secd
 
 $(VM): $(objs)

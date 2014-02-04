@@ -134,7 +134,7 @@ struct cons {
 };
 
 struct frame {
-    struct cons cons;    // must be first to cast to cons   
+    struct cons cons;    // must be first to cast to cons
     cell_t *io;     // cons of *stdin* and *stdout* for the frame
 };
 

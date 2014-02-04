@@ -29,6 +29,7 @@ Defects Pending:
 |-------|--------------------
 | D3    | Crash on `(make-vector 1 '())`
 | D4    | Crash on freeing result of `(make-vector 2 'any)` -- part of T1
+| D5    | Crash on `(list->vector (read-file (open-input-file "repl.scm")))` (large lists?)
 
 Defects Fixed:
 =============

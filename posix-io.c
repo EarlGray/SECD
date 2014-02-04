@@ -31,6 +31,41 @@ cell_t *secd_fopen(secd_t *secd, const char *fname, const char *mode) {
     return cmdport;
 }
 
+long secd_portsize(secd_t *secd, cell_t *port) {
+    io_assert(cell_type(port) == CELL_PORT, "secd_portsize: not a port");
+
+    if (port->as.port.file) {
+        FILE *f = port->as.port.as.file;
+        long curpos = ftell(f);
+
+        if (!fseek(f, 0, SEEK_END))
+            return -1; /* file is not seekable */
+
+        long endpos = ftell(f);
+        fseek(f, curpos, SEEK_SET);
+        return endpos;
+    } else {
+        cell_t *str = port->as.port.as.str;
+        return mem_size(secd, str);
+    }
+}
+
+int secd_pclose(secd_t *secd, cell_t *port) {
+    io_assert(cell_type(port) == CELL_PORT, "secd_pclose: not a port");
+
+    int ret = 0;
+    if (port->as.port.file) {
+        ret = fclose(port->as.port.as.file);
+        port->as.port.as.file = NULL;
+    } else {
+        drop_cell(secd, port->as.port.as.str);
+        port->as.port.as.str = SECD_NIL;
+    }
+    port->as.port.input = false;
+    port->as.port.output = false;
+    return ret;
+}
+
 /*
  * Port-reading
  */
@@ -39,16 +74,36 @@ int secd_getc(secd_t *secd, cell_t *port) {
     io_assert(is_input(port), "secd_getc: not an input port");
 
     if (port->as.port.file) {
-        return fgetc(port->as.port.as.file);
+        int c = fgetc(port->as.port.as.file);
+        if (c != EOF)
+            return c;
+        return SECD_EOF;
     } else {
         cell_t *str = port->as.port.as.str;
-        size_t size = mem_size(secd, str); 
+        size_t size = mem_size(secd, str);
         if (str->as.str.offset >= (int)size)
             return EOF;
 
         char c = strmem(str)[str->as.str.offset];
         ++str->as.str.offset;
         return (int)c;
+    }
+}
+
+size_t secd_fread(secd_t *secd, cell_t *port, char *s, int size) {
+    io_assert(cell_type(port) == CELL_PORT, "secd_fread: not a port");
+    io_assert(is_input(port), "secd_fread: not an input port");
+
+    if (port->as.port.file) {
+        FILE *f = port->as.port.as.file;
+        return fread(s, size, 1, f);;
+    } else {
+        cell_t *str = port->as.port.as.str;
+        size_t srcsize = mem_size(secd, str);
+        if (srcsize < (size_t)size) size = srcsize;
+
+        memcpy(s, strmem(str), size);
+        return size;
     }
 }
 
@@ -85,5 +140,22 @@ int secd_printf(secd_t *secd, cell_t *port, const char *format, ...) {
     va_end(ap);
 
     return ret;
+}
+
+void sexp_print_port(secd_t *secd, const cell_t *port) {
+    if (SECD_NIL == port->as.port.as.str) {
+        printf("#<closed>");
+        return;
+    }
+    bool in = port->as.port.input;
+    bool out = port->as.port.output;
+    printf("#<%s%s%s: ", (in ? "input" : ""), (out ? "output" : ""), (in && out ? "/" : ""));
+
+    if (port->as.port.file) {
+        printf("file %d", fileno(port->as.port.as.file));
+    } else {
+        printf("string %ld", cell_index(secd, port->as.port.as.str));
+    }
+    printf(">");
 }
 

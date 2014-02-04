@@ -125,6 +125,7 @@ void sexp_print(secd_t* secd, cell_t *cell) {
       case CELL_ARRAY:  sexp_print_array(secd, cell); break;
       case CELL_STR:    printf("\"%s\"", strval(cell)); break;
       case CELL_ERROR:  printf("#!\"%s\"", errmsg(cell)); break;
+      case CELL_PORT:   sexp_print_port(secd, cell); break;
       default: errorf("sexp_print: unknown cell type %d", (int)cell_type(cell));
     }
 }

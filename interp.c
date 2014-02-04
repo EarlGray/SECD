@@ -247,7 +247,7 @@ bool is_equal(secd_t *secd, const cell_t *a, const cell_t *b) {
 
       case CELL_ARRMETA: case CELL_ERROR:
       case CELL_FREE: case CELL_FRAME:
-      case CELL_REF:
+      case CELL_REF:  case CELL_PORT:
            errorf("is_equal: comparing internal data");
     }
     return false;
@@ -560,6 +560,8 @@ cell_t *secd_ap(secd_t *secd) {
     cell_t *new_io = new_frame_io(secd, frame, newenv);
     assert_cell(new_io, "secd_ap: failed to set new frame I/O\n");
     frame->as.frame.io = share_cell(secd, new_io);
+    secd->input_port = get_car(new_io);
+    secd->output_port = get_cdr(new_io);
 
     cell_t *oldenv = secd->env;
     memdebugf("secd_ap: dropping env[%ld]\n", cell_index(secd, oldenv));
@@ -594,8 +596,13 @@ cell_t *secd_rtn(secd_t *secd) {
     secd->stack = share_cell(secd, new_cons(secd, top, prevstack));
     drop_cell(secd, top); drop_cell(secd, prevstack);
 
-    secd->env = prevenv; // share_cell(secd, prevenv); drop_cell(secd, prevenv);
     secd->control = prevcontrol; // share_cell(secd, prevcontrol); drop_cell(secd, prevcontrol);
+    secd->env = prevenv; // share_cell(secd, prevenv); drop_cell(secd, prevenv);
+
+    /* restoring I/O */
+    cell_t *frame_io = get_car(prevenv);
+    secd->input_port = get_car(frame_io->as.frame.io);
+    secd->output_port = get_cdr(frame_io->as.frame.io);
 
     return top;
 }
@@ -635,6 +642,8 @@ cell_t *secd_rap(secd_t *secd) {
     cell_t *new_io = new_frame_io(secd, frame, list_next(secd, newenv));
     assert_cell(new_io, "secd_rap: failed to set new frame I/O\n");
     frame->as.frame.io = share_cell(secd, new_io);
+    secd->input_port = get_car(new_io);
+    secd->output_port = get_cdr(new_io);
 
 #if CTRLDEBUG
     printf("new frame: \n"); dbg_printc(secd, frame);
