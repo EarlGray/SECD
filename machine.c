@@ -9,7 +9,7 @@
  * SECD machine
  */
 
-secd_t * init_secd(secd_t *secd, secd_stream_t *readstream) {
+secd_t * init_secd(secd_t *secd) {
     /* allocate memory chunk */
     cell_t *heap = (cell_t *)calloc(N_CELLS, sizeof(cell_t));
 
@@ -18,11 +18,12 @@ secd_t * init_secd(secd_t *secd, secd_stream_t *readstream) {
         secd->control = secd->env = SECD_NIL;
 
     init_mem(secd, heap, N_CELLS);
-
-    secd->input = readstream;
-    secd->tick = 0;
-
     init_env(secd);
+
+    secd->input_port = secd_stdin(secd);
+    secd->output_port = secd_stdout(secd);
+
+    secd->tick = 0;
     return secd;
 }
 

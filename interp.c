@@ -458,6 +458,43 @@ static cell_t *extract_argvals(secd_t *secd) {
     return argvals;
 }
 
+static cell_t *new_frame_io(secd_t *secd, cell_t *frame, cell_t *prevenv) {
+    cell_t *frame_io = SECD_NIL;
+    cell_t *symlist = get_car(frame);
+    cell_t *vallist = get_cdr(frame);
+    while (not_nil(symlist)) {
+        cell_t *sym = get_car(symlist);
+        if (str_eq(symname(sym), "*stdin*")) {
+            cell_t *val = get_car(vallist);
+            assert(cell_type(val) == CELL_PORT, "*stdin* must bind a port");
+            if (is_nil(frame_io))
+                frame_io = new_cons(secd, val, SECD_NIL);
+            else
+                frame_io->as.cons.car = share_cell(secd, val);
+        }
+        if (str_eq(symname(sym), "*stdout*")) {
+            cell_t *val = get_car(vallist);
+            assert(cell_type(val) == CELL_PORT, "*stdout* must bind a port");
+            if (is_nil(frame_io))
+                frame_io = new_cons(secd, SECD_NIL, val);
+            else
+                frame_io->as.cons.cdr = share_cell(secd, val);
+        }
+
+        symlist = list_next(secd, symlist);
+        vallist = list_next(secd, vallist);
+    }
+    cell_t *prev_io = get_car(prevenv)->as.frame.io;
+    if (is_nil(frame_io))
+        return share_cell(secd, prev_io);
+
+    if (is_nil(get_car(frame_io)))
+        frame_io->as.cons.car = share_cell(secd, get_car(prev_io));
+    if (is_nil(get_cdr(frame_io)))
+        frame_io->as.cons.cdr = share_cell(secd, get_cdr(prev_io));
+    return frame_io;
+}
+
 cell_t *secd_ap(secd_t *secd) {
     ctrldebugf("AP\n");
 
@@ -519,6 +556,8 @@ cell_t *secd_ap(secd_t *secd) {
     secd->stack = SECD_NIL;
 
     cell_t *frame = new_frame(secd, argnames, argvals);
+    frame->as.frame.io = share_cell(secd, new_frame_io(secd, frame, newenv));
+    assert_cell(frame->as.frame.io, "secd_ap: failed to set new frame I/O\n");
 
     cell_t *oldenv = secd->env;
     memdebugf("secd_ap: dropping env[%ld]\n", cell_index(secd, oldenv));
@@ -590,6 +629,9 @@ cell_t *secd_rap(secd_t *secd) {
     push_dump(secd, secd->stack);
 
     cell_t *frame = new_frame(secd, argnames, argvals);
+    frame->as.frame.io = new_frame_io(secd, frame, newenv);
+    assert_cell(frame->as.frame.io, "secd_rap: failed to set new frame I/O\n");
+
 #if CTRLDEBUG
     printf("new frame: \n"); dbg_printc(secd, frame);
     printf(" argnames: \n"); dbg_printc(secd, argnames);
@@ -616,7 +658,7 @@ cell_t *secd_read(secd_t *secd) {
     ctrldebugf("READ\n");
 
     errorf("\n");
-    cell_t *inp = sexp_parse(secd, secd->input);
+    cell_t *inp = sexp_parse(secd, SECD_NIL);
     assert_cell(inp, "secd_read: failed to read");
 
     push_stack(secd, inp);

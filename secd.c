@@ -1,12 +1,7 @@
 #include "secd.h"
+#include "secd_io.h"
 
 #include <stdio.h>
-
-int posix_getc(void *f)          { return fgetc(f); }
-int stdin_getc(void __unused *f) { return getc(stdin); }
-
-secd_stream_t posix_stdio = { .read = &posix_getc };
-secd_stream_t posix_stdin = { .read = &stdin_getc };
 
 secd_t secd;
 
@@ -15,21 +10,17 @@ int main(int argc, char *argv[]) {
     errorf(";;;     sizeof(cell_t) is %zd\n", sizeof(cell_t));
     errorf(";;;     Type (secd) to get some help.\n\n");
 
-    init_secd(&secd, &posix_stdin);
+    init_secd(&secd);
 
-    FILE *op_in = stdin;
+    cell_t *cmdport = SECD_NIL;
     if (argc == 2) {
-        op_in = fopen(argv[1], "r");
+        cmdport = secd_fopen(&secd, argv[1], "r");
     }
-    posix_stdio.state = op_in;
 
-    cell_t *inp = read_secd(&secd, &posix_stdio);
-    if (is_nil(inp)) {
-        printf("no commands.\n\n");
-        return 0;
-    }
-    if (is_error(inp)) { 
-        errorf("read_secd failed: %s", errmsg(inp));
+    cell_t *inp = sexp_parse(&secd, cmdport); // cmdport is dropped after
+
+    if (is_nil(inp) || !is_cons(inp)) {
+        errorf("list of commands expected\n");
         dbg_printc(&secd, inp);
         return 1;
     }

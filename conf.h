@@ -25,5 +25,9 @@
 #define CTRLDEBUG   0
 #define ENVDEBUG    0
 
+typedef enum { false, true } bool;
+
+typedef  long  index_t;
+
 #endif //__SECD_CONF_H___
 

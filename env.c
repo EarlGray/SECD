@@ -1,4 +1,5 @@
 #include "secd.h"
+#include "secd_io.h"
 #include "env.h"
 #include "memory.h"
 
@@ -38,6 +39,11 @@ void print_env(secd_t *secd) {
 
 void init_env(secd_t *secd) {
     cell_t *frame = make_frame_of_natives(secd);
+
+    cell_t *frame_io = new_cons(secd, secd_stdin(secd), 
+                                      secd_stdout(secd));
+    frame->as.frame.io = share_cell(secd, frame_io);
+
     cell_t *env = new_cons(secd, frame, SECD_NIL);
 
     secd->env = share_cell(secd, env);

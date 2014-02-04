@@ -13,8 +13,11 @@
 
 /* internal declarations */
 void free_array(secd_t *secd, cell_t *this);
+void push_free(secd_t *secd, cell_t *c);
 
-
+/*
+ *  Utilities 
+ */
 inline static size_t bytes_to_cell(size_t bytes) {
     size_t ncell = bytes / sizeof(cell_t);
     if (bytes % sizeof(cell_t))
@@ -45,37 +48,7 @@ hash_t memhash(const char *key, size_t len) {
  *  Cell memory management
  */
 
-cell_t *init_with_copy(secd_t *secd,
-                       cell_t *__restrict cell,
-                       const cell_t *__restrict with)
-{
-    *cell = *with;
-
-    cell->nref = 0;
-    switch (cell_type(with)) {
-      case CELL_CONS: case CELL_FRAME:
-        share_cell(secd, with->as.cons.car);
-        share_cell(secd, with->as.cons.cdr);
-        break;
-      case CELL_REF:
-        share_cell(secd, with->as.ref);
-        break;
-      case CELL_ARRAY:
-        share_cell(secd, arr_meta(with->as.arr.data));
-        break;
-      case CELL_STR:
-        share_cell(secd, arr_meta((cell_t *)strmem((cell_t *)with)));
-        break;
-      case CELL_ERROR:
-      case CELL_ATOM:
-      case CELL_UNDEF:
-        break;
-      case CELL_ARRMETA: case CELL_FREE:
-        return new_error(secd, "trying to initialize with CELL_ARRMETA");
-    }
-    return cell;
-}
-
+/* Deallocation */
 void free_atom(cell_t *cell) {
     switch (cell->as.atom.type) {
       case ATOM_SYM:
@@ -92,6 +65,8 @@ cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
         free_atom(c);
         break;
       case CELL_FRAME:
+        drop_cell(secd, c->as.frame.io);
+        // fall through
       case CELL_CONS:
         if (not_nil(c)) {
             drop_cell(secd, get_car(c));
@@ -129,6 +104,11 @@ cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
         return new_error(secd, "drop_dependencies: unknown cell_type 0x%x", t);
     }
     return c;
+}
+
+cell_t *free_cell(secd_t *secd, cell_t *c) {
+    push_free(secd, drop_dependencies(secd, c));
+    return SECD_NIL;
 }
 
 
@@ -209,22 +189,6 @@ void push_free(secd_t *secd, cell_t *c) {
     }
 }
 
-static inline cell_t*
-init_cons(secd_t *secd, cell_t *cell, cell_t *car, cell_t *cdr) {
-    cell->type = CELL_CONS;
-    cell->as.cons.car = share_cell(secd, car);
-    cell->as.cons.cdr = share_cell(secd, cdr);
-    return cell;
-}
-
-static cell_t *init_meta(secd_t __unused *secd, cell_t *cell, cell_t *prev, cell_t *next) {
-    cell->type = CELL_ARRMETA;
-    cell->as.mcons.prev = prev;
-    cell->as.mcons.next = next;
-    cell->as.mcons.cells = false;
-    return cell;
-}
-
 /*
  *      Array memory management
  */
@@ -235,6 +199,14 @@ static inline bool is_array_free(secd_t *secd, cell_t *metacons) {
     return metacons->nref == 0;
 }
 static inline void mark_free(cell_t *metacons) { metacons->nref = 0; }
+
+static cell_t *init_meta(secd_t __unused *secd, cell_t *cell, cell_t *prev, cell_t *next) {
+    cell->type = CELL_ARRMETA;
+    cell->as.mcons.prev = prev;
+    cell->as.mcons.next = next;
+    cell->as.mcons.cells = false;
+    return cell;
+}
 
 cell_t *alloc_array(secd_t *secd, size_t size) {
     /* look through the list of arrays */
@@ -322,20 +294,18 @@ void print_array_layout(secd_t *secd) {
     }
 }
 
-cell_t *fill_array(secd_t *secd, cell_t *arr, cell_t *with) {
-    cell_t *data = arr->as.arr.data;
-    size_t len = arr_size(secd, arr);
-    size_t i;
+/*
+ *      Simple constructors
+ */
 
-    for (i = 0; i < len; ++i)
-        init_with_copy(secd, data + i, with);
-
-    return arr;
+static inline cell_t*
+init_cons(secd_t *secd, cell_t *cell, cell_t *car, cell_t *cdr) {
+    cell->type = CELL_CONS;
+    cell->as.cons.car = share_cell(secd, car);
+    cell->as.cons.cdr = share_cell(secd, cdr);
+    return cell;
 }
 
-/*
- *      "Constructors"
- */
 cell_t *new_cons(secd_t *secd, cell_t *car, cell_t *cdr) {
     return init_cons(secd, pop_free(secd), car, cdr);
 }
@@ -343,6 +313,7 @@ cell_t *new_cons(secd_t *secd, cell_t *car, cell_t *cdr) {
 cell_t *new_frame(secd_t *secd, cell_t *syms, cell_t *vals) {
     cell_t *cons = new_cons(secd, syms, vals);
     cons->type = CELL_FRAME;
+    /* don't forget to initialize as.frame.io later */
     return cons;
 }
 
@@ -363,6 +334,31 @@ cell_t *new_symbol(secd_t *secd, const char *sym) {
     return cell;
 }
 
+cell_t *new_op(secd_t *secd, opindex_t opind) {
+    cell_t *cell = pop_free(secd);
+    cell->type = CELL_ATOM;
+    cell->as.atom.type = ATOM_OP;
+    cell->as.atom.as.op = opind;
+    return cell;
+}
+
+cell_t *new_array(secd_t *secd, size_t size) {
+    /* try to allocate memory */
+    cell_t *mem = alloc_array(secd, size);
+    assert_cell(mem, "new_array: memory allocation failed");
+
+    cell_t *arr = pop_free(secd);
+    arr->type = CELL_ARRAY;
+    arr->as.arr.data = mem;
+    arr_meta(mem)->nref = 1;
+    arr_meta(mem)->as.mcons.cells = true;
+    return arr;
+}
+
+
+/*
+ *  String allocation
+ */
 typedef union {
     char *as_cstr;
     cell_t *as_cell;
@@ -374,6 +370,7 @@ static cell_t *init_strref(secd_t *secd, cell_t *cell, arrref_t mem, size_t size
     share_cell(secd, arr_meta(mem.as_cell));
     cell->as.str.data = mem.as_cstr;
     cell->as.str.hash = memhash(mem.as_cstr, size);
+    cell->as.str.offset = 0;
     return cell;
 }
 
@@ -399,11 +396,94 @@ cell_t *new_string(secd_t *secd, const char *str) {
     return cell;
 }
 
-cell_t *new_op(secd_t *secd, opindex_t opind) {
+
+/*
+ *  Port allocation
+ */
+static cell_t *init_port_mode(secd_t *secd, cell_t *cell, const char *mode) {
+    switch (mode[0]) {
+      case 'r': 
+        cell->as.port.input = true;
+        if (mode[1] == '+') {
+            cell->as.port.output = true;
+            ++mode;
+        } else
+            cell->as.port.output = false;
+        if (mode[1] == '\0')
+            return cell;
+        break;
+
+      case 'w': case 'a':
+        cell->as.port.output = true;
+        if (mode[1] == '+') {
+            cell->as.port.input = true;
+            ++mode;
+        } else
+            cell->as.port.input = false;
+        if (mode[1] == '\0')
+            return cell;
+    }
+    // otherwise fail:
+    drop_cell(secd, cell);
+    errorf("new_fileport: failed to parse mode\n");
+    return new_error(secd, "new_port: failed to parse mode");
+}
+
+cell_t *new_strport(secd_t *secd, cell_t *str, const char *mode) {
     cell_t *cell = pop_free(secd);
-    cell->type = CELL_ATOM;
-    cell->as.atom.type = ATOM_OP;
-    cell->as.atom.as.op = opind;
+    assert_cell(cell, "new_fileport: allocation failed");
+
+    cell->type = CELL_PORT;
+    cell->as.port.file = false;
+    cell->as.port.as.str = str;
+    return init_port_mode(secd, cell, mode);
+}
+
+cell_t *new_fileport(secd_t *secd, void *f, const char *mode) {
+    cell_t *cell = pop_free(secd);
+    assert_cell(cell, "new_fileport: allocation failed");
+
+    cell->type = CELL_PORT;
+    cell->as.port.file = true;
+    cell->as.port.as.file = f;
+    return init_port_mode(secd, cell, mode);
+}
+
+
+/*
+ *      Copy constructors
+ */
+cell_t *init_with_copy(secd_t *secd,
+                       cell_t *__restrict cell,
+                       const cell_t *__restrict with)
+{
+    *cell = *with;
+
+    cell->nref = 0;
+    switch (cell_type(with)) {
+      case CELL_CONS: case CELL_FRAME:
+        share_cell(secd, with->as.cons.car);
+        share_cell(secd, with->as.cons.cdr);
+        break;
+      case CELL_REF:
+        share_cell(secd, with->as.ref);
+        break;
+      case CELL_ARRAY:
+        share_cell(secd, arr_meta(with->as.arr.data));
+        break;
+      case CELL_STR:
+        share_cell(secd, arr_meta((cell_t *)strmem((cell_t *)with)));
+        break;
+      case CELL_PORT:
+        /* TODO */
+        break;
+      case CELL_ERROR:
+      case CELL_ATOM:
+      case CELL_UNDEF:
+        break;
+      case CELL_ARRMETA: case CELL_FREE:
+        return new_error(secd, "trying to initialize with CELL_ARRMETA");
+    }
     return cell;
 }
 
@@ -421,6 +501,9 @@ cell_t *new_clone(secd_t *secd, cell_t *from) {
     return init_with_copy(secd, clone, from);
 }
 
+/*
+ *    Error constructors
+ */
 static cell_t *init_error(cell_t *cell, const char *buf) {
     cell->type = CELL_ERROR;
     cell->as.err.len = strlen(buf);
@@ -453,25 +536,10 @@ cell_t *new_error_with(
     return err;
 }
 
-cell_t *new_array(secd_t *secd, size_t size) {
-    /* try to allocate memory */
-    cell_t *mem = alloc_array(secd, size);
-    assert_cell(mem, "new_array: memory allocation failed");
 
-    cell_t *arr = pop_free(secd);
-    arr->type = CELL_ARRAY;
-    arr->as.arr.data = mem;
-    arr_meta(mem)->nref = 1;
-    arr_meta(mem)->as.mcons.cells = true;
-    return arr;
-}
-
-
-cell_t *free_cell(secd_t *secd, cell_t *c) {
-    push_free(secd, drop_dependencies(secd, c));
-    return SECD_NIL;
-}
-
+/*
+ *  Built-in lists manipulation
+ */
 inline static cell_t *push(secd_t *secd, cell_t **to, cell_t *what) {
     cell_t *newtop = new_cons(secd, what, *to);
     drop_cell(secd, *to);
@@ -545,6 +613,17 @@ size_t list_length(secd_t *secd, cell_t *lst) {
         ++res;
     }
     return res;
+}
+
+cell_t *fill_array(secd_t *secd, cell_t *arr, cell_t *with) {
+    cell_t *data = arr->as.arr.data;
+    size_t len = arr_size(secd, arr);
+    size_t i;
+
+    for (i = 0; i < len; ++i)
+        init_with_copy(secd, data + i, with);
+
+    return arr;
 }
 
 cell_t *vector_from_list(secd_t *secd, cell_t *lst) {

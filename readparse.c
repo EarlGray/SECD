@@ -1,6 +1,7 @@
 #include "secd.h"
 
 #include "secdops.h"
+#include "secd_io.h"
 #include "memory.h"
 
 #include <stdlib.h>
@@ -157,8 +158,8 @@ enum {
 const char not_symbol_chars[] = " ();\n";
 
 struct secd_parser {
+    secd_t *secd;
     token_t token;
-    secd_stream_t *f;
 
     /* lexer guts */
     int lc;
@@ -175,10 +176,10 @@ cell_t *sexp_read(secd_t *secd, secd_parser_t *p);
 cell_t *read_list(secd_t *secd, secd_parser_t *p);
 
 
-secd_parser_t *init_parser(secd_parser_t *p, secd_stream_t *f) {
+secd_parser_t *init_parser(secd_t *secd, secd_parser_t *p) {
     p->lc = ' ';
-    p->f = f;
     p->nested = 0;
+    p->secd = secd;
 
     memset(p->issymbc, false, 0x20);
     memset(p->issymbc + 0x20, true, UCHAR_MAX - 0x20);
@@ -189,8 +190,8 @@ secd_parser_t *init_parser(secd_parser_t *p, secd_stream_t *f) {
 }
 
 inline static int nextchar(secd_parser_t *p) {
-    secd_stream_t *f = p->f;
-    return p->lc = f->read(f->state);
+    secd_t *secd = p->secd;
+    return p->lc = secd_getc(secd, secd->input_port);
 }
 
 inline static token_t lexnumber(secd_parser_t *p) {
@@ -463,27 +464,22 @@ cell_t *sexp_read(secd_t *secd, secd_parser_t *p) {
     return read_token(secd, p);
 }
 
-cell_t *sexp_parse(secd_t *secd, secd_stream_t *f) {
-    secd_parser_t p;
-    init_parser(&p, f);
-    return sexp_read(secd, &p);
-}
-
-cell_t *read_secd(secd_t *secd, secd_stream_t *f) {
-    secd_parser_t p;
-    init_parser(&p, f);
-
-    if (lexnext(&p) != '(') {
-        errorf("read_secd: a list of commands expected\n");
-        return new_error(secd, "read_secd: a list expected");
+cell_t *sexp_parse(secd_t *secd, cell_t *port) {
+    cell_t *prevport = SECD_NIL;
+    if (not_nil(port)) {
+        assert(cell_type(port) == CELL_PORT, "sexp_parse: not a port");
+        prevport = secd->input_port; // share_cell, drop_cell
+        secd->input_port = share_cell(secd, port);
     }
 
-    cell_t *result = read_list(secd, &p);
-    if (p.token != ')') {
-        errorf("read_secd: the end bracket expected\n");
-        if (result) drop_cell(secd, result);
-        return new_error(secd, "read_secd: read_list failed at token %d\n", p.token);
+    secd_parser_t p;
+    init_parser(secd, &p);
+    cell_t *res = sexp_read(secd, &p);
+
+    if (not_nil(prevport)) {
+        secd->input_port = prevport; //share_cell back
+        drop_cell(secd, port);
     }
-    return result;
+    return res;
 }
 

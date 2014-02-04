@@ -35,28 +35,24 @@
 #define assertv(cond, ...) \
     if (!(cond)) { errorf(__VA_ARGS__); errorf("\n"); return; }
 
-
 #define SECD_NIL   NULL
-
-typedef enum { false, true } bool;
 
 typedef  uint32_t       hash_t;
 
 typedef  struct secd    secd_t;
 typedef  struct cell    cell_t;
-typedef  long  index_t;
 
 typedef  struct atom  atom_t;
 typedef  struct cons  cons_t;
 typedef  struct error error_t;
+typedef  struct frame frame_t;
+typedef  struct port  port_t;
+typedef  struct array array_t;
+typedef  struct string string_t;
 
-typedef  struct secd_stream  secd_stream_t;
-
-typedef cell_t* (*secd_opfunc_t)(secd_t *);
-typedef cell_t* (*secd_nativefunc_t)(secd_t *, cell_t *);
-
+/* machine operation set */
 typedef enum {
-    SECD_ADD,
+    SECD_ADD,   /* (a&int . b&int . s, e, ADD . c, d) -> (a+b . s, e, c, d) */
     SECD_AP,
     SECD_ATOM,
     SECD_CAR,
@@ -79,7 +75,7 @@ typedef enum {
     SECD_SEL,
     SECD_STOP,
     SECD_SUB,
-    SECD_LAST,
+    SECD_LAST, // not an operation
 } opindex_t;
 
 enum cell_type {
@@ -102,17 +98,21 @@ enum cell_type {
     CELL_SYM,
     CELL_OP,
     CELL_FUNC, */
+    CELL_PORT,  // I/O handle
 
     CELL_ERROR,
 };
 
 enum atom_type {
-    NOT_AN_ATOM,
-    ATOM_INT,
-    ATOM_SYM,
-    ATOM_OP,
-    ATOM_FUNC,
+    NOT_AN_ATOM,   // 0, this is not an atom
+    ATOM_INT,      // atom.as.num
+    ATOM_SYM,      // atom.as.sym
+    ATOM_OP,       // (secd_opfunc_t *) atom.as.ptr
+    ATOM_FUNC,     // (secd_nativefunc_t *) atom.as.ptr
 };
+
+typedef cell_t* (*secd_opfunc_t)(secd_t *);
+typedef cell_t* (*secd_nativefunc_t)(secd_t *, cell_t *);
 
 struct atom {
     enum atom_type type;
@@ -133,15 +133,41 @@ struct cons {
     cell_t *cdr;    // shares
 };
 
+struct frame {
+    struct cons cons;    // must be first to cast to cons   
+    cell_t *io;     // cons of *stdin* and *stdout* for the frame
+};
+
 struct metacons {
     cell_t *prev;   // prev from arrlist, arrlist-ward
     cell_t *next;   // next from arrlist, arrptr-ward
     bool cells;     // does area contain cells
 };
 
+struct port {
+    union {
+        cell_t *str;    // owns
+        void *file;     // owns
+    } as;
+    bool file:1;
+    bool input:1;
+    bool output:1;
+};
+
 struct error {
     size_t len;
     const char *msg; // owns
+};
+
+struct string {
+    char *data;
+    hash_t hash;
+    off_t offset; // bytes
+};
+
+struct array {
+    cell_t *data; // array
+    off_t offset; // cells
 };
 
 extern cell_t secd_out_of_memory;
@@ -157,19 +183,13 @@ struct cell {
     size_t nref:NREF_BITS;
 
     union {
-        atom_t  atom;
+        atom_t  atom; // TODO: get rid of atom_t, make it flat
         cons_t  cons;
+        frame_t frame;
+        port_t  port;
         error_t err;
-        struct {
-            char *data;
-            hash_t hash;
-            off_t offset; // bytes
-        } str;
-
-        struct {
-            cell_t *data; // array
-            off_t offset; // cells
-        } arr;
+        string_t str;
+        array_t  arr;
 
         cell_t *ref;
         struct metacons mcons;
@@ -182,7 +202,7 @@ typedef  struct secd_stat  secd_stat_t;
 struct secd {
     /**** memory layout ****/
     /* pointers: begin, fixedptr, arrayptr, end
-     * - should keep the same ordering in run-time */
+     * - should keep the same position ordering at run-time */
     cell_t *begin;      // the first cell of the heap
 
     /* these lists reside between secd->begin and secd->fixedptr */
@@ -199,14 +219,16 @@ struct secd {
 
     /* some free space between these two pointers for both to grow in */
 
-    cell_t *arrlist;    // cdr points to the double-linked list of arrays
     cell_t *arrayptr;   // pointer
-    // all cells after this one are managed memory for arrays
+    // this one and all cells after are managed memory for arrays
+
+    cell_t *arrlist;    // cdr points to the double-linked list of array metaconses
 
     cell_t *end;        // the last cell of the heap
 
     /**** I/O ****/
-    secd_stream_t *input;
+    cell_t *input_port;
+    cell_t *output_port;
 
     /* some statistics */
     unsigned long tick;
@@ -294,6 +316,13 @@ inline static bool is_error(const cell_t *cell) {
     return cell_type(cell) == CELL_ERROR;
 }
 
+inline static bool is_input(const cell_t *port) {
+    return port->as.port.input;
+}
+inline static bool is_output(const cell_t *port) {
+    return port->as.port.output;
+}
+
 inline static cell_t *mcons_prev(cell_t *mcons) {
     return mcons->as.mcons.prev;
 }
@@ -351,14 +380,17 @@ void dbg_printc(secd_t *secd, cell_t *c);
 
 void sexp_print(secd_t *secd, cell_t *c);
 
-cell_t *sexp_parse(secd_t *secd, secd_stream_t *f);
-cell_t *read_secd(secd_t *secd, secd_stream_t *f);
+/* Reads S-expressions from port.
+ * If port is SECD_NIL, defaults to secd->input_port */
+cell_t *sexp_parse(secd_t *secd, cell_t *port);
+
+cell_t *read_secd(secd_t *secd);
 
 /*
  * machine
  */
 
-secd_t * init_secd(secd_t *secd, secd_stream_t *readstream);
+secd_t * init_secd(secd_t *secd);
 cell_t * run_secd(secd_t *secd, cell_t *ctrl);
 
 /* serialization */

@@ -1,10 +1,13 @@
 objs := interp.o machine.o env.o memory.o native.o readparse.o
 
-CFLAGS := -O1 -g -Wno-shift-overflow -Wall -Wextra
+# posix:
+objs += posix-io.o secd.o
+
+CFLAGS := -O1 -m32 -g -Wno-shift-overflow -Wall -Wextra
 VM := ./secd
 
-$(VM): $(objs) secd.o
-	$(CC) $(CFLAGS) $(objs) secd.o -o $@
+$(VM): $(objs)
+	$(CC) $(CFLAGS) $(objs) -o $@
 
 sos: $(objs) sos.o repl.o
 	$(CC) $(CFLAGS) $(objs) sos.o repl.o -o $@
@@ -35,6 +38,7 @@ native.o : native.c memory.h env.h
 memory.o : memory.c memory.h
 readparse.o : readparse.c memory.h secdops.h
 secd.o : secd.c secd.h
+posix-io.o: posix-io.c secd.h secd_io.h
 sos.o: sos.c
 memory.h : secd.h
 secd.h: conf.h debug.h
