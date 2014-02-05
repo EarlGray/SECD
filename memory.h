@@ -2,6 +2,7 @@
 #define __SECD_MEM_H__
 
 #include "secd.h"
+#include "secd_io.h"
 
 /*
  *   Allocation

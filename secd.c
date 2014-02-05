@@ -1,8 +1,6 @@
 #include "secd.h"
 #include "secd_io.h"
 
-#include <stdio.h>
-
 secd_t secd;
 
 int main(int argc, char *argv[]) {
@@ -11,6 +9,7 @@ int main(int argc, char *argv[]) {
     errorf(";;;     Type (secd) to get some help.\n\n");
 
     init_secd(&secd);
+    secd.debug_port = secd_fopen(&secd, "secd.log", "w");
 
     cell_t *cmdport = SECD_NIL;
     if (argc == 2) {

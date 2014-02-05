@@ -519,6 +519,15 @@ cell_t *secdf_ifopen(secd_t *secd, cell_t *args) {
     return secd_fopen(secd, strval(filename), "r");
 }
 
+cell_t *secdf_siopen(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdf_siopen: no arguments");
+
+    cell_t *str = get_car(args);
+    assert(cell_type(str) == CELL_STR, "secdf_siopen: a string is expected");
+
+    return new_strport(secd, str, "r");
+}
+
 cell_t *secdf_readstring(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "(read-string k): k expected");
 
@@ -613,6 +622,7 @@ const cell_t strlst_sym = INIT_SYM("string->list");
 const cell_t lststr_sym = INIT_SYM("list->string");
 /* i/o port functions */
 const cell_t fopen_sym  = INIT_SYM("open-input-file");
+const cell_t siopen_sym = INIT_SYM("open-input-string");
 const cell_t fgetc_sym  = INIT_SYM("read-char");
 const cell_t fread_sym  = INIT_SYM("read-string");
 const cell_t pclose_sym = INIT_SYM("close-port");
@@ -642,6 +652,7 @@ const cell_t strlst_fun = INIT_FUNC(secdf_str2lst);
 const cell_t lststr_fun = INIT_FUNC(secdf_lst2str);
 /* i/o ports */
 const cell_t fiopen_fun = INIT_FUNC(secdf_ifopen);
+const cell_t siopen_fun = INIT_FUNC(secdf_siopen);
 const cell_t fgetc_fun  = INIT_FUNC(secdf_readchar);
 const cell_t fread_fun  = INIT_FUNC(secdf_readstring);
 const cell_t pclose_fun = INIT_FUNC(secdf_pclose);
@@ -677,6 +688,7 @@ const struct {
     { &vlist_sym,   &vlist_func },
 
     { &fopen_sym,   &fiopen_fun },
+    { &siopen_sym,  &siopen_fun },
     { &fgetc_sym,   &fgetc_fun  },
     { &fread_sym,   &fread_fun  },
     { &pclose_sym,  &pclose_fun },

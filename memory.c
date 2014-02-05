@@ -1,4 +1,5 @@
 #include "memory.h"
+#include "secd_io.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -96,6 +97,9 @@ cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
         } break;
       case CELL_REF:
         drop_cell(secd, c->as.ref);
+        break;
+      case CELL_PORT:
+        secd_pclose(secd, c);
         break;
       case CELL_ERROR:
       case CELL_UNDEF:

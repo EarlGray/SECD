@@ -21,6 +21,14 @@ cell_t *secd_stdout(secd_t *secd) {
     return new_fileport(secd, stdout, "w");
 }
 
+cell_t *secd_stderr(secd_t *secd) {
+    return new_fileport(secd, stderr, "w");
+}
+
+cell_t *secd_stddbg(secd_t __unused *secd) {
+    return SECD_NIL;
+}
+
 cell_t *secd_fopen(secd_t *secd, const char *fname, const char *mode) {
     FILE *f = fopen(fname, mode);
     if (!f)
@@ -52,7 +60,7 @@ long secd_portsize(secd_t *secd, cell_t *port) {
 
 int secd_pclose(secd_t *secd, cell_t *port) {
     io_assert(cell_type(port) == CELL_PORT, "secd_pclose: not a port\n");
-    io_assert(port->as.port.as.file, "secd_pclose: already closed\n");
+    io_assert(!is_closed(port), "secd_pclose: already closed\n");
 
     int ret = 0;
     if (port->as.port.file) {
@@ -73,6 +81,7 @@ int secd_pclose(secd_t *secd, cell_t *port) {
 int secd_getc(secd_t *secd, cell_t *port) {
     io_assert(cell_type(port) == CELL_PORT, "secd_getc: not a port\n");
     io_assert(is_input(port), "secd_getc: not an input port\n");
+    io_assert(!is_closed(port), "secd_getc: port is closed\n");
 
     if (port->as.port.file) {
         int c = fgetc(port->as.port.as.file);
@@ -94,6 +103,7 @@ int secd_getc(secd_t *secd, cell_t *port) {
 size_t secd_fread(secd_t *secd, cell_t *port, char *s, int size) {
     io_assert(cell_type(port) == CELL_PORT, "secd_fread: not a port\n");
     io_assert(is_input(port), "secd_fread: not an input port\n");
+    io_assert(!is_closed(port), "secd_getc: port is closed\n");
 
     if (port->as.port.file) {
         FILE *f = port->as.port.as.file;
@@ -114,6 +124,8 @@ size_t secd_fread(secd_t *secd, cell_t *port, char *s, int size) {
 int secd_vprintf(secd_t *secd, cell_t *port, const char *format, va_list ap) {
     io_assert(cell_type(port) == CELL_PORT, "vpprintf: not a port\n");
     io_assert(is_output(port), "vpprintf: not an output port\n");
+    io_assert(!is_closed(port), "secd_getc: port is closed\n");
+
     int ret;
 
     if (port->as.port.file) {

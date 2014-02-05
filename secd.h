@@ -2,10 +2,14 @@
 #define __SECD_H__
 
 #include "conf.h"
-#include "debug.h"
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
+
+#ifndef __unused
+# define __unused __attribute__((unused))
+#endif
 
 #define errorf(...) fprintf(stderr, __VA_ARGS__)
 
@@ -229,6 +233,7 @@ struct secd {
     /**** I/O ****/
     cell_t *input_port;
     cell_t *output_port;
+    cell_t *debug_port;
 
     /* some statistics */
     unsigned long tick;

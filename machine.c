@@ -5,6 +5,7 @@
 #include "secdops.h"
 
 #include <stdlib.h>
+#include <sys/time.h>
 
 /*
  * SECD machine
@@ -34,7 +35,15 @@ cell_t * run_secd(secd_t *secd, cell_t *ctrl) {
 
     set_control(secd, ctrl);
 
+#if (CTRLDEBUG) 
+    struct timeval ts_then;
+    struct timeval ts_now;
+#endif
+
     while (true)  {
+#if (CTRLDEBUG)
+        gettimeofday(&ts_then, NULL);
+#endif
         op = pop_control(secd);
         assert_cell(op, "run: no command");
         assert_or_continue(
@@ -49,6 +58,13 @@ cell_t * run_secd(secd_t *secd, cell_t *ctrl) {
         cell_t *ret = callee(secd);
         assert_cell(ret, "run: Instruction failed\n");
         drop_cell(secd, op);
+
+#if CTRLDEBUG
+        gettimeofday(&ts_now, NULL);
+        int usec = ts_now.tv_usec - ts_then.tv_usec;
+        if (usec < 0) usec += 1000000;
+        ctrldebugf("    0.%06d s elapsed\n", usec);
+#endif
 
         ++secd->tick;
     }

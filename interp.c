@@ -1,6 +1,7 @@
 #include "secd.h"
-#include "memory.h"
+#include "secd_io.h"
 #include "secdops.h"
+#include "memory.h"
 #include "env.h"
 
 #include <string.h>
@@ -143,7 +144,6 @@ cell_t *secd_ldc(secd_t *secd) {
 
     cell_t *arg = pop_control(secd);
     assert_cell(arg, "secd_ldc: pop_control failed");
-    if (CTRLDEBUG) dbg_printc(secd, arg);
 
     push_stack(secd, arg);
     drop_cell(secd, arg);
@@ -157,7 +157,6 @@ cell_t *secd_ld(secd_t *secd) {
     assert_cell(arg, "secd_ld: stack empty");
     assert(atom_type(secd, arg) == ATOM_SYM,
            "secd_ld: not a symbol [%ld]", cell_index(secd, arg));
-    if (CTRLDEBUG) dbg_printc(secd, arg);
 
     const char *sym = symname(arg);
     cell_t *val = lookup_env(secd, sym);
@@ -346,7 +345,6 @@ cell_t *secd_sel(secd_t *secd) {
     ctrldebugf("SEL\n");
 
     cell_t *condcell = pop_stack(secd);
-    if (CTRLDEBUG) dbg_printc(secd, condcell);
 
     bool cond = not_nil(condcell) ? true : false;
     drop_cell(secd, condcell);
@@ -645,7 +643,7 @@ cell_t *secd_rap(secd_t *secd) {
     secd->input_port = get_car(new_io);
     secd->output_port = get_cdr(new_io);
 
-#if CTRLDEBUG
+#if ENVDEBUG
     printf("new frame: \n"); dbg_printc(secd, frame);
     printf(" argnames: \n"); dbg_printc(secd, argnames);
     printf(" argvals : \n"); dbg_printc(secd, argvals);
