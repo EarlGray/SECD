@@ -61,6 +61,20 @@ size_t utf8strlen(const char *str) {
     return result;
 }
 
+int utf8taillen(char head, unichar_t *headbits) {
+    if ((0xE0 & head) == 0xC0) {
+        if (headbits) *headbits = head & 0x1F;
+        return 2;
+    } else if ((0xF0 & head) == 0xE0) {
+        if (headbits) *headbits = head & 0x0F;
+        return 3;
+    } else if ((0xF8 & head) == 0xF0) {
+        if (headbits) *headbits = head & 0x07;
+        return 4;
+    }
+    return 0;
+}
+
 unichar_t utf8get(const char *u8, const char **next) {
     if ((0x80 & *u8) == 0) {
         if (next) *next = u8 + 1;
@@ -68,19 +82,9 @@ unichar_t utf8get(const char *u8, const char **next) {
     }
 
     unichar_t res;
-    int nbytes;
-    char head = *u8;
-
-    if ((0xE0 & head) == 0xC0) {
-        res = head & 0x1F;
-        nbytes = 2;
-    } else if ((0xF0 & head) == 0xE0) {
-        res = head & 0x0F;
-        nbytes = 3;
-    } else if ((0xF8 & head) == 0xF0) {
-        res = head & 0x07;
-        nbytes = 4;
-    } else goto decode_error;
+    int nbytes = utf8taillen(*u8, &res);
+    if (nbytes == 0)
+        goto decode_error;
 
     switch (nbytes) {
       case 4:
@@ -564,12 +568,30 @@ cell_t *secdf_readchar(secd_t *secd, cell_t *args) {
         port = secd->input_port;
     }
 
-    // TODO: UTF-8
-    int c = secd_getc(secd, port);
-    if (c != SECD_EOF)
-        return new_number(secd, c);
+    int b = secd_getc(secd, port);
+    if (b == SECD_EOF)
+        return new_symbol(secd, EOF_OBJ);
 
-    return new_symbol(secd, EOF_OBJ);
+    if (!(b & 0x80))
+        return new_number(secd, b);
+
+    unichar_t c;
+    int nbytes = utf8taillen(b, &c);
+    if (nbytes == 0) {
+        errorf("(read-char): not a UTF-8 sequence head\n");
+        return new_error(secd, "(read-char): not a UTF-8 sequence head");
+    }
+    while (--nbytes > 0) {
+        b = secd_getc(secd, port);
+        if (b == SECD_EOF)
+            return new_symbol(secd, EOF_OBJ);
+        if ((0xC0 & b) != 0x80) {
+            errorf("(read-char): not a UTF-8 sequence at 0x%x\n", b);
+            return new_error(secd, "(read-char): not a UTF-8 sequence");
+        }
+        c = (c << 6) | (0x3F & b);
+    }
+    return new_number(secd, c);
 }
 
 cell_t *secdf_eofp(secd_t *secd, cell_t *args) {

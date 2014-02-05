@@ -115,7 +115,7 @@ void init_mem(secd_t *secd, cell_t *heap, size_t size);
 /*
  *    UTF-8
  */
-typedef  unsigned long  unichar_t;
+typedef  unsigned int  unichar_t;
 
 char *utf8cpy(char *to, unichar_t ucs);
 
