@@ -6,7 +6,7 @@ secd_t secd;
 int main(int argc, char *argv[]) {
     errorf(";;;   Welcome to SECD   \n");
     errorf(";;;     sizeof(cell_t) is %zd\n", sizeof(cell_t));
-    errorf(";;;     Type (secd) to get some help.\n\n");
+    errorf(";;;     Type (secd) to get some help.\n");
 
     init_secd(&secd);
     secd.debug_port = secd_fopen(&secd, "secd.log", "w");

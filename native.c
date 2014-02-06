@@ -118,7 +118,7 @@ decode_error:
 
 cell_t *secdf_null(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_nullp\n");
-    assert(not_nil(args), "secdf_copy: one argument expected");
+    assert(not_nil(args), "secdf_nullp: one argument expected");
     return to_bool(secd, is_nil(list_head(args)));
 }
 
@@ -142,11 +142,6 @@ static cell_t *list_copy(secd_t *secd, cell_t *list, cell_t **out_tail) {
     if (out_tail)
         *out_tail = new_tail;
     return new_head;
-}
-
-cell_t *secdf_copy(secd_t *secd, cell_t *args) {
-    ctrldebugf("secdf_copy\n");
-    return list_copy(secd, list_head(args), NULL);
 }
 
 cell_t *secdf_append(secd_t *secd, cell_t *args) {
@@ -200,13 +195,13 @@ cell_t *secdf_append(secd_t *secd, cell_t *args) {
 
 cell_t *secdf_nump(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_nump\n");
-    assert(not_nil(args), "secdf_copy: one argument expected");
+    assert(not_nil(args), "secdf_nump: one argument expected");
     return to_bool(secd, atom_type(secd, list_head(args)) == ATOM_INT);
 }
 
 cell_t *secdf_symp(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_symp\n");
-    assert(not_nil(args), "secdf_copy: one argument expected");
+    assert(not_nil(args), "secdf_symp: one argument expected");
     return to_bool(secd, atom_type(secd, list_head(args)) == ATOM_SYM);
 }
 
@@ -549,6 +544,24 @@ cell_t *secdf_lst2str(secd_t *secd, cell_t *args) {
  *    I/O ports
  */
 
+cell_t *secdf_display(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdf_diplay: no arguments");
+
+    cell_t *what = get_car(args);
+
+    args = list_next(secd, args);
+    cell_t *port = secd->output_port;
+    if (not_nil(args)) {
+        cell_t *p = get_car(args);
+        assert(cell_type(p) == CELL_PORT,
+                "secdf_display: second argument is not a port");
+        port = p;
+    }
+
+    sexp_display(secd, port, what);
+    return what;
+}
+
 /* (open-input-file) */
 cell_t *secdf_ifopen(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "secdf_open: no arguments");
@@ -681,6 +694,7 @@ const cell_t strsym_sym = INIT_SYM("string->symbol");
 const cell_t strlst_sym = INIT_SYM("string->list");
 const cell_t lststr_sym = INIT_SYM("list->string");
 /* i/o port functions */
+const cell_t displ_sym  = INIT_SYM("display");
 const cell_t fopen_sym  = INIT_SYM("open-input-file");
 const cell_t siopen_sym = INIT_SYM("open-input-string");
 const cell_t fgetc_sym  = INIT_SYM("read-char");
@@ -689,7 +703,6 @@ const cell_t pclose_sym = INIT_SYM("close-port");
 
 const cell_t list_func  = INIT_FUNC(secdf_list);
 const cell_t appnd_func = INIT_FUNC(secdf_append);
-const cell_t copy_func  = INIT_FUNC(secdf_copy);
 const cell_t nullp_func = INIT_FUNC(secdf_null);
 const cell_t nump_func  = INIT_FUNC(secdf_nump);
 const cell_t symp_func  = INIT_FUNC(secdf_symp);
@@ -713,6 +726,7 @@ const cell_t symstr_fun = INIT_FUNC(secdf_sym2str);
 const cell_t strlst_fun = INIT_FUNC(secdf_str2lst);
 const cell_t lststr_fun = INIT_FUNC(secdf_lst2str);
 /* i/o ports */
+const cell_t displ_fun  = INIT_FUNC(secdf_display);
 const cell_t fiopen_fun = INIT_FUNC(secdf_ifopen);
 const cell_t siopen_fun = INIT_FUNC(secdf_siopen);
 const cell_t fgetc_fun  = INIT_FUNC(secdf_readchar);
@@ -751,6 +765,7 @@ const struct {
     { &vlist_sym,   &vlist_func },
     { &l2v_sym,     &l2v_func   },
 
+    { &displ_sym,   &displ_fun  },
     { &fopen_sym,   &fiopen_fun },
     { &siopen_sym,  &siopen_fun },
     { &fgetc_sym,   &fgetc_fun  },
@@ -763,7 +778,6 @@ const struct {
     { &nullp_sym,   &nullp_func },
     { &nump_sym,    &nump_func  },
     { &symp_sym,    &symp_func  },
-    { &copy_sym,    &copy_func  },
     { &eofp_sym,    &eofp_func  },
     { &debug_sym,   &debug_func  },
     { &env_sym,     &getenv_fun },

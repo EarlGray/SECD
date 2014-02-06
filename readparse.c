@@ -116,6 +116,7 @@ static void sexp_print_list(secd_t *secd, cell_t *cell) {
     printf(") ");
 }
 
+/* machine printing, (write) */
 void sexp_print(secd_t* secd, cell_t *cell) {
     switch (cell_type(cell)) {
       case CELL_UNDEF:  printf("#?"); break;
@@ -130,7 +131,15 @@ void sexp_print(secd_t* secd, cell_t *cell) {
     }
 }
 
-
+/* human-readable, (display) */
+void sexp_display(secd_t *secd, cell_t *port, cell_t *cell) {
+    switch (cell_type(cell)) {
+      case CELL_STR:
+        secd_printf(secd, port, "%s", strval(cell));
+        break;
+      default: sexp_print(secd, cell);
+    }
+}
 
 
 /*

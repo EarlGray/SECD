@@ -384,6 +384,7 @@ void dbg_print_cell(secd_t *secd, const cell_t *c);
 void dbg_printc(secd_t *secd, cell_t *c);
 
 void sexp_print(secd_t *secd, cell_t *c);
+void sexp_display(secd_t *secd, cell_t *port, cell_t *cell);
 
 /* Reads S-expressions from port.
  * If port is SECD_NIL, defaults to secd->input_port */

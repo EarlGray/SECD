@@ -3,8 +3,12 @@ objs := interp.o machine.o env.o memory.o native.o readparse.o
 # posix:
 objs += posix-io.o secd.o
 
-CFLAGS := -O2 -g -Wno-shift-overflow -Wall -Wextra
+CFLAGS := -O2 -g -Wall -Wextra
 VM := ./secd
+
+ifeq ($(shell uname -s),Darwin)
+#CFLAGS += -Wno-shift-overflow
+endif
 
 $(VM): $(objs)
 	$(CC) $(CFLAGS) $(objs) -o $@

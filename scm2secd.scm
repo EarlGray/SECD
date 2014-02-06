@@ -134,7 +134,7 @@
         (compile-begin-acc tl '(LDC ())))
       ((eq? hd 'cond)
         (compile-cond tl))
-      ((eq? hd 'display)
+      ((eq? hd 'write)
         (append (secd-compile (car tl)) '(PRINT)))
       ((eq? hd 'read)
         '(READ))
@@ -155,13 +155,15 @@
   (cond
     ((symbol? s) (list 'LD s))
     ((number? s) (list 'LDC s))
+    ((string? s) (list 'LDC s))
+    ((vector? s) (list 'LDC s))
     (else (compile-form s)))))
 
 (repl (lambda ()
     (let ((inp (read)))
       (if (eof-object? inp) (quit)
         (begin
-          (display (append (secd-compile inp) '(STOP)))
+          (write (append (secd-compile inp) '(STOP)))
           (repl))))))
 )
 

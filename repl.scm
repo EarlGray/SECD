@@ -1,6 +1,16 @@
 (letrec
 ;; what:
 (
+;; on SECD, atom? is compiled, so this binding does not affect anything
+(atom? (lambda (b) (not (pair? b))))
+
+(length (lambda (xs)
+  (letrec
+    ((len (lambda (xs acc)
+            (if (null? xs) acc
+                (len (cdr xs) (+ 1 acc))))))
+    (len xs 0))))
+
 (unzip (lambda (ps)
     (letrec
       ((unzipt
@@ -27,13 +37,6 @@
         (append (compile-n-bindings (cdr bs))
                 (secd-compile (car bs))))))
 
-(length (lambda (xs)
-  (letrec
-    ((len (lambda (xs acc)
-            (if (null? xs) acc
-                (len (cdr xs) (+ 1 acc))))))
-    (len xs 0))))
-
 (compile-begin-acc
   (lambda (stmts acc)   ; acc must be '(LDC ()) at the beginning
     (if (null? stmts)
@@ -52,8 +55,6 @@
               (append (secd-compile this-cond) '(SEL)
                       (list (append (secd-compile this-expr) '(JOIN)))
                       (list (append (compile-cond (cdr conds)) '(JOIN)))))))))
-
-(atom? (lambda (b) (not (pair? b))))
 
 (compile-quasiquote
   (lambda (lst)
@@ -139,7 +140,7 @@
         (compile-begin-acc tl '(LDC ())))
       ((eq? hd 'cond)
         (compile-cond tl))
-      ((eq? hd 'display)
+      ((eq? hd 'write)
         (append (secd-compile (car tl)) '(PRINT)))
       ((eq? hd 'read)
         '(READ))
@@ -215,34 +216,41 @@
       (list 'secd-bind! `(quote ,definition) initval)
       ;; a function definition:
       (let ((name (car definition)) (args (cdr definition)))
-           (list 'secd-bind! `(quote ,name) 
+           (list 'secd-bind! `(quote ,name)
                  (list 'lambda args initval))))))
-      
 
 (secd-from-scheme (lambda (s)
     (secd-make-executable (secd-compile s) nil)))
 
+
 (load (lambda (filename)
-  (letrec 
+  (letrec
     ((loadsexp (lambda ()
        (let ((sexpr (read)))
          (if (eof-object? sexpr) 'ok
-           (begin 
+           (begin
              (eval sexpr (interaction-environment))
              (loadsexp))))))
      (*stdin* (open-input-file filename)))
     (loadsexp))))
 
+(newline (lambda () (display "\n")))
+
 (repl (lambda (env)
+  (begin
+    (display *prompt*)
     (let ((inp (read)))
       (if (eof-object? inp) (quit)
-        (begin
-          (display (eval inp env))  ;; compile and run
-          (repl env))))))
+        (let ((result (eval inp env)))
+         (begin
+          (display "   ")
+          (write result)
+          (repl env))))))))
 )
 
 ;; <let> in
 (begin
+  (secd-bind! '*prompt* ";>> ")
   (secd-bind! '*macros*
     (list
       (cons 'define-macro   secd-define-macro!)
