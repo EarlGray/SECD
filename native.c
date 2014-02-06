@@ -336,6 +336,15 @@ cell_t *secdv_make(secd_t *secd, cell_t *args) {
     return arr;
 }
 
+cell_t *secdv_len(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdv_len: no arguments");
+
+    cell_t *vect = get_car(args);
+    assert(cell_type(vect) == CELL_ARRAY, "secdv_len: not a vector");
+
+    return new_number(secd, arr_size(secd, vect));
+}
+
 cell_t *secdv_ref(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "secdv_ref: no arguments");
 
@@ -632,6 +641,7 @@ const cell_t nullp_sym  = INIT_SYM("null?");
 /* vector routines */
 const cell_t vp_sym     = INIT_SYM("vector?");
 const cell_t vmake_sym  = INIT_SYM("make-vector");
+const cell_t vlen_sym   = INIT_SYM("vector-length");
 const cell_t vref_sym   = INIT_SYM("vector-ref");
 const cell_t vset_sym   = INIT_SYM("vector-set!");
 const cell_t vlist_sym  = INIT_SYM("list->vector");
@@ -662,6 +672,7 @@ const cell_t bind_func  = INIT_FUNC(secdf_bind);
 /* vector routines */
 const cell_t vp_func    = INIT_FUNC(secdv_is);
 const cell_t vmake_func = INIT_FUNC(secdv_make);
+const cell_t vlen_func  = INIT_FUNC(secdv_len);
 const cell_t vref_func  = INIT_FUNC(secdv_ref);
 const cell_t vset_func  = INIT_FUNC(secdv_set);
 const cell_t vlist_func = INIT_FUNC(secdf_vct2lst);
@@ -705,6 +716,7 @@ const struct {
 
     { &vp_sym,      &vp_func    },
     { &vmake_sym,   &vmake_func },
+    { &vlen_sym,    &vlen_func  },
     { &vref_sym,    &vref_func  },
     { &vset_sym,    &vset_func  },
     { &vlist_sym,   &vlist_func },
