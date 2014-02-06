@@ -213,7 +213,11 @@
 (secd-mdefine! (lambda (definition initval)
   (if (symbol? definition)
       (list 'secd-bind! `(quote ,definition) initval)
-      ''Error:_define_is_not_implemented_for_functions)))
+      ;; a function definition:
+      (let ((name (car definition)) (args (cdr definition)))
+           (list 'secd-bind! `(quote ,name) 
+                 (list 'lambda args initval))))))
+      
 
 (secd-from-scheme (lambda (s)
     (secd-make-executable (secd-compile s) nil)))
