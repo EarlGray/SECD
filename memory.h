@@ -120,6 +120,7 @@ typedef  unsigned int  unichar_t;
 char *utf8cpy(char *to, unichar_t ucs);
 
 size_t list_length(secd_t *secd, cell_t *lst);
-cell_t *vector_from_list(secd_t *secd, cell_t *lst);
+cell_t *list_to_vector(secd_t *secd, cell_t *lst);
+cell_t *vector_to_list(secd_t *secd, cell_t *vct, int start, int end);
 
 #endif // __SECD_MEM_H__

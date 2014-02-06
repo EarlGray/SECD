@@ -389,13 +389,40 @@ cell_t *secdv_set(secd_t *secd, cell_t *args) {
     return arr;
 }
 
-cell_t *secdf_vct2lst(secd_t *secd, cell_t *args) {
+cell_t *secdf_lst2vct(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "secdf_vct2lst: no arguments");
 
     cell_t *lst = get_car(args);
     assert(is_cons(lst), "secdf_vct2lst: not a list");
 
-    return vector_from_list(secd, lst);
+    return list_to_vector(secd, lst);
+}
+
+cell_t *secdf_vct2lst(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdf_vct2lst: no arguments");
+
+    cell_t *vct = get_car(args);
+    assert(cell_type(vct) == CELL_ARRAY, "secdf_vct2lst: not an array");
+
+    int start = 0;
+    int end = (int)arr_size(secd, vct);
+    args = list_next(secd, args);
+    if (not_nil(args)) {
+        cell_t *startc = get_car(args);
+        assert(atom_type(secd, startc) == ATOM_INT,
+               "secdf_vct2list: an int expected as second argument");
+        start = numval(startc);
+
+        args = list_next(secd, args);
+        if (not_nil(args)) {
+            cell_t *endc = get_car(args);
+            assert(atom_type(secd, endc) == ATOM_INT,
+                   "secdf_vct2lst: an int expected as third argument");
+            end = numval(endc);
+        }
+    }
+
+    return vector_to_list(secd, vct, start, end);
 }
 
 /*
@@ -645,6 +672,7 @@ const cell_t vlen_sym   = INIT_SYM("vector-length");
 const cell_t vref_sym   = INIT_SYM("vector-ref");
 const cell_t vset_sym   = INIT_SYM("vector-set!");
 const cell_t vlist_sym  = INIT_SYM("list->vector");
+const cell_t l2v_sym    = INIT_SYM("vector->list");
 /* string functions */
 const cell_t sp_sym     = INIT_SYM("string?");
 const cell_t strlen_sym = INIT_SYM("string-length");
@@ -675,7 +703,8 @@ const cell_t vmake_func = INIT_FUNC(secdv_make);
 const cell_t vlen_func  = INIT_FUNC(secdv_len);
 const cell_t vref_func  = INIT_FUNC(secdv_ref);
 const cell_t vset_func  = INIT_FUNC(secdv_set);
-const cell_t vlist_func = INIT_FUNC(secdf_vct2lst);
+const cell_t vlist_func = INIT_FUNC(secdf_lst2vct);
+const cell_t l2v_func   = INIT_FUNC(secdf_vct2lst);
 /* string routines */
 const cell_t sp_func    = INIT_FUNC(secdf_strp);
 const cell_t strlen_fun = INIT_FUNC(secdf_strlen);
@@ -720,6 +749,7 @@ const struct {
     { &vref_sym,    &vref_func  },
     { &vset_sym,    &vset_func  },
     { &vlist_sym,   &vlist_func },
+    { &l2v_sym,     &l2v_func   },
 
     { &fopen_sym,   &fiopen_fun },
     { &siopen_sym,  &siopen_fun },

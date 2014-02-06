@@ -394,7 +394,7 @@ static cell_t *read_token(secd_t *secd, secd_parser_t *p) {
               cell_t *tmplist = read_list(secd, p);
               if (p->token != ')')
                   goto error_exit;
-              inp = vector_from_list(secd, tmplist);
+              inp = list_to_vector(secd, tmplist);
               drop_dependencies(secd, tmplist);
             } break;
         }

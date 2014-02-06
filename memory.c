@@ -630,7 +630,7 @@ cell_t *fill_array(secd_t *secd, cell_t *arr, cell_t *with) {
     return arr;
 }
 
-cell_t *vector_from_list(secd_t *secd, cell_t *lst) {
+cell_t *list_to_vector(secd_t *secd, cell_t *lst) {
     size_t i;
     size_t len = list_length(secd, lst);
     cell_t *arr = new_array(secd, len);
@@ -644,6 +644,31 @@ cell_t *vector_from_list(secd_t *secd, cell_t *lst) {
     return arr;
 }
 
+cell_t *vector_to_list(secd_t *secd, cell_t *vct, int start, int end) {
+    assert(cell_type(vct) == CELL_ARRAY, "vector_to_list: not a vector");
+    int len = (int)arr_size(secd, vct);
+    assert(start <= len, "vector_to_list: start > len");
+
+    if (end > len) end = len;
+    else if (end < 0) end += len;
+    if (start < 0) start += len;
+    assert(0 <= start && start <= len, "vector_to_list: start is out of range");
+    assert(0 <= end && end <= len, "vector_to_list: end is out of range");
+
+    int i;
+    cell_t *lst = SECD_NIL;
+    cell_t *cur;
+    for (i = start; i < end; ++i) {
+        cell_t *clone = new_clone(secd, arr_ref(vct, i));
+        if (not_nil(lst)) {
+            cur->as.cons.cdr = share_cell(secd, new_cons(secd, clone, SECD_NIL));
+            cur = list_next(secd, cur);
+        } else {
+            lst = cur = new_cons(secd, clone, SECD_NIL);
+        }
+    }
+    return lst;
+}
 
 void init_mem(secd_t *secd, cell_t *heap, size_t size) {
     secd->begin = heap;
