@@ -1,5 +1,4 @@
-(define (mul-n x) (* x n))
-
+;;(define (mul-n x) (* x n))
 
 (define (sqr x) (* x x))
 
@@ -7,4 +6,4 @@
 
 (sqr n)
 
-(define (cube x) (* x x x))
+;;(define (cube x) (* x x x))

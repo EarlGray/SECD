@@ -144,9 +144,9 @@
       ((eq? hd 'read)
         '(READ))
       ((eq? hd 'eval)
-        ;(append '(LDC () LDC ()) (secd-compile (car tl))
-        ;   '(CONS LD secd-from-scheme AP AP)))
-        (secd-compile `((secd-from-scheme ,(car tl)))))
+        (append '(LDC () LDC ()) (secd-compile (car tl))
+           '(CONS LD secd-from-scheme AP AP)))
+        ;(secd-compile `((secd-from-scheme ,(car tl)))))
       ((eq? hd 'secd-apply)
         (cond
           ((null? tl) (display 'Error:_secd-apply_requires_args))
@@ -221,6 +221,17 @@
 
 (secd-from-scheme (lambda (s)
     (secd-make-executable (secd-compile s) nil)))
+
+(load (lambda (filename)
+  (letrec 
+    ((loadsexp (lambda ()
+       (let ((sexpr (read)))
+         (if (eof-object? sexpr) 'ok
+           (begin 
+             (eval sexpr (interaction-environment))
+             (loadsexp))))))
+     (*stdin* (open-input-file filename)))
+    (loadsexp))))
 
 (repl (lambda (env)
     (let ((inp (read)))
