@@ -494,6 +494,16 @@ static cell_t *new_frame_io(secd_t *secd, cell_t *frame, cell_t *prevenv) {
     return frame_io;
 }
 
+static cell_t *secd_ap_native(secd_t *secd, cell_t *clos, cell_t *args) {
+    secd_nativefunc_t native = (secd_nativefunc_t)clos->as.atom.as.ptr;
+    cell_t *result = native(secd, args);
+    assert_cell(result, "secd_ap: a built-in routine failed");
+    push_stack(secd, result);
+
+    drop_cell(secd, clos); drop_cell(secd, args);
+    return result;
+}
+
 cell_t *secd_ap(secd_t *secd) {
     ctrldebugf("AP\n");
 
@@ -504,24 +514,17 @@ cell_t *secd_ap(secd_t *secd) {
     assert_cell(argvals, "secd_ap: no arguments on stack");
     assert(is_cons(argvals), "secd_ap: a list expected for arguments");
 
-    if (atom_type(secd, closure) == ATOM_FUNC) {
-        secd_nativefunc_t native = (secd_nativefunc_t)closure->as.atom.as.ptr;
-        cell_t *result = native(secd, argvals);
-        assert_cell(result, "secd_ap: a built-in routine failed");
-        push_stack(secd, result);
-
-        drop_cell(secd, closure); drop_cell(secd, argvals);
-        return result;
-    }
+    if (atom_type(secd, closure) == ATOM_FUNC)
+        return secd_ap_native(secd, closure, argvals)
 
     assert(is_cons(closure), "secd_ap: closure is not a cons");
     cell_t *func = get_car(closure);
-    cell_t *newenv = get_cdr(closure);
-
     assert(is_cons(func), "secd_ap: not a cons at func definition");
+
+    cell_t *newenv = get_cdr(closure);
     assert(is_cons(newenv), "secd_ap: not a cons at env in closure");
     assert(not_nil(newenv), "secd_ap: nil env");
-    if (list_head(newenv)->type != CELL_FRAME) {
+    if (cell_type(list_head(newenv)) != CELL_FRAME) {
         errorf("secd_ap: env holds not a frame\n");
         dbg_printc(secd, newenv);
         return new_error(secd, "not a frame");
@@ -738,31 +741,31 @@ const cell_t sub_sym    = INIT_SYM("SUB");
 const opcode_t opcode_table[] = {
     // opcodes: for information, not to be called
     // keep symbols sorted properly
-    [SECD_ADD]  = { &add_sym,     secd_add,  0},
-    [SECD_AP]   = { &ap_sym,      secd_ap,   0},
-    [SECD_ATOM] = { &atom_sym,    secd_atom, 0},
-    [SECD_CAR]  = { &car_sym,     secd_car,  0},
-    [SECD_CDR]  = { &cdr_sym,     secd_cdr,  0},
-    [SECD_CONS] = { &cons_sym,    secd_cons, 0},
-    [SECD_DIV]  = { &div_sym,     secd_div,  0},
-    [SECD_DUM]  = { &dum_sym,     secd_dum,  0},
-    [SECD_EQ]   = { &eq_sym,      secd_eq,   0},
-    [SECD_JOIN] = { &join_sym,    secd_join, 0},
-    [SECD_LD]   = { &ld_sym,      secd_ld,   1},
-    [SECD_LDC]  = { &ldc_sym,     secd_ldc,  1},
-    [SECD_LDF]  = { &ldf_sym,     secd_ldf,  1},
-    [SECD_LEQ]  = { &leq_sym,     secd_leq,  0},
-    [SECD_MUL]  = { &mul_sym,     secd_mul,  0},
-    [SECD_PRN]  = { &print_sym,   secd_print,0},
-    [SECD_RAP]  = { &rap_sym,     secd_rap,  0},
-    [SECD_READ] = { &read_sym,    secd_read, 0},
-    [SECD_REM]  = { &rem_sym,     secd_rem,  0},
-    [SECD_RTN]  = { &rtn_sym,     secd_rtn,  0},
-    [SECD_SEL]  = { &sel_sym,     secd_sel,  2},
-    [SECD_STOP] = { &stop_sym,    SECD_NIL,  0},
-    [SECD_SUB]  = { &sub_sym,     secd_sub,  0},
+    [SECD_ADD]  = { &add_sym,     secd_add,  0, -1},
+    [SECD_AP]   = { &ap_sym,      secd_ap,   0, -1},
+    [SECD_ATOM] = { &atom_sym,    secd_atom, 0,  0},
+    [SECD_CAR]  = { &car_sym,     secd_car,  0,  0},
+    [SECD_CDR]  = { &cdr_sym,     secd_cdr,  0,  0},
+    [SECD_CONS] = { &cons_sym,    secd_cons, 0, -1},
+    [SECD_DIV]  = { &div_sym,     secd_div,  0, -1},
+    [SECD_DUM]  = { &dum_sym,     secd_dum,  0,  0},
+    [SECD_EQ]   = { &eq_sym,      secd_eq,   0, -1},
+    [SECD_JOIN] = { &join_sym,    secd_join, 0,  0},
+    [SECD_LD]   = { &ld_sym,      secd_ld,   1,  1},
+    [SECD_LDC]  = { &ldc_sym,     secd_ldc,  1,  1},
+    [SECD_LDF]  = { &ldf_sym,     secd_ldf,  1,  1},
+    [SECD_LEQ]  = { &leq_sym,     secd_leq,  0, -1},
+    [SECD_MUL]  = { &mul_sym,     secd_mul,  0, -1},
+    [SECD_PRN]  = { &print_sym,   secd_print,0,  0},
+    [SECD_RAP]  = { &rap_sym,     secd_rap,  0, -1},
+    [SECD_READ] = { &read_sym,    secd_read, 0,  1},
+    [SECD_REM]  = { &rem_sym,     secd_rem,  0, -1},
+    [SECD_RTN]  = { &rtn_sym,     secd_rtn,  0,  0},
+    [SECD_SEL]  = { &sel_sym,     secd_sel,  2, -1},
+    [SECD_STOP] = { &stop_sym,    SECD_NIL,  0,  0},
+    [SECD_SUB]  = { &sub_sym,     secd_sub,  0, -1},
 
-    [SECD_LAST] = { NULL,         NULL,       0}
+    [SECD_LAST] = { NULL,         NULL,      0,  0}
 };
 
 index_t optable_len = 0;

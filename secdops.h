@@ -6,6 +6,7 @@ typedef struct {
     const cell_t *sym;
     secd_opfunc_t fun;
     int args;       // takes 'args' control cells after the opcode
+    int stackuse;   // changes of stack size
 } opcode_t;
 
 extern const opcode_t opcode_table[];
