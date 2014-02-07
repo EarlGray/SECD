@@ -1,7 +1,7 @@
 (letrec
 ;; what:
 (
-(secd-not (lambda (b) (if b '() #t)))
+(secd-not (lambda (b) (if b (eq? 1 2) (eq? 1 1))))
 
 (length (lambda (xs)
   (letrec
