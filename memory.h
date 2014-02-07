@@ -68,6 +68,16 @@ inline static cell_t *drop_cell(secd_t *secd, cell_t *c) {
     return free_cell(secd, c);
 }
 
+inline static cell_t *assign_cell(secd_t *secd, cell_t **cell, cell_t *what) {
+    cell_t *oldval = *cell;
+    *cell = share_cell(secd, what);
+    drop_cell(secd, oldval);
+    return *cell;
+}
+
+/*
+ *    Array routines
+ */
 static inline size_t arrmeta_size(secd_t *secd, const cell_t *metacons) {
     asserti(cell_type(metacons) == CELL_ARRMETA, "arrmeta_size: not a meta");
     if (metacons == secd->arrlist) return 0;

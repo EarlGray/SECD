@@ -51,7 +51,7 @@ void init_env(secd_t *secd) {
 
 cell_t *lookup_env(secd_t *secd, const char *symbol) {
     cell_t *env = secd->env;
-    assert(cell_type(env) == CELL_CONS, 
+    assert(cell_type(env) == CELL_CONS,
             "lookup_env: environment is not a list\n");
     size_t symlen = strlen(symbol);
 
@@ -69,7 +69,7 @@ cell_t *lookup_env(secd_t *secd, const char *symbol) {
             if (atom_type(secd, cur_sym) != ATOM_SYM) {
                 errorf("lookup_env: variable at [%ld] is not a symbol\n",
                         cell_index(secd, cur_sym));
-                symlist = list_next(secd, symlist); 
+                symlist = list_next(secd, symlist);
                 vallist = list_next(secd, vallist);
                 continue;
             }
@@ -89,7 +89,7 @@ cell_t *lookup_env(secd_t *secd, const char *symbol) {
 
 cell_t *lookup_symenv(secd_t *secd, const char *symbol) {
     cell_t *env = secd->env;
-    assert(cell_type(env) == CELL_CONS, 
+    assert(cell_type(env) == CELL_CONS,
             "lookup_symbol: environment is not a list\n");
 
     while (not_nil(env)) {       // walk through frames

@@ -544,34 +544,46 @@ cell_t *new_error_with(
 /*
  *  Built-in lists manipulation
  */
-inline static cell_t *push(secd_t *secd, cell_t **to, cell_t *what) {
+inline static cell_t *list_push(secd_t *secd, cell_t **to, cell_t *what) {
     cell_t *newtop = new_cons(secd, what, *to);
+
+#if MEMDEBUG
+    memdebugf("PUSH %s[%ld (%ld, %ld)]\n", cell_index(secd, top));
+#endif
+
     drop_cell(secd, *to);
     return (*to = share_cell(secd, newtop));
 }
 
-inline static cell_t *pop(secd_t *secd, cell_t **from) {
+inline static cell_t *list_pop(secd_t *secd, cell_t **from) {
     cell_t *top = *from;
     assert(not_nil(top), "pop: stack is empty");
     assert(is_cons(top), "pop: not a cons");
 
     cell_t *val = share_cell(secd, get_car(top));
     *from = share_cell(secd, get_cdr(top));
+
+#if MEMDEBUG
+    const char *src;
+    if (*from == secd->stack)        src = "S";
+    else if (*from == secd->env)     src = "E";
+    else if (*from == secd->control) src = "C";
+    else if (*from == secd->dump)    src = "D";
+    else                             src = "?";
+    memdebugf("POP %s[%ld] (%ld, %ld)\n", src, 
+            cell_index(secd, top),
+            cell_index(secd, val), cell_index(secd, *from));
+#endif
     drop_cell(secd, top);
-    return val;
+    return val; // don't forget to drop_cell()
 }
 
 cell_t *push_stack(secd_t *secd, cell_t *newc) {
-    cell_t *top = push(secd, &secd->stack, newc);
-    memdebugf("PUSH S[%ld (%ld, %ld)]\n", cell_index(secd, top),
-                        cell_index(secd, get_car(top)), cell_index(secd, get_cdr(top)));
-    return top;
+    return list_push(secd, &secd->stack, newc);
 }
 
 cell_t *pop_stack(secd_t *secd) {
-    cell_t *cell = pop(secd, &secd->stack);
-    memdebugf("POP S[%ld]\n", cell_index(secd, cell));
-    return cell; // don't forget to drop_call(result)
+    return list_pop(secd, &secd->stack);
 }
 
 cell_t *set_control(secd_t *secd, cell_t *opcons) {
@@ -581,27 +593,21 @@ cell_t *set_control(secd_t *secd, cell_t *opcons) {
         opcons = compile_control_path(secd, opcons);
         assert_cell(opcons, "set_control: failed to compile control path");
     }
-    return (secd->control = share_cell(secd, opcons));
+    return assign_cell(secd, &secd->control, opcons);
 }
 
 cell_t *pop_control(secd_t *secd) {
-    return pop(secd, &secd->control);
+    return list_pop(secd, &secd->control);
 }
 
 cell_t *push_dump(secd_t *secd, cell_t *cell) {
-    cell_t *top = push(secd, &secd->dump, cell);
-    memdebugf("PUSH D[%ld] (%ld, %ld)\n", cell_index(secd, top),
-            cell_index(secd, get_car(top)),
-            cell_index(secd, get_cdr(top)));
     ++secd->used_dump;
-    return top;
+    return list_push(secd, &secd->dump, cell);
 }
 
 cell_t *pop_dump(secd_t *secd) {
-    cell_t *cell = pop(secd, &secd->dump);
-    memdebugf("POP D[%ld]\n", cell_index(secd, cell));
     --secd->used_dump;
-    return cell;
+    return list_pop(secd, &secd->dump);
 }
 
 /*
@@ -668,6 +674,16 @@ cell_t *vector_to_list(secd_t *secd, cell_t *vct, int start, int end) {
         }
     }
     return lst;
+}
+
+/*
+ *  Abstract operations
+ */
+cell_t *fifo_pop(secd_t *secd, cell_t **fifo) {
+    switch (cell_type(*fifo)) {
+      case CELL_CONS: return list_pop(secd, fifo);
+      default: return new_error(secd, "fifo_pop: not poppable");
+    }
 }
 
 void init_mem(secd_t *secd, cell_t *heap, size_t size) {

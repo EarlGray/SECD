@@ -35,7 +35,7 @@ cell_t * run_secd(secd_t *secd, cell_t *ctrl) {
 
     set_control(secd, ctrl);
 
-#if (CTRLDEBUG) 
+#if (CTRLDEBUG)
     struct timeval ts_then;
     struct timeval ts_now;
 #endif
@@ -56,7 +56,11 @@ cell_t * run_secd(secd_t *secd, cell_t *ctrl) {
             return SECD_NIL;  // STOP
 
         cell_t *ret = callee(secd);
-        assert_cell(ret, "run: Instruction failed\n");
+        if (is_error(ret)) {
+            errorf("run: %s failed at\n", symname(opcode_table[ opind ].sym));
+            print_env(secd);
+            return ret;
+        }
         drop_cell(secd, op);
 
 #if CTRLDEBUG
@@ -109,8 +113,8 @@ cell_t *serialize_cell(secd_t *secd, cell_t *cell) {
            if (cell->as.port.file) {
                portc = new_cons(secd, new_symbol(secd, "file"), SECD_NIL);
            } else {
-               cell_t *strc = new_cons(secd, 
-                       new_number(secd, cell_index(secd, (cell_t*)strval(cell->as.port.as.str))), 
+               cell_t *strc = new_cons(secd,
+                       new_number(secd, cell_index(secd, (cell_t*)strval(cell->as.port.as.str))),
                        SECD_NIL);
                portc = new_cons(secd, new_symbol(secd, "str"), strc);
            }
@@ -122,7 +126,7 @@ cell_t *serialize_cell(secd_t *secd, cell_t *cell) {
               cell_t *valc = new_cons(secd, cell, SECD_NIL);
               opt = new_cons(secd, new_symbol(secd, (atom_type(secd, cell) == ATOM_INT ? "int": "sym")), valc);
             } break;
-            default: 
+            default:
               opt = new_cons(secd, new_symbol(secd, "some_atom"), SECD_NIL);
           }
         } break;

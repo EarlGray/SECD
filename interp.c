@@ -99,6 +99,7 @@ bool compile_ctrl(secd_t *secd, cell_t **ctrl) {
     return true;
 }
 
+
 /*
  *  SECD built-ins
  */
@@ -252,15 +253,35 @@ bool is_equal(secd_t *secd, const cell_t *a, const cell_t *b) {
     return false;
 }
 
-cell_t *secd_atom(secd_t *secd) {
-    ctrldebugf("ATOM\n");
+cell_t *secd_type(secd_t *secd) {
+    ctrldebugf("TYPE\n");
     cell_t *val = pop_stack(secd);
-    assert(not_nil(val), "secd_atom: empty stack");
-    assert_cell(val, "secd_atom: pop_stack() failed");
+    assert_cell(val, "secd_type: pop_stack() failed");
 
-    cell_t *result = to_bool(secd, (val ? !is_cons(val) : true));
+    const char *type = "unknown";
+    switch (cell_type(val)) {
+      case CELL_CONS:  type = "cons"; break;
+      case CELL_STR:   type = "str";  break;
+      case CELL_ARRAY: type = "vect"; break;
+      case CELL_PORT:  type = "port"; break;
+      case CELL_FRAME: type = "frame"; break;
+      case CELL_ATOM:
+        switch (atom_type(secd, val)) {
+          case NOT_AN_ATOM: return new_error(secd, "not an atom");
+          case ATOM_INT: type = "int"; break;
+          case ATOM_SYM: type = "sym"; break;
+          case ATOM_FUNC: type = "func"; break;
+          case ATOM_OP:  type = "op"; break;
+        } break;
+      case CELL_UNDEF: type = "void"; break;
+      case CELL_ARRMETA: type = "meta"; break;
+      case CELL_ERROR: type = "err"; break;
+      case CELL_REF:   type = "ref"; break;
+      case CELL_FREE:  type = "free"; break;
+    }
+
     drop_cell(secd, val);
-    return push_stack(secd, result);
+    return push_stack(secd, new_symbol(secd, type));
 }
 
 cell_t *secd_eq(secd_t *secd) {
@@ -515,7 +536,7 @@ cell_t *secd_ap(secd_t *secd) {
     assert(is_cons(argvals), "secd_ap: a list expected for arguments");
 
     if (atom_type(secd, closure) == ATOM_FUNC)
-        return secd_ap_native(secd, closure, argvals)
+        return secd_ap_native(secd, closure, argvals);
 
     assert(is_cons(closure), "secd_ap: closure is not a cons");
     cell_t *func = get_car(closure);
@@ -539,9 +560,7 @@ cell_t *secd_ap(secd_t *secd) {
 #if TAILRECURSION
     cell_t *new_dump = new_dump_if_tailrec(secd, secd->control, secd->dump);
     if (new_dump) {
-        cell_t *dump = secd->dump;
-        secd->dump = share_cell(secd, new_dump);
-        drop_cell(secd, dump);  // dump may be new_dump, so don't drop before share
+        assign_cell(secd, &secd->dump, new_dump);
         ctrldebugf("secd_ap: tailrec\n");
     } else {
         push_dump(secd, secd->control);
@@ -571,9 +590,12 @@ cell_t *secd_ap(secd_t *secd) {
 
     if (ENVDEBUG) print_env(secd);
 
+    set_control(secd, control);
+    /*
     cell_t *oldctrl = secd->control;
     secd->control = share_cell(secd, control);
     drop_cell(secd, oldctrl);
+    */
 
     drop_cell(secd, closure); drop_cell(secd, argvals);
     return control;
@@ -659,7 +681,6 @@ cell_t *secd_rap(secd_t *secd) {
     cell_t *oldenv = secd->env;
     secd->env = share_cell(secd, newenv);
 
-    drop_cell(secd, secd->control);
     set_control(secd, control);
 
     drop_cell(secd, oldenv);
@@ -702,7 +723,7 @@ const cell_t leq_func   = INIT_OP(SECD_LEQ);
 const cell_t ldc_func   = INIT_OP(SECD_LDC);
 const cell_t ld_func    = INIT_OP(SECD_LD);
 const cell_t eq_func    = INIT_OP(SECD_EQ);
-const cell_t atom_func  = INIT_OP(SECD_ATOM);
+const cell_t type_func  = INIT_OP(SECD_TYPE);
 const cell_t sel_func   = INIT_OP(SECD_SEL);
 const cell_t join_func  = INIT_OP(SECD_JOIN);
 const cell_t ldf_func   = INIT_OP(SECD_LDF);
@@ -716,7 +737,6 @@ const cell_t stop_func  = INIT_OP(SECD_STOP);
 
 const cell_t ap_sym     = INIT_SYM("AP");
 const cell_t add_sym    = INIT_SYM("ADD");
-const cell_t atom_sym   = INIT_SYM("ATOM");
 const cell_t car_sym    = INIT_SYM("CAR");
 const cell_t cdr_sym    = INIT_SYM("CDR");
 const cell_t cons_sym   = INIT_SYM("CONS");
@@ -737,13 +757,13 @@ const cell_t rtn_sym    = INIT_SYM("RTN");
 const cell_t sel_sym    = INIT_SYM("SEL");
 const cell_t stop_sym   = INIT_SYM("STOP");
 const cell_t sub_sym    = INIT_SYM("SUB");
+const cell_t type_sym   = INIT_SYM("TYPE");
 
 const opcode_t opcode_table[] = {
     // opcodes: for information, not to be called
     // keep symbols sorted properly
     [SECD_ADD]  = { &add_sym,     secd_add,  0, -1},
     [SECD_AP]   = { &ap_sym,      secd_ap,   0, -1},
-    [SECD_ATOM] = { &atom_sym,    secd_atom, 0,  0},
     [SECD_CAR]  = { &car_sym,     secd_car,  0,  0},
     [SECD_CDR]  = { &cdr_sym,     secd_cdr,  0,  0},
     [SECD_CONS] = { &cons_sym,    secd_cons, 0, -1},
@@ -764,6 +784,7 @@ const opcode_t opcode_table[] = {
     [SECD_SEL]  = { &sel_sym,     secd_sel,  2, -1},
     [SECD_STOP] = { &stop_sym,    SECD_NIL,  0,  0},
     [SECD_SUB]  = { &sub_sym,     secd_sub,  0, -1},
+    [SECD_TYPE] = { &type_sym,    secd_type, 0,  0},
 
     [SECD_LAST] = { NULL,         NULL,      0,  0}
 };

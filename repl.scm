@@ -1,8 +1,7 @@
 (letrec
 ;; what:
 (
-;; on SECD, atom? is compiled, so this binding does not affect anything
-(atom? (lambda (b) (not (pair? b))))
+(secd-not (lambda (b) (if b '() #t)))
 
 (length (lambda (xs)
   (letrec
@@ -59,12 +58,11 @@
 (compile-quasiquote
   (lambda (lst)
     (cond
-      ((symbol? lst) (list 'LDC lst))
       ((null? lst) (list 'LDC '()))
-      (else
+      ((pair? lst)
         (let ((hd (car lst)) (tl (cdr lst)))
            (cond
-             ((atom? hd)
+             ((secd-not (pair? hd))
                 (append (compile-quasiquote tl) (list 'LDC hd 'CONS)))
              ((eq? (car hd) 'unquote)
                 (append (compile-quasiquote tl) (secd-compile (cadr hd)) '(CONS)))
@@ -72,7 +70,8 @@
              ((eq? (car hd) 'unquote-splicing)
                 (display 'Error:_unquote-splicing_TODO)) ;; TODO
              (else (append (compile-quasiquote tl)
-                           (compile-quasiquote hd) '(CONS)))))))))
+                           (compile-quasiquote hd) '(CONS))))))
+      (else (list 'LDC lst)))))
 
 (compile-form (lambda (f)
   (let ((hd (car f))
@@ -94,8 +93,10 @@
         (append (secd-compile (cadr tl)) (secd-compile (car tl)) '(REM)))
       ((eq? hd '<=)
         (append (secd-compile (cadr tl)) (secd-compile (car tl)) '(LEQ)))
-      ((eq? hd 'atom?)
-        (append (secd-compile (car tl)) '(ATOM)))
+      ((eq? hd 'typeof)
+        (append (secd-compile (car tl)) '(TYPE)))
+      ((eq? hd 'pair?)
+        (append (secd-compile (car tl)) '(TYPE LDC cons EQ)))
       ((eq? hd 'car)
         (append (secd-compile (car tl)) '(CAR)))
       ((eq? hd 'cdr)

@@ -67,7 +67,8 @@ Notation: `(x.s)` means cons of value `x` and list `s`. Recursively, `(x.y.s)` m
     LDC v   :  (s, e, LDC.v.c, d)      -> (v.s, e, c, d)
     LD sym  :  (s, e, LD.sym.c, d)     -> ((lookup e sym).s, e, c, d)
 
-    ATOM    :  (v.s, e, ATOM.c, d)     -> ((atom? v).s, e, c, d)
+    TYPE    :  (v.s, e, TYPE.c, d)     -> ((typeof v).s, e, c, d)
+                where typeof returns a symbol describing variable type
     EQ      :  (v1.v2.s, e, EQ.c, d)   -> ((eq? v1 v2).s, e, c, d)
 
     SEL     :  (v.s, e, SEL.thenb.elseb.c, d)
@@ -97,7 +98,7 @@ Notation: `(x.s)` means cons of value `x` and list `s`. Recursively, `(x.y.s)` m
     READ    :  puts the input s-expression on top of S:
                 (s, e, READ.c, d) -> ((read).s, e, c, d)
 
-There are some functions implemented in C for efficiency:
+There are some functions implemented in C for efficiency (native.c):
 - `append`, `list`, `null?`, `copy`: are heavily used by the compiler, native for efficiency;
 - `number?`, `symbol?`, `eof-object?`: may be implemented in native code only;
 - `secd`: takes a symbol as the first arguments, outputs the following: current tick number with `(secd 'tick)`, prints current environment for `(secd 'env)`, shows how many cells are available with `(secd 'free)`;

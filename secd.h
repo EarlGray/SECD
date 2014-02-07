@@ -58,7 +58,6 @@ typedef  struct string string_t;
 typedef enum {
     SECD_ADD,   /* (a&int . b&int . s, e, ADD . c, d) -> (a+b . s, e, c, d) */
     SECD_AP,
-    SECD_ATOM,
     SECD_CAR,
     SECD_CDR,
     SECD_CONS,
@@ -79,6 +78,7 @@ typedef enum {
     SECD_SEL,
     SECD_STOP,
     SECD_SUB,
+    SECD_TYPE,
     SECD_LAST, // not an operation
 } opindex_t;
 

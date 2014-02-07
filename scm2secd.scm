@@ -1,6 +1,9 @@
 (letrec
 ;; what:
 (
+(secd-not (lambda (b) (if b '() #t)))
+(secd-or  (lambda (a b) (if a #t b)))
+
 (unzip (lambda (ps)
     (letrec
       ((unzipt
@@ -28,7 +31,7 @@
                 (secd-compile (car bs))))))
 
 (length (lambda (xs)
-  (letrec 
+  (letrec
     ((len (lambda (xs acc)
             (if (null? xs) acc
                 (len (cdr xs) (+ 1 acc))))))
@@ -53,20 +56,23 @@
                       (list (append (secd-compile this-expr) '(JOIN)))
                       (list (append (compile-cond (cdr conds)) '(JOIN)))))))))
 
-(atom? (lambda (b) (not (pair? b))))
-
 (compile-quasiquote
   (lambda (lst)
-    (if (null? lst) '()
+    (cond
+      ((null? lst) '())
+      ((pair? lst)
         (let ((hd (car lst)) (tl (cdr lst)))
-          (if (atom? hd)
-              (append  (compile-quasiquote tl) (list 'LDC hd 'CONS))
-              (cond
-                ((eq? (car hd) 'unquote)
-                   (append (compile-quasiquote tl) (secd-compile (cadr hd)) '(CONS)))
-                ((eq? (car hd) 'unquote-splicing)
-                   (error 'TODO))
-                (else (append (compile-quasiquote tl) (list 'LDC hd 'CONS)))))))))
+          (cond
+             ((secd-not (pair? hd))
+                (append (compile-quasiquote tl) (list 'LDC hd 'CONS)))
+             ((eq? (car hd) 'unquote)
+                (append (compile-quasiquote tl) (secd-compile (cadr hd)) '(CONS)))
+                ;; TODO: (unquote a1 a2 ...)
+             ((eq? (car hd) 'unquote-splicing)
+                (display 'Error:_unquote-splicing_TODO)) ;; TODO
+             (else (append (compile-quasiquote tl)
+                           (compile-quasiquote hd) '(CONS))))))
+      (else (list 'LDC lst)))))
 
 (compile-form (lambda (f)
   (let ((hd (car f))
@@ -92,8 +98,10 @@
         (append (secd-compile (cadr tl)) (secd-compile (car tl)) '(EQ)))
       ((eq? hd 'cons)
         (append (secd-compile (cadr tl)) (secd-compile (car tl)) '(CONS)))
-      ((eq? hd 'atom?)
-        (append (secd-compile (car tl)) '(ATOM)))
+      ((eq? hd 'typeof)
+        (append (secd-compile (car tl)) '(TYPE)))
+      ((eq? hd 'pair?)
+        (append (secd-compile (car tl)) '(TYPE LDC cons EQ)))
       ((eq? hd 'car)
         (append (secd-compile (car tl)) '(CAR)))
       ((eq? hd 'cdr)
@@ -153,11 +161,9 @@
 
 (secd-compile (lambda (s)
   (cond
+    ((pair? s)   (compile-form s))
     ((symbol? s) (list 'LD s))
-    ((number? s) (list 'LDC s))
-    ((string? s) (list 'LDC s))
-    ((vector? s) (list 'LDC s))
-    (else (compile-form s)))))
+    (else (list 'LDC s)))))
 
 (repl (lambda ()
     (let ((inp (read)))
