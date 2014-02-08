@@ -8,10 +8,6 @@
 
 void print_array_layout(secd_t *secd);
 
-static inline cell_t *to_bool(secd_t *secd, bool cond) {
-    return ((cond)? lookup_env(secd, "#t") : SECD_NIL);
-}
-
 /*
  *  UTF-8 processing
  *
@@ -728,10 +724,8 @@ const cell_t err_sym        = INIT_SYM("error:generic");
 const cell_t err_nil_sym    = INIT_SYM("error:nil");
 const cell_t err_oom        = INIT_SYM("error:out_of_memory");
 
-const struct {
-    const cell_t *sym;
-    const cell_t *val;
-} native_functions[] = {
+const native_binding_t
+native_functions[] = {
     // predefined errors
     { &err_oom,     &secd_out_of_memory },
     { &err_nil_sym, &secd_nil_failure },
@@ -769,28 +763,9 @@ const struct {
     { &bind_sym,    &bind_func  },
 
     // symbols
+    { &nil_sym,     SECD_NIL    },
     { &f_sym,       &f_sym      },
     { &t_sym,       &t_sym      },
     { NULL,         NULL        } // must be last
 };
 
-cell_t * make_frame_of_natives(secd_t *secd) {
-    int i;
-    cell_t *symlist = SECD_NIL;
-    cell_t *vallist = SECD_NIL;
-
-    for (i = 0; native_functions[i].sym; ++i) {
-        cell_t *sym = new_const_clone(secd, native_functions[i].sym);
-        cell_t *val = new_const_clone(secd, native_functions[i].val);
-        sym->nref = val->nref = DONT_FREE_THIS;
-        symlist = new_cons(secd, sym, symlist);
-        vallist = new_cons(secd, val, vallist);
-    }
-
-    cell_t *sym = new_const_clone(secd, &nil_sym);
-    cell_t *val = SECD_NIL;
-    symlist = new_cons(secd, sym, symlist);
-    vallist = new_cons(secd, val, vallist);
-
-    return new_frame(secd, symlist, vallist);
-}

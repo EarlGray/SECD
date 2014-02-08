@@ -23,8 +23,12 @@ secd_t * init_secd(secd_t *secd) {
 
     secd->input_port = secd_stdin(secd);
     secd->output_port = secd_stdout(secd);
+    secd->debug_port = SECD_NIL;
 
     init_env(secd);
+
+    secd->truth_value = lookup_env(secd, "#t", SECD_NIL);
+    secd->false_value = SECD_NIL;
 
     secd->tick = 0;
     return secd;
@@ -35,13 +39,13 @@ cell_t * run_secd(secd_t *secd, cell_t *ctrl) {
 
     set_control(secd, ctrl);
 
-#if (CTRLDEBUG)
+#if (TIMING)
     struct timeval ts_then;
     struct timeval ts_now;
 #endif
 
     while (true)  {
-#if (CTRLDEBUG)
+#if (TIMING)
         gettimeofday(&ts_then, NULL);
 #endif
         op = pop_control(secd);
@@ -63,7 +67,7 @@ cell_t * run_secd(secd_t *secd, cell_t *ctrl) {
         }
         drop_cell(secd, op);
 
-#if CTRLDEBUG
+#if TIMING
         gettimeofday(&ts_now, NULL);
         int usec = ts_now.tv_usec - ts_then.tv_usec;
         if (usec < 0) usec += 1000000;

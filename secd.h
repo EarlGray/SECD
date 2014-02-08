@@ -235,6 +235,12 @@ struct secd {
     cell_t *output_port;
     cell_t *debug_port;
 
+    long envcounter;
+
+    /* booleans */
+    cell_t *truth_value;
+    cell_t *false_value;
+
     /* some statistics */
     unsigned long tick;
 
@@ -334,6 +340,11 @@ inline static cell_t *mcons_prev(cell_t *mcons) {
 inline static cell_t *mcons_next(cell_t *mcons) {
     return mcons->as.mcons.next;
 }
+
+inline static cell_t *to_bool(secd_t *secd, bool cond) {
+    return ((cond)? secd->truth_value : secd->false_value);
+}
+
 
 #define INIT_SYM(name) {    \
     .type = CELL_ATOM,      \

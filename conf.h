@@ -24,6 +24,7 @@
 #define MEMTRACE    0
 #define CTRLDEBUG   1
 #define ENVDEBUG    0
+#define TIMING      0
 
 typedef enum { false, true } bool;
 
