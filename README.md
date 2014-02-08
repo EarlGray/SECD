@@ -1,38 +1,44 @@
 SECD machine
 ============
 
-This is a loose implementation of [SECD machine](http://en.wikipedia.org/wiki/SECD) and a simplest self-hosted Scheme-to-SECD compiler.
+This is a loose implementation of [SECD machine](http://en.wikipedia.org/wiki/SECD) and a simple self-hosted Scheme-to-SECD compiler/interpreter.
 
-Quick run (no prompt is displayed, just type in a form):
+Quick run:
 ```
 $ ./secdscheme
-(+ 2 2)     ;; input
-4
+;>> (+ 2 2)
+   4
 
-(define n 10) ;; input
-10
+;>> (define n 10)
+   n
 
-(define sqr (lambda (x) (* x x)))    ;; input
-<compiled code>
+;>> (define (sqr x) (* x x))
+   sqr
 
-(define apply-to-42 (lambda (g) (g 42))) ;; input
-<compiled code>
+;>> (define apply-to-42 (lambda (g) (g 42)))
+   apply-to-42
 
-(apply-to-42 sqr)    ;; input
+;>> (apply-to-42 sqr)
 1764
 
-(define fact (lambda (n) (if (eq? n 0) 1 (* n (fact (- n 1)))))) ;; input
-<compiled code>
+;>> (define (fact n) (if (eq? n 0) 1 (* n (fact (- n 1)))))
+   fact
 
-(fact 10)    ;; input
+;>> (fact 10)
 3628800
 
-(begin (display 'bye) (quit))  ;; input
+;>> (load "tests/lists.scm")
+   ok
+
+;>> (filter odd (range 12))
+   (1 3 5 7 9 11)
+
+;>> (begin (display 'bye) (quit))
 bye
 $
 ```
 
-The design is mostly inspired by detailed description in _Functional programming: Application and Implementation_ by Peter Henderson and his LispKit, but is not limited by the specific details of traditional SECD implementations (like 64 Kb size of heap, etc).
+The design is mostly inspired by detailed description in _Functional programming: Application and Implementation_ by Peter Henderson and his LispKit, but is not limited by the specific details of traditional SECD implementations (like 64 Kb size of heap, etc) and R7RS.
 
 Here is [a series of my blog posts about SECD machine](http://dmytrish.wordpress.com/2013/08/09/secd-about)
 
