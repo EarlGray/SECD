@@ -1,12 +1,43 @@
 #!/bin/sh
 
 SECDVM=./secd
+COMPILER=scm2secd.secd
 REPL=repl.secd
+
+die () {
+    echo $@ >&2
+    exit 1
+}
+
+interp () {
+    # is there compiled REPL code?
+    [ -r "$REPL" ] || $SECDVM $COMPILER <repl.scm >$REPL
+    exec `which rlwrap` $SECDVM $REPL
+}
+
+compile () {
+    [ -r "$COMPILER" ] || die "Error: $COMPILER not found"
+
+    case "$1" in
+      *.scm) ;;
+      *) die "Error: file $1 must have .scm extension" ;;
+    esac
+
+    SRC="$1"
+    DST="`echo "$SRC" | sed 's/.scm$/.secd/'`"
+
+    # backup destination if needed
+    [ -e "$DST" ] && mv "$DST" "$DST~"
+    $SECDVM $COMPILER <$SRC >"${DST}.1" || die "Error: compilation failed"
+    mv "${DST}.1" $DST
+}
 
 # is there the secd interpreter?
 [ -x $SECDVM ] || make $SECDVM
 
-# is there compiled REPL code?
-[ -r $REPL ] || $SECDVM scm2secd.secd < repl.scm > $REPL
+if [ "$1" = '-c' ] ; then
+    echo ";; compiling..."
+    shift; compile "$@"
+fi
 
-exec `which rlwrap` $SECDVM $REPL
+interp

@@ -98,7 +98,7 @@ cell_t *lookup_symenv(secd_t *secd, const char *symbol) {
 
         while (not_nil(symlist)) {   // walk through symbols
             cell_t *cur_sym = get_car(symlist);
-            assert(atom_type(secd, cur_sym) != ATOM_SYM,
+            assert(atom_type(secd, cur_sym) == ATOM_SYM,
                     "lookup_symbol: variable at [%ld] is not a symbol\n", cell_index(secd, cur_sym));
 
             if (str_eq(symbol, symname(cur_sym))) {

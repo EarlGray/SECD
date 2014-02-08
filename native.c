@@ -116,12 +116,6 @@ decode_error:
  *   List processing
  */
 
-cell_t *secdf_null(secd_t *secd, cell_t *args) {
-    ctrldebugf("secdf_nullp\n");
-    assert(not_nil(args), "secdf_nullp: one argument expected");
-    return to_bool(secd, is_nil(list_head(args)));
-}
-
 cell_t *secdf_list(secd_t __unused *secd, cell_t *args) {
     ctrldebugf("secdf_list\n");
     return args;
@@ -193,16 +187,13 @@ cell_t *secdf_append(secd_t *secd, cell_t *args) {
  *   Misc native routines
  */
 
-cell_t *secdf_nump(secd_t *secd, cell_t *args) {
-    ctrldebugf("secdf_nump\n");
-    assert(not_nil(args), "secdf_nump: one argument expected");
-    return to_bool(secd, atom_type(secd, list_head(args)) == ATOM_INT);
-}
+cell_t *secdf_defp(secd_t *secd, cell_t *args) {
+    ctrldebugf("secdf_defp\n");
+    assert(not_nil(args), "secdf_defp: no arguments");
 
-cell_t *secdf_symp(secd_t *secd, cell_t *args) {
-    ctrldebugf("secdf_symp\n");
-    assert(not_nil(args), "secdf_symp: one argument expected");
-    return to_bool(secd, atom_type(secd, list_head(args)) == ATOM_SYM);
+    cell_t *sym = list_head(args);
+    assert(atom_type(secd, sym) == ATOM_SYM, "secdf_deps: not a symbol");
+    return to_bool(secd, not_nil(lookup_symenv(secd, symname(sym))));
 }
 
 cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
@@ -667,8 +658,7 @@ cell_t *secdf_pclose(secd_t *secd, cell_t *args) {
  */
 
 /* misc */
-const cell_t nump_sym   = INIT_SYM("number?");
-const cell_t symp_sym   = INIT_SYM("symbol?");
+const cell_t defp_sym   = INIT_SYM("defined?");
 const cell_t eofp_sym   = INIT_SYM("eof-object?");
 const cell_t debug_sym  = INIT_SYM("secd");
 const cell_t env_sym    = INIT_SYM("interaction-environment");
@@ -677,7 +667,6 @@ const cell_t bind_sym   = INIT_SYM("secd-bind!");
 const cell_t list_sym   = INIT_SYM("list");
 const cell_t append_sym = INIT_SYM("append");
 const cell_t copy_sym   = INIT_SYM("list-copy");
-const cell_t nullp_sym  = INIT_SYM("null?");
 /* vector routines */
 const cell_t vp_sym     = INIT_SYM("vector?");
 const cell_t vmake_sym  = INIT_SYM("make-vector");
@@ -701,11 +690,9 @@ const cell_t fgetc_sym  = INIT_SYM("read-char");
 const cell_t fread_sym  = INIT_SYM("read-string");
 const cell_t pclose_sym = INIT_SYM("close-port");
 
+const cell_t defp_func  = INIT_FUNC(secdf_defp);
 const cell_t list_func  = INIT_FUNC(secdf_list);
 const cell_t appnd_func = INIT_FUNC(secdf_append);
-const cell_t nullp_func = INIT_FUNC(secdf_null);
-const cell_t nump_func  = INIT_FUNC(secdf_nump);
-const cell_t symp_func  = INIT_FUNC(secdf_symp);
 const cell_t eofp_func  = INIT_FUNC(secdf_eofp);
 const cell_t debug_func = INIT_FUNC(secdf_ctl);
 const cell_t getenv_fun = INIT_FUNC(secdf_getenv);
@@ -775,12 +762,10 @@ const struct {
     // native functions
     { &list_sym,    &list_func  },
     { &append_sym,  &appnd_func },
-    { &nullp_sym,   &nullp_func },
-    { &nump_sym,    &nump_func  },
-    { &symp_sym,    &symp_func  },
     { &eofp_sym,    &eofp_func  },
     { &debug_sym,   &debug_func  },
     { &env_sym,     &getenv_fun },
+    { &defp_sym,    &defp_func  },
     { &bind_sym,    &bind_func  },
 
     // symbols

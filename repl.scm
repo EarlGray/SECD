@@ -93,7 +93,7 @@
         (append (secd-compile (cadr tl)) (secd-compile (car tl)) '(REM)))
       ((eq? hd '<=)
         (append (secd-compile (cadr tl)) (secd-compile (car tl)) '(LEQ)))
-      ((eq? hd 'typeof)
+      ((eq? hd 'secd-type)
         (append (secd-compile (car tl)) '(TYPE)))
       ((eq? hd 'pair?)
         (append (secd-compile (car tl)) '(TYPE LDC cons EQ)))
@@ -237,23 +237,46 @@
 
 (newline (lambda () (display "\n")))
 
-(repl (lambda (env)
+(repl (lambda ()
   (begin
     (display *prompt*)
     (let ((inp (read)))
       (if (eof-object? inp) (quit)
-        (let ((result (eval inp env)))
+        (let ((result (eval inp (interaction-environment))))
          (begin
           (display "   ")
           (write result)
-          (repl env))))))))
-)
+          (repl))))))))
 
+;; to be run on SECD only:
+(set-secd-env
+  (lambda (lst)
+    (if (eq? lst '())
+      'ok
+      (let ((hd (car lst)) (tl (cdr lst)))
+         (let ((sym (car hd)) (val (cdr hd)))
+           (begin
+             (secd-bind! sym val)
+             (set-secd-env tl)))))))
+)
+ 
 ;; <let> in
 (begin
+  (cond 
+    ((defined? 'secd)
+      '())
+    (else
+      (begin
+        (display "This file must be run in SECDScheme\n")
+        (quit))))
+  (set-secd-env
+    (list
+      (cons 'null?   (lambda (obj) (eq? obj '())))
+      (cons 'number? (lambda (obj) (eq? (secd-type obj) 'int)))
+      (cons 'symbol? (lambda (obj) (eq? (secd-type obj) 'sym)))))
   (secd-bind! '*prompt* ";>> ")
   (secd-bind! '*macros*
     (list
       (cons 'define-macro   secd-define-macro!)
       (cons 'define         secd-mdefine!)))
-  (repl (interaction-environment))))
+  (repl)))

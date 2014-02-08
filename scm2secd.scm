@@ -97,7 +97,7 @@
         (append (secd-compile (cadr tl)) (secd-compile (car tl)) '(EQ)))
       ((eq? hd 'cons)
         (append (secd-compile (cadr tl)) (secd-compile (car tl)) '(CONS)))
-      ((eq? hd 'typeof)
+      ((eq? hd 'secd-type)
         (append (secd-compile (car tl)) '(TYPE)))
       ((eq? hd 'pair?)
         (append (secd-compile (car tl)) '(TYPE LDC cons EQ)))
@@ -170,7 +170,27 @@
         (begin
           (write (append (secd-compile inp) '(STOP)))
           (repl))))))
-)
 
+
+;; to be run on SECD only
+(set-secd-env 
+  (lambda (lst)
+    (if (eq? lst '())
+      'ok
+      (let ((hd (car lst)) (tl (cdr lst)))
+         (let ((sym (car hd)) (val (cdr hd)))
+           (begin
+             (secd-bind! sym val)
+             (set-secd-env tl)))))))
+)
+ 
 ;; <let> in
-(repl))
+(begin
+  (cond 
+    ((defined? 'secd)
+      (set-secd-env 
+        (list
+          (cons 'null?   (lambda (obj) (eq? obj '())))
+          (cons 'number? (lambda (obj) (eq? (secd-type obj) 'int)))
+          (cons 'symbol? (lambda (obj) (eq? (secd-type obj) 'sym)))))))
+  (repl)))
