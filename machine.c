@@ -81,59 +81,96 @@ cell_t * run_secd(secd_t *secd, cell_t *ctrl) {
 /*
  *  Serialization
  */
+static cell_t *chain_index(secd_t *secd, const cell_t *cell, cell_t *prev) {
+    return new_cons(secd, new_number(secd, cell_index(secd, cell)), prev);
+}
+static cell_t *chain_string(secd_t *secd, const char *str, cell_t *prev) {
+    return new_cons(secd, new_string(secd, str), prev);
+}
+static cell_t *chain_sym(secd_t *secd, const char *str, cell_t *prev) {
+    return new_cons(secd, new_symbol(secd, str), prev);
+}
 
 cell_t *serialize_cell(secd_t *secd, cell_t *cell) {
     cell_t *opt;
     switch (cell_type(cell)) {
       case CELL_CONS: {
-            cell_t *cdrc = new_cons(secd,
-                    new_number(secd, cell_index(secd, get_cdr(cell))), SECD_NIL);
-            cell_t *carc = new_cons(secd,
-                    new_number(secd, cell_index(secd, get_car(cell))), cdrc);
-            opt = new_cons(secd, new_symbol(secd, "cons"), carc);
+            cell_t *cdrc = chain_index(secd, get_cdr(cell), SECD_NIL);
+            cell_t *carc = chain_index(secd, get_car(cell), cdrc);
+            opt = chain_sym(secd, "cons", carc);
         } break;
       case CELL_ERROR: {
-            cell_t *msgc = new_cons(secd,
-                    new_string(secd, errmsg(cell)), SECD_NIL);
-            opt = new_cons(secd, new_symbol(secd, "err"), msgc);
+            cell_t *msgc = chain_string(secd, errmsg(cell), SECD_NIL);
+            opt = chain_sym(secd, "err", msgc);
         } break;
       case CELL_UNDEF:
-        opt = new_cons(secd, new_symbol(secd, "#?"), SECD_NIL);
+        opt = chain_sym(secd, "#?", SECD_NIL);
         break;
       case CELL_ARRAY: {
-           cell_t *metac = new_cons(secd,
-                   new_number(secd, cell_index(secd, arr_meta(cell->as.arr.data))),
-                   SECD_NIL);
-           opt = new_cons(secd, new_symbol(secd, "array"), metac);
+           cell_t *metac = chain_index(secd, arr_val(cell, -1), SECD_NIL);
+           opt = chain_sym(secd, "vect", metac);
         } break;
       case CELL_STR: {
-           cell_t *metac = new_cons(secd,
-                   new_number(secd, cell_index(secd, arr_meta((cell_t *)strmem(cell)))),
-                   SECD_NIL);
+           cell_t *metac = chain_index(secd, arr_meta((cell_t *)strmem(cell)), SECD_NIL);
            opt = new_cons(secd, new_symbol(secd, "str"), metac);
         } break;
       case CELL_PORT: {
            cell_t *portc;
            if (cell->as.port.file) {
-               portc = new_cons(secd, new_symbol(secd, "file"), SECD_NIL);
+               portc = chain_sym(secd, "file", SECD_NIL);
            } else {
-               cell_t *strc = new_cons(secd,
-                       new_number(secd, cell_index(secd, (cell_t*)strval(cell->as.port.as.str))),
-                       SECD_NIL);
-               portc = new_cons(secd, new_symbol(secd, "str"), strc);
+               cell_t *strc = chain_index(secd, (cell_t*)strval(cell->as.port.as.str), SECD_NIL);
+               portc = chain_sym(secd, "str", strc);
            }
-           opt = new_cons(secd, new_symbol(secd, "port"), portc);
+           opt = chain_sym(secd, "port", portc);
         } break;
       case CELL_ATOM: {
           switch (atom_type(secd, cell)) {
             case ATOM_INT: case ATOM_SYM: {
               cell_t *valc = new_cons(secd, cell, SECD_NIL);
-              opt = new_cons(secd, new_symbol(secd, (atom_type(secd, cell) == ATOM_INT ? "int": "sym")), valc);
+              opt = chain_sym(secd, (atom_type(secd, cell) == ATOM_INT ? "int": "sym"), valc);
+            } break;
+            case ATOM_OP: {
+              cell_t *namec = new_const_clone(secd, opcode_table[ cell->as.atom.as.op ].sym);
+              cell_t *opc = new_cons(secd, namec, SECD_NIL);
+              opt = chain_sym(secd, "op", opc);
+            } break;
+            case ATOM_FUNC: {
+              cell_t *addrc = new_cons(secd,
+                      new_number(secd, (long)cell->as.atom.as.ptr), SECD_NIL);
+              opt = chain_sym(secd, "builtin", addrc);
             } break;
             default:
-              opt = new_cons(secd, new_symbol(secd, "some_atom"), SECD_NIL);
+              opt = chain_sym(secd, "some_atom", SECD_NIL);
           }
         } break;
+      case CELL_ARRMETA: {
+            cell_t *meta = arr_ref(cell, -1);
+            cell_t *arr = cell;
+            if (!meta->as.mcons.cells) {
+                arr = new_clone(secd, cell);
+                arr->type = CELL_BYTES;
+            }
+            cell_t *arrc = new_cons(secd, arr, SECD_NIL);
+            cell_t *nextc = chain_index(secd, mcons_next(meta), arrc);
+            cell_t *prevc = chain_index(secd, mcons_prev(meta), nextc);
+            opt = chain_sym(secd, "meta", prevc);
+        } break;
+      case CELL_FRAME: {
+            cell_t *ioc = chain_index(secd, cell->as.frame.io, SECD_NIL);
+            cell_t *nextc = chain_index(secd, cell->as.frame.cons.cdr, ioc);
+            cell_t *prevc = chain_index(secd, cell->as.frame.cons.car, nextc);
+            opt = new_cons(secd, new_symbol(secd, "frame"), prevc);
+        } break;
+      case CELL_FREE: {
+            cell_t *nextc = chain_index(secd, get_cdr(cell), SECD_NIL);
+            cell_t *prevc = chain_index(secd, get_car(cell), nextc);
+            opt = chain_sym(secd, "free", prevc);
+        } break;
+      case CELL_REF: {
+            cell_t *refc = chain_index(secd, cell->as.ref, SECD_NIL);
+            opt = chain_sym(secd, "ref", refc);
+       } break;
       default: return SECD_NIL;
     }
     cell_t *refc = new_cons(secd, new_number(secd, cell->nref), opt);
