@@ -237,8 +237,14 @@ bool is_equal(secd_t *secd, const cell_t *a, const cell_t *b) {
     switch (cell_type(a)) {
       case CELL_CONS: return list_eq(secd, a, b);
       case CELL_ATOM: return atom_eq(secd, a, b);
-      case CELL_STR:  return !strcmp(strval(a), strval(b));
       case CELL_ARRAY: return array_eq(secd, a, b);
+      case CELL_STR:  return !strcmp(strval(a), strval(b));
+      case CELL_BYTES: {
+        const size_t len = mem_size(a);
+        if (len != mem_size(b))
+            return false;
+        return !memcmp(strval(a), strval(b), len);
+      }
       case CELL_UNDEF: return true;
 
       case CELL_ARRMETA: case CELL_ERROR:
@@ -249,20 +255,17 @@ bool is_equal(secd_t *secd, const cell_t *a, const cell_t *b) {
     return false;
 }
 
-cell_t *secd_type(secd_t *secd) {
-    ctrldebugf("TYPE\n");
-    cell_t *val = pop_stack(secd);
-    assert_cell(val, "secd_type: pop_stack() failed");
-
+cell_t *secd_type_sym(secd_t *secd, const cell_t *cell) {
     const char *type = "unknown";
-    switch (cell_type(val)) {
+    switch (cell_type(cell)) {
       case CELL_CONS:  type = "cons"; break;
-      case CELL_STR:   type = "str";  break;
       case CELL_ARRAY: type = "vect"; break;
+      case CELL_STR:   type = "str";  break;
+      case CELL_BYTES: type = "bvect"; break;
       case CELL_PORT:  type = "port"; break;
       case CELL_FRAME: type = "frame"; break;
       case CELL_ATOM:
-        switch (atom_type(secd, val)) {
+        switch (atom_type(secd, cell)) {
           case NOT_AN_ATOM: return new_error(secd, "not an atom");
           case ATOM_INT: type = "int"; break;
           case ATOM_SYM: type = "sym"; break;
@@ -275,9 +278,17 @@ cell_t *secd_type(secd_t *secd) {
       case CELL_REF:   type = "ref"; break;
       case CELL_FREE:  type = "free"; break;
     }
+    return new_symbol(secd, type);
+}
 
+cell_t *secd_type(secd_t *secd) {
+    ctrldebugf("TYPE\n");
+    cell_t *val = pop_stack(secd);
+    assert_cell(val, "secd_type: pop_stack() failed");
+
+    cell_t *typec = secd_type_sym(secd, val);
     drop_cell(secd, val);
-    return push_stack(secd, new_symbol(secd, type));
+    return push_stack(secd, typec);
 }
 
 cell_t *secd_eq(secd_t *secd) {

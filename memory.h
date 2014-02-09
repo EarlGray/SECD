@@ -14,6 +14,7 @@ cell_t *new_number(secd_t *secd, int num);
 cell_t *new_symbol(secd_t *secd, const char *sym);
 cell_t *new_string(secd_t *secd, const char *str);
 cell_t *new_string_of_size(secd_t *secd, size_t size);
+cell_t *new_bytevector_of_size(secd_t *secd, size_t size);
 cell_t *new_op(secd_t *secd, opindex_t opind);
 cell_t *new_fileport(secd_t *secd, void *f, const char *mode);
 cell_t *new_strport(secd_t *secd, cell_t *str, const char *mode);
@@ -105,8 +106,8 @@ static inline size_t arr_size(secd_t *secd, const cell_t *arr) {
     return arrmeta_size(secd, arr_val(arr, -1));
 }
 
-static inline size_t mem_size(secd_t *secd, cell_t *str) {
-    return sizeof(cell_t) * arrmeta_size(secd, arr_val(str, -1));
+static inline size_t mem_size(const cell_t *str) {
+    return str->as.str.size;
 }
 
 static inline cell_t *arr_ref(cell_t *arr, size_t index) {

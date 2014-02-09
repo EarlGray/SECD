@@ -39,7 +39,7 @@ cell_t *secd_fopen(secd_t *secd, const char *fname, const char *mode) {
     return cmdport;
 }
 
-long secd_portsize(secd_t *secd, cell_t *port) {
+long secd_portsize(secd_t __unused *secd, cell_t *port) {
     io_assert(cell_type(port) == CELL_PORT, "secd_portsize: not a port\n");
 
     if (port->as.port.file) {
@@ -54,7 +54,7 @@ long secd_portsize(secd_t *secd, cell_t *port) {
         return endpos;
     } else {
         cell_t *str = port->as.port.as.str;
-        return mem_size(secd, str);
+        return mem_size(str);
     }
 }
 
@@ -78,7 +78,7 @@ int secd_pclose(secd_t *secd, cell_t *port) {
 /*
  * Port-reading
  */
-int secd_getc(secd_t *secd, cell_t *port) {
+int secd_getc(secd_t __unused *secd, cell_t *port) {
     io_assert(cell_type(port) == CELL_PORT, "secd_getc: not a port\n");
     io_assert(is_input(port), "secd_getc: not an input port\n");
     io_assert(!is_closed(port), "secd_getc: port is closed\n");
@@ -90,7 +90,7 @@ int secd_getc(secd_t *secd, cell_t *port) {
         return SECD_EOF;
     } else {
         cell_t *str = port->as.port.as.str;
-        size_t size = mem_size(secd, str);
+        size_t size = mem_size(str);
         if (str->as.str.offset >= (int)size)
             return EOF;
 
@@ -100,7 +100,7 @@ int secd_getc(secd_t *secd, cell_t *port) {
     }
 }
 
-size_t secd_fread(secd_t *secd, cell_t *port, char *s, int size) {
+size_t secd_fread(secd_t __unused *secd, cell_t *port, char *s, int size) {
     io_assert(cell_type(port) == CELL_PORT, "secd_fread: not a port\n");
     io_assert(is_input(port), "secd_fread: not an input port\n");
     io_assert(!is_closed(port), "secd_getc: port is closed\n");
@@ -110,7 +110,7 @@ size_t secd_fread(secd_t *secd, cell_t *port, char *s, int size) {
         return fread(s, size, 1, f);;
     } else {
         cell_t *str = port->as.port.as.str;
-        size_t srcsize = mem_size(secd, str);
+        size_t srcsize = mem_size(str);
         if (srcsize < (size_t)size) size = srcsize;
 
         memcpy(s, strmem(str), size);
@@ -121,7 +121,7 @@ size_t secd_fread(secd_t *secd, cell_t *port, char *s, int size) {
 /*
  * Port-printing
  */
-int secd_vprintf(secd_t *secd, cell_t *port, const char *format, va_list ap) {
+int secd_vprintf(secd_t __unused *secd, cell_t *port, const char *format, va_list ap) {
     io_assert(cell_type(port) == CELL_PORT, "vpprintf: not a port\n");
     io_assert(is_output(port), "vpprintf: not an output port\n");
     io_assert(!is_closed(port), "secd_getc: port is closed\n");
@@ -134,7 +134,7 @@ int secd_vprintf(secd_t *secd, cell_t *port, const char *format, va_list ap) {
         cell_t *str = port->as.port.as.str;
         char *mem = strmem(str);
         size_t offset = str->as.str.offset;
-        size_t size = mem_size(secd, str) - offset;
+        size_t size = mem_size(str) - offset;
         ret = vsnprintf(mem, size, format, ap);
         if (ret == (int)size) {
             errorf("vpprintf: string is too small");

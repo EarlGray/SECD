@@ -173,11 +173,9 @@
 
 (secd-compile (lambda (s)
   (cond
+    ((pair?   s) (compile-form s))
     ((symbol? s) (list 'LD s))
-    ((number? s) (list 'LDC s))
-    ((string? s) (list 'LDC s))
-    ((vector? s) (list 'LDC s))
-    (else (compile-form s)))))
+    (else (list 'LDC s)))))
 
 (secd-make-executable (lambda (ctrlpath maybe-env)
   (let ((func (list '() (append ctrlpath '(RTN))))
@@ -249,15 +247,10 @@
           (repl))))))))
 
 ;; to be run on SECD only:
-(set-secd-env
-  (lambda (lst)
-    (if (eq? lst '())
-      'ok
-      (let ((hd (car lst)) (tl (cdr lst)))
-         (let ((sym (car hd)) (val (cdr hd)))
-           (begin
-             (secd-bind! sym val)
-             (set-secd-env tl)))))))
+(null?   (lambda (obj) (eq? obj '())))
+(number? (lambda (obj) (eq? (secd-type obj) 'int)))
+(symbol? (lambda (obj) (eq? (secd-type obj) 'sym)))
+
 )
  
 ;; <let> in
@@ -269,11 +262,6 @@
       (begin
         (display "This file must be run in SECDScheme\n")
         (quit))))
-  (set-secd-env
-    (list
-      (cons 'null?   (lambda (obj) (eq? obj '())))
-      (cons 'number? (lambda (obj) (eq? (secd-type obj) 'int)))
-      (cons 'symbol? (lambda (obj) (eq? (secd-type obj) 'sym)))))
   (secd-bind! '*prompt* ";>> ")
   (secd-bind! '*macros*
     (list

@@ -10,8 +10,6 @@
 #include <limits.h>
 #include <ctype.h>
 
-void sexp_print_array(secd_t *secd, cell_t *cell);
-
 void print_opcode(opindex_t op) {
     if (op < SECD_LAST) {
         printf("#%s# ", symname(opcode_table[op].sym));
@@ -51,9 +49,11 @@ void dbg_print_cell(secd_t *secd, const cell_t *c) {
         break;
       case CELL_ATOM: sexp_print_atom(secd, c); printf("\n"); break;
       case CELL_ARRAY: printf("ARR[%ld]\n",
-                               cell_index(secd, c->as.arr.data)); break;
+                               cell_index(secd, arr_val(c, 0))); break;
       case CELL_STR: printf("STR[%ld]\n",
-                             cell_index(secd, (cell_t*)c->as.str.data)); break;
+                             cell_index(secd, (cell_t*)strval(c))); break;
+      case CELL_BYTES: printf("BVECT[%ld]\n",
+                               cell_index(secd, (cell_t*)strval(c))); break;
       case CELL_REF: printf("REF[%ld]\n", cell_index(secd, c->as.ref)); break;
       case CELL_ERROR: printf("ERR[%s]\n", errmsg(c)); break;
       case CELL_ARRMETA: printf("META[%ld, %ld]\n",
@@ -87,9 +87,9 @@ void dbg_printc(secd_t *secd, cell_t *c) {
         dbg_print_cell(secd, c);
 }
 
-void sexp_print_array(secd_t *secd, cell_t *cell) {
-    cell_t *arr = cell->as.arr.data;
-    size_t len = arr_size(secd, cell);
+void sexp_print_array(secd_t *secd, const cell_t *cell) {
+    const cell_t *arr = cell->as.arr.data;
+    const size_t len = arr_size(secd, cell);
     size_t i;
 
     printf("#(");
@@ -100,9 +100,21 @@ void sexp_print_array(secd_t *secd, cell_t *cell) {
     printf(")");
 }
 
-static void sexp_print_list(secd_t *secd, cell_t *cell) {
+void sexp_print_bytes(secd_t __unused *secd, const cell_t *cell) {
+    const unsigned char *arr = (const unsigned char *)strval(cell);
+    const size_t len = mem_size(cell);
+    size_t i;
+
+    printf("#u8(");
+    for (i = 0; i < len; ++i) {
+        printf("#x%02x ", (int)arr[i]);
+    }
+    printf(")");
+}
+
+static void sexp_print_list(secd_t *secd, const cell_t *cell) {
     printf("(");
-    cell_t *iter = cell;
+    const cell_t *iter = cell;
     while (not_nil(iter)) {
         if (iter != cell) printf(" ");
         if (cell_type(iter) != CELL_CONS) {
@@ -117,7 +129,7 @@ static void sexp_print_list(secd_t *secd, cell_t *cell) {
 }
 
 /* machine printing, (write) */
-void sexp_print(secd_t* secd, cell_t *cell) {
+void sexp_print(secd_t* secd, const cell_t *cell) {
     switch (cell_type(cell)) {
       case CELL_UNDEF:  printf("#?"); break;
       case CELL_ATOM:   sexp_print_atom(secd, cell); break;
@@ -125,6 +137,7 @@ void sexp_print(secd_t* secd, cell_t *cell) {
       case CELL_CONS:   sexp_print_list(secd, cell); break; break;
       case CELL_ARRAY:  sexp_print_array(secd, cell); break;
       case CELL_STR:    printf("\"%s\"", strval(cell)); break;
+      case CELL_BYTES:  sexp_print_bytes(secd, cell); break;
       case CELL_ERROR:  printf("#!\"%s\"", errmsg(cell)); break;
       case CELL_PORT:   sexp_print_port(secd, cell); break;
       default: errorf("sexp_print: unknown cell type %d", (int)cell_type(cell));
@@ -204,15 +217,25 @@ inline static int nextchar(secd_parser_t *p) {
     return p->lc = secd_getc(secd, secd->input_port);
 }
 
-inline static token_t lexnumber(secd_parser_t *p) {
+inline static bool isbasedigit(int c, int base) {
+    switch (base) {
+      case 2: return (base == '0') || (base == '1');
+      case 8: return (base <= '0') && (base <= '7');
+      case 10: return isdigit(c);
+      case 16: return isxdigit(c);
+    }
+    return false;
+}
+
+inline static token_t lexnumber(secd_parser_t *p, int base) {
     char *s = p->symtok;
     do {
         *s++ = p->lc;
         nextchar(p);
-    } while (isdigit(p->lc));
+    } while (isbasedigit(p->lc, base));
     *s = '\0';
 
-    p->numtok = atoi(p->symtok);
+    p->numtok = (int)strtol(p->symtok, NULL, base);
     return (p->token = TOK_NUM);
 }
 
@@ -325,6 +348,19 @@ token_t lexnext(secd_parser_t *p) {
                 p->symtok[2] = '\0';
                 nextchar(p);
                 return (p->token = TOK_SYM);
+            /* numbers */
+            case 'x': case 'X':
+                nextchar(p);
+                return lexnumber(p, 16);
+            case 'o': case 'O':
+                nextchar(p);
+                return lexnumber(p, 8);
+            case 'b': case 'B':
+                nextchar(p);
+                return lexnumber(p, 2);
+            case 'd': case 'D':
+                nextchar(p);
+                return lexnumber(p, 10);
         }
         return p->token;
       case '\'':
@@ -345,8 +381,8 @@ token_t lexnext(secd_parser_t *p) {
         return lexstring(p);
     }
 
-    if (isdigit(p->lc))
-        return lexnumber(p);
+    if (isdigit(p->lc) || strchr("+-", p->lc))
+        return lexnumber(p, 10);
 
     if (p->issymbc[(unsigned char)p->lc])
         return lexsymbol(p);
@@ -364,6 +400,40 @@ static const char * special_form_for(int token) {
     return NULL;
 }
 
+static cell_t *read_bytevector(secd_parser_t *p) {
+    secd_t *secd = p->secd;
+    assert(p->token == '(', "read_bytevector: '(' expected");
+    cell_t *tmplist = SECD_NIL;
+    cell_t *cur;
+    size_t len = 0;
+    while (lexnext(p) == TOK_NUM) {
+        assert((0 <= p->numtok) && (p->numtok < 256), "read_bytevector: out of range");
+
+        cell_t *newc = new_cons(secd, new_number(secd, p->numtok), SECD_NIL);
+        if (not_nil(tmplist)) {
+            cur->as.cons.cdr = share_cell(secd, newc);
+            cur = newc;
+        } else {
+            tmplist = cur = newc;
+        }
+        ++len;
+    }
+
+    cell_t *bvect = new_bytevector_of_size(secd, len);
+    assert_cell(bvect, "read_bytevector: failed to allocate");
+    unsigned char *mem = (unsigned char *)strmem(bvect);
+
+    cur = tmplist;
+    size_t i;
+    for (i = 0; i < len; ++i) {
+        mem[i] = (unsigned char)numval(list_head(cur));
+        cur = list_next(secd, cur);
+    }
+
+    free_cell(secd, tmplist);
+    return bvect;
+}
+
 static cell_t *read_token(secd_t *secd, secd_parser_t *p) {
     int tok;
     cell_t *inp = &secd_nil_failure;
@@ -373,17 +443,15 @@ static cell_t *read_token(secd_t *secd, secd_parser_t *p) {
         inp = read_list(secd, p);
         if (p->token != ')')
             goto error_exit;
-        break;
+        return inp;
       case TOK_NUM:
-        inp = new_number(secd, p->numtok);
-        break;
+        return new_number(secd, p->numtok);
       case TOK_SYM:
-        inp = new_symbol(secd, p->symtok);
-        break;
+        return new_symbol(secd, p->symtok);
       case TOK_STR:
         inp = new_string(secd, p->strtok);
         free(p->strtok);
-        break;
+        return inp;
       case TOK_EOF:
         return new_symbol(secd, EOF_OBJ);
 
@@ -393,31 +461,37 @@ static cell_t *read_token(secd_t *secd, secd_parser_t *p) {
         assert(formname, "No  special form for token=%d\n", tok);
         inp = sexp_read(secd, p);
         assert_cell(inp, "sexp_read: reading subexpression failed");
-        inp = new_cons(secd, new_symbol(secd, formname),
-                             new_cons(secd, inp, SECD_NIL));
-        } break;
+        return new_cons(secd, new_symbol(secd, formname), new_cons(secd, inp, SECD_NIL));
+      }
 
       case '#':
         switch (tok = lexnext(p)) {
           case '(': {
               cell_t *tmplist = read_list(secd, p);
-              if (p->token != ')')
+              if (p->token != ')') {
+                  free_cell(secd, tmplist);
                   goto error_exit;
+              }
               inp = list_to_vector(secd, tmplist);
-              drop_dependencies(secd, tmplist);
-            } break;
+              free_cell(secd, tmplist);
+              return inp;
+            }
+          case TOK_SYM: {
+              if (str_eq(p->symtok, "u8")) {
+                  lexnext(p);
+                  inp = read_bytevector(p);
+                  if (p->token != ')')
+                      goto error_exit;
+                  return inp;
+              }
+          }
         }
-        break;
-
-      default:
-        errorf("Unknown token: %1$d ('%1$c')\n", tok);
-        return new_error(secd, "parsing error: TOK_ERR");
+        errorf("Unknown suffix for #\n");
     }
-    return inp;
 
 error_exit:
     errorf("read_secd: failed\n");
-    if (inp) drop_cell(secd, inp);
+    if (inp) free_cell(secd, inp);
     return new_error(secd,
                     "sexp_read: read_list failed on token %d\n", p->token);
 }

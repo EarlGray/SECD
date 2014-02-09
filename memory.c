@@ -17,7 +17,7 @@ void free_array(secd_t *secd, cell_t *this);
 void push_free(secd_t *secd, cell_t *c);
 
 /*
- *  Utilities 
+ *  Utilities
  */
 inline static size_t bytes_to_cell(size_t bytes) {
     size_t ncell = bytes / sizeof(cell_t);
@@ -292,8 +292,8 @@ void print_array_layout(secd_t *secd) {
     cell_t *cur = secd->arrlist;
     while (not_nil(mcons_next(cur))) {
         cur = mcons_next(cur);
-        errorf(";;  %ld\t%ld (size=%zd,\t%s)\n", cell_index(secd, cur), 
-                cell_index(secd, mcons_prev(cur)), arrmeta_size(secd, cur), 
+        errorf(";;  %ld\t%ld (size=%zd,\t%s)\n", cell_index(secd, cur),
+                cell_index(secd, mcons_prev(cur)), arrmeta_size(secd, cur),
                 (is_array_free(secd, cur)? "free" : "used"));
     }
 }
@@ -373,8 +373,8 @@ static cell_t *init_strref(secd_t *secd, cell_t *cell, arrref_t mem, size_t size
 
     share_cell(secd, arr_meta(mem.as_cell));
     cell->as.str.data = mem.as_cstr;
-    cell->as.str.hash = memhash(mem.as_cstr, size);
     cell->as.str.offset = 0;
+    cell->as.str.size = size;
     return cell;
 }
 
@@ -400,13 +400,18 @@ cell_t *new_string(secd_t *secd, const char *str) {
     return cell;
 }
 
+cell_t *new_bytevector_of_size(secd_t *secd, size_t size) {
+    cell_t *c = new_string_of_size(secd, size);
+    c->type = CELL_BYTES;
+    return c;
+}
 
 /*
  *  Port allocation
  */
 static cell_t *init_port_mode(secd_t *secd, cell_t *cell, const char *mode) {
     switch (mode[0]) {
-      case 'r': 
+      case 'r':
         cell->as.port.input = true;
         if (mode[1] == '+') {
             cell->as.port.output = true;
@@ -475,7 +480,7 @@ cell_t *init_with_copy(secd_t *secd,
       case CELL_ARRAY:
         share_cell(secd, arr_meta(with->as.arr.data));
         break;
-      case CELL_STR:
+      case CELL_STR: case CELL_BYTES:
         share_cell(secd, arr_meta((cell_t *)strmem((cell_t *)with)));
         break;
       case CELL_PORT:
@@ -570,7 +575,7 @@ inline static cell_t *list_pop(secd_t *secd, cell_t **from) {
     else if (*from == secd->control) src = "C";
     else if (*from == secd->dump)    src = "D";
     else                             src = "?";
-    memdebugf("POP %s[%ld] (%ld, %ld)\n", src, 
+    memdebugf("POP %s[%ld] (%ld, %ld)\n", src,
             cell_index(secd, top),
             cell_index(secd, val), cell_index(secd, *from));
 #endif

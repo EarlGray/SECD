@@ -528,6 +528,10 @@ cell_t *secdf_lst2str(secd_t *secd, cell_t *args) {
 }
 
 /*
+ *    Bytevector utilities
+ */
+
+/*
  *    I/O ports
  */
 
@@ -571,10 +575,9 @@ cell_t *secdf_siopen(secd_t *secd, cell_t *args) {
 cell_t *secdf_readstring(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "(read-string k): k expected");
 
-    long size;
     cell_t *k = get_car(args);
     assert(cell_type(k), "(read-string): a size number expected");
-    size = numval(k);
+    long size = numval(k);
 
     args = list_next(secd, args);
 
@@ -586,6 +589,7 @@ cell_t *secdf_readstring(secd_t *secd, cell_t *args) {
         port = secd->input_port;
     }
 
+    /* TODO: caveat: k is length of a UTF-8 sequence */
     cell_t *res = new_string_of_size(secd, size);
     assert_cellf(res, "(read-string): failed to allocate string of size %ld", size);
 

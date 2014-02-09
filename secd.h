@@ -87,8 +87,9 @@ enum cell_type {
 
     /* compound types */
     CELL_CONS,  // shares two other cells, car and cdr
-    CELL_STR,   // shares a pointer to a UTF8 byte sequence
     CELL_ARRAY, // shares a pointer to cell_t[] in array heap.
+    CELL_STR,   // shares a pointer to a UTF8 byte sequence
+    CELL_BYTES, // shares a pointer to a raw byte sequence
     CELL_FRAME, // a environment frame, private; the same as CELL_CONS
     CELL_ARRMETA,   // array metadata, private; a double linked node like CELL_CONS
     CELL_FREE,  // free list node; a double linked node like CELL_CONS
@@ -165,8 +166,8 @@ struct error {
 
 struct string {
     char *data;
-    hash_t hash;
     off_t offset; // bytes
+    size_t size;  // bytes
 };
 
 struct array {
@@ -394,7 +395,7 @@ struct secd_stream {
 void dbg_print_cell(secd_t *secd, const cell_t *c);
 void dbg_printc(secd_t *secd, cell_t *c);
 
-void sexp_print(secd_t *secd, cell_t *c);
+void sexp_print(secd_t *secd, const cell_t *c);
 void sexp_display(secd_t *secd, cell_t *port, cell_t *cell);
 
 /* Reads S-expressions from port.
@@ -422,6 +423,9 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control);
  * utilities
  */
 hash_t memhash(const char*, size_t);
+
+/* return a symbol describing the cell */
+cell_t *secd_type_sym(secd_t *secd, const cell_t *cell);
 
 /* in the sense of 'equal?' */
 bool is_equal(secd_t *secd, const cell_t *a, const cell_t *b);
