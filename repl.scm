@@ -250,6 +250,10 @@
 (null?   (lambda (obj) (eq? obj '())))
 (number? (lambda (obj) (eq? (secd-type obj) 'int)))
 (symbol? (lambda (obj) (eq? (secd-type obj) 'sym)))
+(string? (lambda (obj) (eq? (secd-type obj) 'str)))
+(vector? (lambda (obj) (eq? (secd-type obj) 'vect)))
+(port?  (lambda (obj) (eq? (secd-type obj) 'port)))
+(bytevector? (lambda (obj) (eq? (secd-type obj) 'bvect)))
 
 )
  
