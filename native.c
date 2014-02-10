@@ -291,13 +291,6 @@ cell_t *secdf_bind(secd_t *secd, cell_t *args) {
 /*
  *     Vector
  */
-cell_t *secdv_is(secd_t *secd, cell_t *args) {
-    assert(not_nil(args), "secdv_is: no arguments");
-    assert(is_cons(args), "secdv_is: invalid arguments");
-    cell_t *obj = get_car(args);
-    return to_bool(secd, cell_type(obj) == CELL_ARRAY);
-}
-
 cell_t *secdv_make(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "secdv_make: no arguments");
     assert(is_cons(args), "secdv_make: invalid arguments");
@@ -410,13 +403,6 @@ cell_t *secdf_vct2lst(secd_t *secd, cell_t *args) {
 /*
  *    String functions
  */
-cell_t *secdf_strp(secd_t *secd, cell_t *args) {
-    assert(not_nil(args), "secdf_strp: no arguments");
-
-    cell_t *obj = get_car(args);
-    return to_bool(secd, cell_type(obj) == CELL_STR);
-}
-
 cell_t *secdf_strlen(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "secdf_strlen: no arguments");
 
@@ -668,7 +654,6 @@ const cell_t list_sym   = INIT_SYM("list");
 const cell_t append_sym = INIT_SYM("append");
 const cell_t copy_sym   = INIT_SYM("list-copy");
 /* vector routines */
-const cell_t vp_sym     = INIT_SYM("vector?");
 const cell_t vmake_sym  = INIT_SYM("make-vector");
 const cell_t vlen_sym   = INIT_SYM("vector-length");
 const cell_t vref_sym   = INIT_SYM("vector-ref");
@@ -676,7 +661,6 @@ const cell_t vset_sym   = INIT_SYM("vector-set!");
 const cell_t vlist_sym  = INIT_SYM("list->vector");
 const cell_t l2v_sym    = INIT_SYM("vector->list");
 /* string functions */
-const cell_t sp_sym     = INIT_SYM("string?");
 const cell_t strlen_sym = INIT_SYM("string-length");
 const cell_t symstr_sym = INIT_SYM("symbol->string");
 const cell_t strsym_sym = INIT_SYM("string->symbol");
@@ -735,14 +719,12 @@ native_functions[] = {
     { &err_nil_sym, &secd_nil_failure },
     { &err_sym,     &secd_failure },
 
-    { &sp_sym,      &sp_func    },
     { &strlen_sym,  &strlen_fun },
     { &symstr_sym,  &symstr_fun },
     { &strsym_sym,  &strsym_fun },
     { &strlst_sym,  &strlst_fun },
     { &lststr_sym,  &lststr_fun },
 
-    { &vp_sym,      &vp_func    },
     { &vmake_sym,   &vmake_func },
     { &vlen_sym,    &vlen_func  },
     { &vref_sym,    &vref_func  },
