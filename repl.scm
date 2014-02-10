@@ -262,7 +262,7 @@
       (begin
         (display "This file must be run in SECDScheme\n")
         (quit))))
-  (secd-bind! '*prompt* ";>> ")
+  (secd-bind! '*prompt* "\n;>> ")
   (secd-bind! '*macros*
     (list
       (cons 'define-macro   secd-define-macro!)

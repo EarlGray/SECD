@@ -185,7 +185,7 @@ struct secd_parser {
     token_t token;
 
     /* lexer guts */
-    int lc;
+    int lc;     // lex char
     int numtok;
     char symtok[MAX_LEXEME_SIZE];
     char issymbc[UCHAR_MAX + 1];
@@ -235,7 +235,10 @@ inline static token_t lexnumber(secd_parser_t *p, int base) {
     } while (isbasedigit(p->lc, base));
     *s = '\0';
 
-    p->numtok = (int)strtol(p->symtok, NULL, base);
+    char *end = NULL;
+    p->numtok = (int)strtol(p->symtok, &end, base);
+    if (end[0] != '\0')
+        return (p->token = TOK_ERR);
     return (p->token = TOK_NUM);
 }
 
@@ -252,6 +255,14 @@ inline static token_t lexsymbol(secd_parser_t *p) {
         }
     } while (p->issymbc[(unsigned char)p->lc]);
     *s = '\0';
+
+    /* try to convert symbol into number */
+    if (p->symtok[0] == '-' || p->symtok[0] == '+') {
+        char *end = NULL;
+        p->numtok = (int)strtol(p->symtok, &end, 10);
+        if ((p->symtok[0] != '\0') && (end[0] == '\0'))
+            return (p->token = TOK_NUM);
+    }
 
     return (p->token = TOK_SYM);
 }
@@ -381,7 +392,7 @@ token_t lexnext(secd_parser_t *p) {
         return lexstring(p);
     }
 
-    if (isdigit(p->lc) || strchr("+-", p->lc))
+    if (isdigit(p->lc))
         return lexnumber(p, 10);
 
     if (p->issymbc[(unsigned char)p->lc])

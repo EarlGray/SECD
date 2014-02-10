@@ -347,11 +347,11 @@ cell_t *secd_mul(secd_t *secd) {
     return arithm_op(secd, imult);
 }
 cell_t *secd_div(secd_t *secd) {
-    ctrldebugf("SUB\n");
+    ctrldebugf("DIV\n");
     return arithm_op(secd, idiv);
 }
 cell_t *secd_rem(secd_t *secd) {
-    ctrldebugf("SUB\n");
+    ctrldebugf("REM\n");
     return arithm_op(secd, irem);
 }
 
