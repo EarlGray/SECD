@@ -13,13 +13,18 @@ void print_array_layout(secd_t *secd);
  *
  *  reference: http://en.wikipedia.org/wiki/UTF-8
  */
+
+/* takes a codeporint and return its sequence length */
 size_t utf8len(unichar_t ucs) {
-    if (ucs <= 0x7FF)        return 2;
+    if (ucs <= 0x80)         return 1;
+    else if (ucs <= 0x7FF)   return 2;
     else if (ucs <= 0xFFFF)  return 3;
     else if (ucs <= 0x10FFF) return 4;
     else                     return 0;
 }
 
+/* takes a stream *to, a codepoint ucs, writes codepoint sequence 
+ * into the stream, returns the next posiiton in the stream */
 char *utf8cpy(char *to, unichar_t ucs) {
     if (ucs < 0x80) {
         *to = (uint8_t)ucs;
@@ -41,24 +46,14 @@ char *utf8cpy(char *to, unichar_t ucs) {
     return to + nbytes;
 }
 
-size_t utf8strlen(const char *str) {
-    size_t result = 0;
-    char c;
-    while ((c = *str++)) {
-        if (c & 0x80) {
-            c <<= 1;
-            do {
-                ++str;
-                c <<= 1;
-            } while (c & 0x80);
-        }
-        ++result;
-    }
-    return result;
-}
-
-int utf8taillen(char head, unichar_t *headbits) {
-    if ((0xE0 & head) == 0xC0) {
+/* takes a byte 'head' representing start of a sequence
+ * returns length of the sequence, 
+ * possibly updating *headbits with meaningful bits of 'head' */
+int utf8seqlen(char head, unichar_t *headbits) {
+    if ((0x80 & head) == 0) {
+        if (headbits) *headbits = head & 0x7F;
+        return 1;
+    } else if ((0xE0 & head) == 0xC0) {
         if (headbits) *headbits = head & 0x1F;
         return 2;
     } else if ((0xF0 & head) == 0xE0) {
@@ -71,6 +66,9 @@ int utf8taillen(char head, unichar_t *headbits) {
     return 0;
 }
 
+/* takes stream *u8, reads a sequence from it, 
+ * return codepoint of the sequence,
+ * possibly updates **next */
 unichar_t utf8get(const char *u8, const char **next) {
     if ((0x80 & *u8) == 0) {
         if (next) *next = u8 + 1;
@@ -78,7 +76,7 @@ unichar_t utf8get(const char *u8, const char **next) {
     }
 
     unichar_t res;
-    int nbytes = utf8taillen(*u8, &res);
+    int nbytes = utf8seqlen(*u8, &res);
     if (nbytes == 0)
         goto decode_error;
 
@@ -107,6 +105,68 @@ decode_error:
     if (next) *next = NULL;
     return 0;
 }
+
+/* returns count of codepoints in the stream until '\0' */
+size_t utf8strlen(const char *str) {
+    size_t result = 0;
+    char c;
+    while ((c = *str++)) {
+        if (c & 0x80) {
+            c <<= 1;
+            do {
+                ++str;
+                c <<= 1;
+            } while (c & 0x80);
+        }
+        ++result;
+    }
+    return result;
+}
+
+/* return pointer to the nth sequence in *str */
+const char *utf8nth(const char *str, size_t n) {
+    size_t i = 0;
+    while ((i++ < n) && str[0]) {
+        str += utf8seqlen(str[0], NULL);
+    }
+    return str;
+}
+
+/* return count of bytes in n sequences starting from *str */
+size_t utf8memlen(const char *str, size_t n) {
+    size_t result = 0;
+    size_t i = 0;
+    while ((i++ < n) && str[0]) {
+        int len = utf8seqlen(str[0], NULL);
+        result += len;
+        str += len;
+    }
+    return result;
+}
+
+/* copies utf-8 sequences starting at *src
+ * until 'bytes' memory is used or more,
+ * returns *dst or NULL if there's invalid sequence */
+static char *utf8memcpy(char *dst, const char *src, size_t bytes) {
+    size_t i = 0;
+    while (i < bytes) {
+        int n = utf8seqlen(src[i], NULL);
+        if (i + n == bytes)
+            break;
+        if (i + n > bytes)
+            return NULL;
+        switch (n) {
+          case 0: return NULL;
+          case 4: dst[i + 3] = src[i + 3];
+          case 3: dst[i + 2] = src[i + 2];
+          case 2: dst[i + 1] = src[i + 1];
+          case 1: dst[i] = src[i];
+        }
+        i += n;
+    }
+    return dst;
+}
+
 
 /*
  *   List processing
@@ -182,6 +242,29 @@ cell_t *secdf_append(secd_t *secd, cell_t *args) {
 /*
  *   Misc native routines
  */
+
+static bool get_two_nums(secd_t *secd, cell_t *lst,
+        size_t *fst, size_t *snd, 
+        const char *signiture) 
+{
+    lst = list_next(secd, lst);
+    if (is_nil(lst)) return true;
+
+    cell_t *startc = get_car(lst);
+    asserti(atom_type(secd, startc) == ATOM_INT,
+           "%s: an int expected as second argument", signiture);
+    *fst = numval(startc);
+
+    lst = list_next(secd, lst);
+    if (is_nil(lst)) return true;
+
+    cell_t *endc = get_car(lst);
+    asserti(atom_type(secd, endc) == ATOM_INT,
+           "%s: an int expected as third argument", signiture);
+    *snd = numval(endc);
+
+    return true;
+}
 
 cell_t *secdf_defp(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_defp\n");
@@ -378,23 +461,9 @@ cell_t *secdf_vct2lst(secd_t *secd, cell_t *args) {
     cell_t *vct = get_car(args);
     assert(cell_type(vct) == CELL_ARRAY, "secdf_vct2lst: not an array");
 
-    int start = 0;
-    int end = (int)arr_size(secd, vct);
-    args = list_next(secd, args);
-    if (not_nil(args)) {
-        cell_t *startc = get_car(args);
-        assert(atom_type(secd, startc) == ATOM_INT,
-               "secdf_vct2list: an int expected as second argument");
-        start = numval(startc);
-
-        args = list_next(secd, args);
-        if (not_nil(args)) {
-            cell_t *endc = get_car(args);
-            assert(atom_type(secd, endc) == ATOM_INT,
-                   "secdf_vct2lst: an int expected as third argument");
-            end = numval(endc);
-        }
-    }
+    size_t start = 0;
+    size_t end = (int)arr_size(secd, vct);
+    get_two_nums(secd, args, &start, &end, "vct2lst");
 
     return vector_to_list(secd, vct, start, end);
 }
@@ -406,7 +475,7 @@ cell_t *secdf_strlen(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "secdf_strlen: no arguments");
 
     cell_t *str = get_car(args);
-    assert(is_symbol(str), "not a string");
+    assert(cell_type(str) == CELL_STR, "not a string");
     return new_number(secd, utf8strlen((const char *)str->as.str.data));
 }
 
@@ -515,6 +584,135 @@ cell_t *secdf_lst2str(secd_t *secd, cell_t *args) {
 /*
  *    Bytevector utilities
  */
+cell_t *secdf_mkbvect(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdf_mkbvect: no arguments");
+
+    cell_t *numc = get_car(args);
+    assert(atom_type(secd, numc) == ATOM_INT, "secdf_mkbvect: not a number");
+
+    cell_t *bv = new_bytevector_of_size(secd, numval(numc));
+    assert_cell(bv, "secdf_mkbvect: failed to allocate");
+
+    args = list_next(secd, args);
+    if (not_nil(args)) {
+        cell_t *numc = get_car(args);
+        assert(atom_type(secd, numc) == ATOM_INT,
+                "secdf_mkbvect: fill value must be an int");
+        memset(strmem(bv), numval(numc), mem_size(bv));
+    }
+    return bv;
+}
+
+cell_t *secdf_bvlen(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdf_bvlen: no aruments");
+
+    cell_t *bv = get_car(args);
+    assert(cell_type(bv) == CELL_BYTES, "secdf_bvlen: not a bytevector");
+
+    return new_number(secd, mem_size(bv));
+}
+
+cell_t *secdf_bvref(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdf_bvref: no arguments");
+
+    cell_t *bv = get_car(args);
+    assert(cell_type(bv) == CELL_BYTES, "secdf_bvref: not a bytevector");
+
+    args = list_next(secd, args);
+    assert(not_nil(args), "secdf_bvref: second argument expected");
+
+    cell_t *numc = get_car(args);
+    assert(is_number(numc), "secdf_bvref: index must be a nummber");
+
+    size_t n = numval(numc);
+    assert(n < mem_size(bv), "secdf_bvref: out of range");
+
+    return new_number(secd, (unsigned char)strval(bv)[ n ]);
+}
+
+/*
+cell_t *secdf_bvcopy(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdf_bvcopy: no arguments, must be (bytevector-copy! to at from [start [end]])");
+
+    cell_t *to = get_car(args);
+    assert(cell_type(to) == CELL_BYTES, "secdf_bvcopy: first argument is not a bytevector");
+
+    args = list_next(secd, args);
+    assert(not_nil(args), "secdf_bvcopy: second argument expected");
+    cell_t *atc = get_car(args);
+    assert(is_number(atc), "secdf_bvcopy: second argument must be index of the first bytevector");
+    size_t at = numval(atc);
+    assert(at < mem_size(to), "secdf_bvcopy: at is out of bounds");
+
+    args = list_next(secd, args);
+    assert(not_nil(args), "secdf_bvcopy: third argument expected");
+    cell_t *from = get_car(args);
+    assert(cell_type(from) == CELL_BYTES, "secdf_bvcopy: third argument is not a bytevector");
+
+    size_t start = 0, end = -1;
+    get_two_nums(secd, args, &start, &end, "secdf_bvcopy");
+
+}
+*/
+
+cell_t *secdf_bvset(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdf_bvset: no arguments");
+
+    cell_t *bv = get_car(args);
+    assert(cell_type(bv) == CELL_BYTES, "secdf_bvset: not a bytevector");
+
+    args = list_next(secd, args);
+    assert(not_nil(args), "secdf_bvset: second argument expected");
+
+    cell_t *numc = get_car(args);
+    assert(is_number(numc), "secdf_bvset: second argument must be integer");
+    size_t n = numval(numc);
+    assert(n < mem_size(bv), "secdf_bvset: index out of range");
+
+    args = list_next(secd, args);
+    assert(not_nil(args), "secdf_bvset: third argument expected");
+    cell_t *valc = get_car(args);
+    assert(is_number(valc), "secdf_bvset: must be a number");
+
+    strmem(bv)[ n ] = numval(valc);
+    return bv;
+}
+
+cell_t *secdf_bv2str(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "bv2str: no arguments");
+
+    cell_t *bv = list_head(args);
+    assert(cell_type(bv) == CELL_BYTES, "bv2str: not a bytevector");
+
+    size_t start = 0, end = mem_size(bv);
+    get_two_nums(secd, args, &start, &end, "bv2str");
+
+    cell_t *str = new_string_of_size(secd, end - start);
+    if (utf8memcpy(strmem(str), strval(bv) + start, end - start))
+        return str;
+
+    free_cell(secd, str);
+    return secd->false_value;
+}
+
+cell_t *secdf_str2bv(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "str2bv: no arguments");
+
+    cell_t *str = list_head(args);
+    assert(cell_type(str) == CELL_STR, "str2bv: not a string");
+
+    size_t start = 0, end = utf8strlen(strval(str)) + 1;
+    get_two_nums(secd, args, &start, &end, "str2bv");
+    /* TODO: check ranges */
+
+    const char *startmem = utf8nth(strval(str), start);
+    size_t len = utf8memlen(startmem, end - start) + 1;
+    cell_t *bv = new_bytevector_of_size(secd, len);
+
+    utf8memcpy(strmem(bv), startmem, len);
+    return bv;
+}
+
 
 /*
  *    I/O ports
@@ -601,7 +799,7 @@ cell_t *secdf_readchar(secd_t *secd, cell_t *args) {
         return new_number(secd, b);
 
     unichar_t c;
-    int nbytes = utf8taillen(b, &c);
+    int nbytes = utf8seqlen(b, &c);
     if (nbytes == 0) {
         errorf("(read-char): not a UTF-8 sequence head\n");
         return new_error(secd, "(read-char): not a UTF-8 sequence head");
@@ -643,13 +841,20 @@ cell_t *secdf_pclose(secd_t *secd, cell_t *args) {
  */
 
 const cell_t defp_func  = INIT_FUNC(secdf_defp);
-const cell_t list_func  = INIT_FUNC(secdf_list);
-const cell_t appnd_func = INIT_FUNC(secdf_append);
 const cell_t eofp_func  = INIT_FUNC(secdf_eofp);
 const cell_t debug_func = INIT_FUNC(secdf_ctl);
 const cell_t getenv_fun = INIT_FUNC(secdf_getenv);
 const cell_t bind_func  = INIT_FUNC(secdf_bind);
 const cell_t hash_func  = INIT_FUNC(secdf_hash);
+/* list functions */
+const cell_t list_func  = INIT_FUNC(secdf_list);
+const cell_t appnd_func = INIT_FUNC(secdf_append);
+/* string routines */
+const cell_t strlen_fun = INIT_FUNC(secdf_strlen);
+const cell_t strsym_fun = INIT_FUNC(secdf_str2sym);
+const cell_t symstr_fun = INIT_FUNC(secdf_sym2str);
+const cell_t strlst_fun = INIT_FUNC(secdf_str2lst);
+const cell_t lststr_fun = INIT_FUNC(secdf_lst2str);
 /* vector routines */
 const cell_t vmake_func = INIT_FUNC(secdv_make);
 const cell_t vlen_func  = INIT_FUNC(secdv_len);
@@ -657,12 +862,14 @@ const cell_t vref_func  = INIT_FUNC(secdv_ref);
 const cell_t vset_func  = INIT_FUNC(secdv_set);
 const cell_t vlist_func = INIT_FUNC(secdf_lst2vct);
 const cell_t l2v_func   = INIT_FUNC(secdf_vct2lst);
-/* string routines */
-const cell_t strlen_fun = INIT_FUNC(secdf_strlen);
-const cell_t strsym_fun = INIT_FUNC(secdf_str2sym);
-const cell_t symstr_fun = INIT_FUNC(secdf_sym2str);
-const cell_t strlst_fun = INIT_FUNC(secdf_str2lst);
-const cell_t lststr_fun = INIT_FUNC(secdf_lst2str);
+/* bytevectors */
+const cell_t mkbv_fun   = INIT_FUNC(secdf_mkbvect);
+const cell_t bvlen_fun  = INIT_FUNC(secdf_bvlen);
+const cell_t bvref_fun  = INIT_FUNC(secdf_bvref);
+//const cell_t bvcopy_fun = INIT_FUNC(secdf_bvcopy);
+const cell_t bvset_fun  = INIT_FUNC(secdf_bvset);
+const cell_t bv2str_fun = INIT_FUNC(secdf_bv2str);
+const cell_t str2bv_fun = INIT_FUNC(secdf_str2bv);
 /* i/o ports */
 const cell_t displ_fun  = INIT_FUNC(secdf_display);
 const cell_t fiopen_fun = INIT_FUNC(secdf_ifopen);
@@ -683,6 +890,16 @@ native_functions[] = {
     { "string->symbol", &strsym_fun },
     { "string->list",   &strlst_fun },
     { "list->string",   &lststr_fun },
+    //{ "string->number", &strnum_fun },
+    //{ "number->string", &numstr_fun },
+
+    { "make-bytevector",    &mkbv_fun  },
+    { "bytevector-length",  &bvlen_fun },
+    //{ "bytevector-copy!",   &bvcopy_fun },
+    { "bytevector-u8-ref",  &bvref_fun  },
+    { "bytevector-u8-set!", &bvset_fun  },
+    { "utf8->string",       &bv2str_fun },
+    { "string->utf8",       &str2bv_fun },
 
     { "make-vector",    &vmake_func },
     { "vector-length",  &vlen_func  },

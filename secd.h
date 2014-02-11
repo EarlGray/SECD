@@ -328,8 +328,12 @@ inline static bool is_cons(const cell_t *cell) {
     return cell_type(cell) == CELL_CONS;
 }
 inline static bool is_symbol(const cell_t *cell) {
-    if (is_nil(cell)) return false;
     return cell_type(cell) == CELL_SYM;
+}
+inline static bool is_number(const cell_t *cell) {
+    if (cell_type(cell) != CELL_ATOM)
+        return false;
+    return cell->as.atom.type == ATOM_INT;
 }
 
 inline static bool is_error(const cell_t *cell) {
