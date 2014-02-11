@@ -682,7 +682,6 @@ const cell_t debug_func = INIT_FUNC(secdf_ctl);
 const cell_t getenv_fun = INIT_FUNC(secdf_getenv);
 const cell_t bind_func  = INIT_FUNC(secdf_bind);
 /* vector routines */
-const cell_t vp_func    = INIT_FUNC(secdv_is);
 const cell_t vmake_func = INIT_FUNC(secdv_make);
 const cell_t vlen_func  = INIT_FUNC(secdv_len);
 const cell_t vref_func  = INIT_FUNC(secdv_ref);
@@ -690,7 +689,6 @@ const cell_t vset_func  = INIT_FUNC(secdv_set);
 const cell_t vlist_func = INIT_FUNC(secdf_lst2vct);
 const cell_t l2v_func   = INIT_FUNC(secdf_vct2lst);
 /* string routines */
-const cell_t sp_func    = INIT_FUNC(secdf_strp);
 const cell_t strlen_fun = INIT_FUNC(secdf_strlen);
 const cell_t strsym_fun = INIT_FUNC(secdf_str2sym);
 const cell_t symstr_fun = INIT_FUNC(secdf_sym2str);
