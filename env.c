@@ -5,6 +5,10 @@
 
 #include <string.h>
 
+static hash_t stdinhash;
+static hash_t stdouthash;
+static hash_t modulehash;
+
 /*
  *  Environment
  */
@@ -22,7 +26,7 @@ void print_env(secd_t *secd) {
         while (not_nil(symlist)) {
             cell_t *sym = get_car(symlist);
             cell_t *val = get_car(vallist);
-            if (atom_type(secd, sym) != ATOM_SYM) {
+            if (!is_symbol(sym)) {
                 errorf("print_env: not a symbol at *%p in symlist\n", sym);
                 dbg_printc(secd, sym);
             }
@@ -45,8 +49,8 @@ cell_t *make_native_frame(secd_t *secd,
     cell_t *symlist = SECD_NIL;
     cell_t *vallist = SECD_NIL;
 
-    for (i = 0; not_nil(binding[i].sym); ++i) {
-        cell_t *sym = new_const_clone(secd, binding[i].sym);
+    for (i = 0; binding[i].name; ++i) {
+        cell_t *sym = new_symbol(secd, binding[i].name);
         cell_t *val = new_const_clone(secd, binding[i].val);
         if (not_nil(val))
             sym->nref = val->nref = DONT_FREE_THIS;
@@ -61,13 +65,20 @@ cell_t *make_native_frame(secd_t *secd,
 }
 
 void init_env(secd_t *secd) {
+    /* initialize global values */
+    stdinhash = strhash(SECD_FAKEVAR_STDIN);
+    stdouthash = strhash(SECD_FAKEVAR_STDOUT);
+    modulehash = strhash(SECD_FAKEVAR_MODULE);
     secd->envcounter = 0;
 
+    /* initialize the first frame */
     cell_t *frame = make_native_frame(secd, native_functions, ":secd");
+    secd_insert_in_frame(secd, frame, secd->truth_value, secd->truth_value);
 
     cell_t *frame_io = new_cons(secd, secd->input_port, secd->output_port);
     frame->as.frame.io = share_cell(secd, frame_io);
 
+    /* ready */
     cell_t *env = new_cons(secd, frame, SECD_NIL);
 
     secd->env = share_cell(secd, env);
@@ -75,11 +86,12 @@ void init_env(secd_t *secd) {
 }
 
 static cell_t *lookup_fake_variables(secd_t *secd, const char *sym) {
-    if (str_eq(sym, SECD_FAKEVAR_STDIN))
+    hash_t symh = strhash(sym);
+    if ((symh == stdinhash) && str_eq(sym, SECD_FAKEVAR_STDIN))
         return secd->input_port;
-    if (str_eq(sym, SECD_FAKEVAR_STDOUT)) 
+    if ((symh == stdouthash) && str_eq(sym, SECD_FAKEVAR_STDOUT)) 
         return secd->output_port;
-    if (str_eq(sym, SECD_FAKEVAR_STDDBG))
+    if ((symh == modulehash) && str_eq(sym, SECD_FAKEVAR_STDDBG))
         return secd->debug_port;
     return SECD_NIL;
 }
@@ -93,10 +105,12 @@ static const char *module_name_for_frame(secd_t *secd, cell_t *frame, bool *open
     cell_t *vallist = get_cdr(frame);
     while (not_nil(symlist)) {
         cell_t *sym = list_head(symlist);
-        if (str_eq(SECD_FAKEVAR_MODULE, symname(sym))) {
+        if ((symhash(sym) == modulehash)
+            && str_eq(SECD_FAKEVAR_MODULE, symname(sym))) 
+        {
             cell_t *mod = list_head(vallist);
-            if (atom_type(secd, mod) != ATOM_SYM) {
-                errorf("Module name is not an atom");
+            if (!is_symbol(mod)) {
+                errorf("Module name is not a symbol");
                 return NULL;
             }
             const char *symstr = symname(mod);
@@ -114,8 +128,11 @@ static const char *module_name_for_frame(secd_t *secd, cell_t *frame, bool *open
     return NULL;
 }
 
-static bool name_eq(const char *sym, const char *cur, const char *modname, size_t modlen, bool open) {
-    if (open && str_eq(cur, sym))
+static bool name_eq(const char *sym, hash_t symh, cell_t *cursym, 
+        const char *modname, size_t modlen, bool open)
+{
+    const char *cur = symname(cursym);
+    if (open && (symh == symhash(cursym)) && str_eq(cur, sym))
         return true;
     if (sym[modlen] != ':')
         return false;
@@ -135,6 +152,7 @@ cell_t *lookup_env(secd_t *secd, const char *symbol, cell_t **symc) {
     if (not_nil(res)) {
         return res;
     }
+    hash_t symh = strhash(symbol);
 
     while (not_nil(env)) {       // walk through frames
         cell_t *frame = get_car(env);
@@ -152,10 +170,10 @@ cell_t *lookup_env(secd_t *secd, const char *symbol, cell_t **symc) {
 
         while (not_nil(symlist)) {   // walk through symbols
             cell_t *curc = get_car(symlist);
-            assert(atom_type(secd, curc) == ATOM_SYM, 
+            assert(is_symbol(curc),
                    "lookup_env: variable at [%ld] is not a symbol\n", cell_index(secd, curc));
 
-            if (name_eq(symbol, symname(curc), mod, modlen, open)) {
+            if (name_eq(symbol, symh, curc, mod, modlen, open)) {
                 if (symc != NULL) *symc = curc;
                 return get_car(vallist);
             }
@@ -185,7 +203,7 @@ cell_t *lookup_symenv(secd_t *secd, const char *symbol) {
 
         while (not_nil(symlist)) {   // walk through symbols
             cell_t *cur_sym = get_car(symlist);
-            assert(atom_type(secd, cur_sym) == ATOM_SYM,
+            assert(is_symbol(cur_sym),
                     "lookup_symbol: variable at [%ld] is not a symbol\n", cell_index(secd, cur_sym));
 
             if (str_eq(symbol, symname(cur_sym))) {
@@ -263,3 +281,17 @@ cell_t *setup_frame(secd_t *secd, cell_t *argnames, cell_t *argvals, cell_t *env
     return frame;
 }
 
+cell_t *secd_insert_in_frame(secd_t *secd, cell_t *frame, cell_t *sym, cell_t *val) {
+    cell_t *old_syms = get_car(frame);
+    cell_t *old_vals = get_cdr(frame);
+
+    // an interesting side effect: since there's no check for
+    // re-binding an existing symbol, we can create multiple
+    // copies of it on the frame, the last added is found
+    // during value lookup, but the old ones are persistent
+    frame->as.cons.car = share_cell(secd, new_cons(secd, sym, old_syms));
+    frame->as.cons.cdr = share_cell(secd, new_cons(secd, val, old_vals));
+
+    drop_cell(secd, old_syms); drop_cell(secd, old_vals);
+    return frame;
+}

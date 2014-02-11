@@ -3,7 +3,7 @@
 
 
 typedef struct {
-    const cell_t *sym;
+    const char *name;
     secd_opfunc_t fun;
     int args;       // takes 'args' control cells after the opcode
     int stackuse;   // changes of stack size

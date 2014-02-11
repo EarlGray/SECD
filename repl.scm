@@ -204,7 +204,7 @@
   (let ((macroname (car macrodef))
         (macroargs (cdr macrodef)))
     (let ((macroclos ;; TODO: macrobody may be more longer than 1 form
-            (secd-closure (secd-compile macrobody) macroargs nil)))
+            (secd-closure (secd-compile macrobody) macroargs '())))
       (begin
         ;(display macrobody) ;;; what macro is compiled to.
         (secd-bind! '*macros* (cons (cons macroname macroclos)  *macros*))
@@ -219,7 +219,7 @@
                  (list 'lambda args initval))))))
 
 (secd-from-scheme (lambda (s)
-    (secd-make-executable (secd-compile s) nil)))
+    (secd-make-executable (secd-compile s) '())))
 
 
 (load (lambda (filename)

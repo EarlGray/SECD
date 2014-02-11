@@ -25,10 +25,10 @@ secd_t * init_secd(secd_t *secd) {
     secd->output_port = secd_stdout(secd);
     secd->debug_port = SECD_NIL;
 
-    init_env(secd);
-
-    secd->truth_value = lookup_env(secd, "#t", SECD_NIL);
+    secd->truth_value = new_symbol(secd, "#t");
     secd->false_value = SECD_NIL;
+
+    init_env(secd);
 
     secd->tick = 0;
     return secd;
@@ -61,7 +61,7 @@ cell_t * run_secd(secd_t *secd, cell_t *ctrl) {
 
         cell_t *ret = callee(secd);
         if (is_error(ret)) {
-            errorf("run: %s failed at\n", symname(opcode_table[ opind ].sym));
+            errorf("run: %s failed at\n", opcode_table[ opind ].name);
             print_env(secd);
             return ret;
         }
@@ -106,13 +106,16 @@ cell_t *serialize_cell(secd_t *secd, cell_t *cell) {
               opt = chain_sym(secd, "str", strc);
           }
         } break;
+      case CELL_SYM:
+          opt = new_cons(secd, cell, SECD_NIL);
+          break;
       case CELL_ATOM:
           switch (atom_type(secd, cell)) {
-            case ATOM_INT: case ATOM_SYM:
+            case ATOM_INT:
               opt = new_cons(secd, cell, SECD_NIL);
               break;
             case ATOM_OP: {
-              cell_t *namec = new_const_clone(secd, opcode_table[ cell->as.atom.as.op ].sym);
+              cell_t *namec = new_symbol(secd, opcode_table[ cell->as.atom.as.op ].name);
               opt = new_cons(secd, namec, SECD_NIL);
             } break;
             case ATOM_FUNC:

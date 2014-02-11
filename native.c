@@ -188,8 +188,18 @@ cell_t *secdf_defp(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "secdf_defp: no arguments");
 
     cell_t *sym = list_head(args);
-    assert(atom_type(secd, sym) == ATOM_SYM, "secdf_deps: not a symbol");
+    assert(is_symbol(sym), "secdf_deps: not a symbol");
     return to_bool(secd, not_nil(lookup_symenv(secd, symname(sym))));
+}
+
+cell_t *secdf_hash(secd_t *secd, cell_t *args) {
+    ctrldebugf("secdf_hash\n");
+    assert(not_nil(args), "secdf_hash: no arguments");
+
+    cell_t *cell = list_head(args);
+    if (is_symbol(cell))
+        return new_number(secd, cell->as.sym.hash);
+    return SECD_NIL;
 }
 
 cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
@@ -198,7 +208,7 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
         goto help;
 
     cell_t *arg1 = list_head(args);
-    if (atom_type(secd, arg1) == ATOM_SYM) {
+    if (is_symbol(arg1)) {
         if (str_eq(symname(arg1), "mem")) {
             printf(";;  size = %zd\n", secd->end - secd->begin);
             printf(";;  fixedptr = %zd\n", secd->fixedptr - secd->begin);
@@ -258,7 +268,7 @@ cell_t *secdf_bind(secd_t *secd, cell_t *args) {
 
     assert(not_nil(args), "secdf_bind: can't bind nothing to nothing");
     cell_t *sym = list_head(args);
-    assert(atom_type(secd, sym) == ATOM_SYM, "secdf_bind: a symbol must be bound");
+    assert(is_symbol(sym), "secdf_bind: a symbol must be bound");
 
     args = list_next(secd, args);
     assert(not_nil(args), "secdf_bind: No value for binding");
@@ -273,19 +283,8 @@ cell_t *secdf_bind(secd_t *secd, cell_t *args) {
         env = secd->global_env;
     }
 
-    cell_t *frame = list_head(env);
-    cell_t *old_syms = get_car(frame);
-    cell_t *old_vals = get_cdr(frame);
-
-    // an intersting side effect: since there's no check for
-    // re-binding an existing symbol, we can create multiple
-    // copies of it on the frame, the last added is found
-    // during value lookup, but the old ones are persistent
-    frame->as.cons.car = share_cell(secd, new_cons(secd, sym, old_syms));
-    frame->as.cons.cdr = share_cell(secd, new_cons(secd, val, old_vals));
-
-    drop_cell(secd, old_syms); drop_cell(secd, old_vals);
-    return sym;
+    secd_insert_in_frame(secd, list_head(env), sym, val);
+    return val;
 }
 
 /*
@@ -407,7 +406,7 @@ cell_t *secdf_strlen(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "secdf_strlen: no arguments");
 
     cell_t *str = get_car(args);
-    assert(cell_type(str) == CELL_STR, "not a string");
+    assert(is_symbol(str), "not a string");
     return new_number(secd, utf8strlen((const char *)str->as.str.data));
 }
 
@@ -423,7 +422,7 @@ cell_t *secdf_sym2str(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "secdf_sym2str: no arguments");
 
     cell_t *sym = get_car(args);
-    assert(atom_type(secd, sym) == ATOM_SYM, "not a symbol");
+    assert(is_symbol(sym), "secdf_sym2str: not a symbol");
     return new_string(secd, symname(sym));
 }
 
@@ -623,8 +622,8 @@ cell_t *secdf_readchar(secd_t *secd, cell_t *args) {
 cell_t *secdf_eofp(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_eofp\n");
     cell_t *arg1 = list_head(args);
-    if (atom_type(secd, arg1) != ATOM_SYM)
-        return SECD_NIL;
+    if (!is_symbol(arg1))
+        return secd->false_value;
     return to_bool(secd, str_eq(symname(arg1), EOF_OBJ));
 }
 
@@ -643,37 +642,6 @@ cell_t *secdf_pclose(secd_t *secd, cell_t *args) {
  *    Native function mapping table
  */
 
-/* misc */
-const cell_t defp_sym   = INIT_SYM("defined?");
-const cell_t eofp_sym   = INIT_SYM("eof-object?");
-const cell_t debug_sym  = INIT_SYM("secd");
-const cell_t env_sym    = INIT_SYM("interaction-environment");
-const cell_t bind_sym   = INIT_SYM("secd-bind!");
-/* list routines */
-const cell_t list_sym   = INIT_SYM("list");
-const cell_t append_sym = INIT_SYM("append");
-const cell_t copy_sym   = INIT_SYM("list-copy");
-/* vector routines */
-const cell_t vmake_sym  = INIT_SYM("make-vector");
-const cell_t vlen_sym   = INIT_SYM("vector-length");
-const cell_t vref_sym   = INIT_SYM("vector-ref");
-const cell_t vset_sym   = INIT_SYM("vector-set!");
-const cell_t vlist_sym  = INIT_SYM("list->vector");
-const cell_t l2v_sym    = INIT_SYM("vector->list");
-/* string functions */
-const cell_t strlen_sym = INIT_SYM("string-length");
-const cell_t symstr_sym = INIT_SYM("symbol->string");
-const cell_t strsym_sym = INIT_SYM("string->symbol");
-const cell_t strlst_sym = INIT_SYM("string->list");
-const cell_t lststr_sym = INIT_SYM("list->string");
-/* i/o port functions */
-const cell_t displ_sym  = INIT_SYM("display");
-const cell_t fopen_sym  = INIT_SYM("open-input-file");
-const cell_t siopen_sym = INIT_SYM("open-input-string");
-const cell_t fgetc_sym  = INIT_SYM("read-char");
-const cell_t fread_sym  = INIT_SYM("read-string");
-const cell_t pclose_sym = INIT_SYM("close-port");
-
 const cell_t defp_func  = INIT_FUNC(secdf_defp);
 const cell_t list_func  = INIT_FUNC(secdf_list);
 const cell_t appnd_func = INIT_FUNC(secdf_append);
@@ -681,6 +649,7 @@ const cell_t eofp_func  = INIT_FUNC(secdf_eofp);
 const cell_t debug_func = INIT_FUNC(secdf_ctl);
 const cell_t getenv_fun = INIT_FUNC(secdf_getenv);
 const cell_t bind_func  = INIT_FUNC(secdf_bind);
+const cell_t hash_func  = INIT_FUNC(secdf_hash);
 /* vector routines */
 const cell_t vmake_func = INIT_FUNC(secdv_make);
 const cell_t vlen_func  = INIT_FUNC(secdv_len);
@@ -702,54 +671,43 @@ const cell_t fgetc_fun  = INIT_FUNC(secdf_readchar);
 const cell_t fread_fun  = INIT_FUNC(secdf_readstring);
 const cell_t pclose_fun = INIT_FUNC(secdf_pclose);
 
-const cell_t t_sym      = INIT_SYM("#t");
-const cell_t f_sym      = INIT_SYM("#f");
-const cell_t nil_sym    = INIT_SYM("NIL");
-
-const cell_t err_sym        = INIT_SYM("error:generic");
-const cell_t err_nil_sym    = INIT_SYM("error:nil");
-const cell_t err_oom        = INIT_SYM("error:out_of_memory");
-
 const native_binding_t
 native_functions[] = {
     // predefined errors
-    { &err_oom,     &secd_out_of_memory },
-    { &err_nil_sym, &secd_nil_failure },
-    { &err_sym,     &secd_failure },
+    { "error:out_of_memory",&secd_out_of_memory },
+    { "error:nil",          &secd_nil_failure   },
+    { "erorr:generic",      &secd_failure       },
 
-    { &strlen_sym,  &strlen_fun },
-    { &symstr_sym,  &symstr_fun },
-    { &strsym_sym,  &strsym_fun },
-    { &strlst_sym,  &strlst_fun },
-    { &lststr_sym,  &lststr_fun },
+    { "string-length",  &strlen_fun },
+    { "symbol->string", &symstr_fun },
+    { "string->symbol", &strsym_fun },
+    { "string->list",   &strlst_fun },
+    { "list->string",   &lststr_fun },
 
-    { &vmake_sym,   &vmake_func },
-    { &vlen_sym,    &vlen_func  },
-    { &vref_sym,    &vref_func  },
-    { &vset_sym,    &vset_func  },
-    { &vlist_sym,   &vlist_func },
-    { &l2v_sym,     &l2v_func   },
+    { "make-vector",    &vmake_func },
+    { "vector-length",  &vlen_func  },
+    { "vector-ref",     &vref_func  },
+    { "vector-set!",    &vset_func  },
+    { "vector->list",   &vlist_func },
+    { "list->vector",   &l2v_func   },
 
-    { &displ_sym,   &displ_fun  },
-    { &fopen_sym,   &fiopen_fun },
-    { &siopen_sym,  &siopen_fun },
-    { &fgetc_sym,   &fgetc_fun  },
-    { &fread_sym,   &fread_fun  },
-    { &pclose_sym,  &pclose_fun },
+    { "display",            &displ_fun  },
+    { "open-input-file",    &fiopen_fun },
+    { "open-input-string",  &siopen_fun },
+    { "read-char",          &fgetc_fun  },
+    { "read-string",        &fread_fun  },
+    { "port-close",         &pclose_fun },
 
-    // native functions
-    { &list_sym,    &list_func  },
-    { &append_sym,  &appnd_func },
-    { &eofp_sym,    &eofp_func  },
-    { &debug_sym,   &debug_func  },
-    { &env_sym,     &getenv_fun },
-    { &defp_sym,    &defp_func  },
-    { &bind_sym,    &bind_func  },
+    // misc native functions
+    { "list",           &list_func  },
+    { "append",         &appnd_func },
+    { "eof-object?",    &eofp_func  },
+    { "secd-hash",      &hash_func  },
+    { "secd",           &debug_func },
+    { "defined?",       &defp_func  },
+    { "secd-bind!",     &bind_func  },
+    { "interaction-environment", &getenv_fun },
 
-    // symbols
-    { &nil_sym,     SECD_NIL    },
-    { &f_sym,       &f_sym      },
-    { &t_sym,       &t_sym      },
-    { NULL,         NULL        } // must be last
+    { NULL,       NULL        } // must be last
 };
 

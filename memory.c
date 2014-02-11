@@ -41,6 +41,20 @@ static hash_t jenkins_hash(const char *key, size_t len) {
     return hash;
 }
 
+hash_t strhash(const char *strz) {
+    uint32_t hash = 0;
+    while (*strz) {
+        hash += *strz;
+        hash += (hash << 10);
+        hash ^= (hash >> 6);
+        ++strz;
+    }
+    hash += (hash << 3);
+    hash ^= (hash >> 11);
+    hash += (hash << 15);
+    return hash;
+}
+
 hash_t memhash(const char *key, size_t len) {
     return jenkins_hash(key, len);
 }
@@ -50,20 +64,12 @@ hash_t memhash(const char *key, size_t len) {
  */
 
 /* Deallocation */
-void free_atom(cell_t *cell) {
-    switch (cell->as.atom.type) {
-      case ATOM_SYM:
-        if (cell->as.atom.as.sym.size != DONT_FREE_THIS)
-            free((char *)cell->as.atom.as.sym.data); break;
-      default: return;
-    }
-}
-
 cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
     enum cell_type t = cell_type(c);
     switch (t) {
-      case CELL_ATOM:
-        free_atom(c);
+      case CELL_SYM:
+        if (c->as.sym.size != DONT_FREE_THIS)
+            free((char *)c->as.sym.data); 
         break;
       case CELL_FRAME:
         drop_cell(secd, c->as.frame.io);
@@ -101,6 +107,7 @@ cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
       case CELL_PORT:
         secd_pclose(secd, c);
         break;
+      case CELL_ATOM:
       case CELL_ERROR:
       case CELL_UNDEF:
         return c;
@@ -331,10 +338,10 @@ cell_t *new_number(secd_t *secd, int num) {
 
 cell_t *new_symbol(secd_t *secd, const char *sym) {
     cell_t *cell = pop_free(secd);
-    cell->type = CELL_ATOM;
-    cell->as.atom.type = ATOM_SYM;
-    cell->as.atom.as.sym.size = strlen(sym);
-    cell->as.atom.as.sym.data = strdup(sym);
+    cell->type = CELL_SYM;
+    cell->as.sym.size = strlen(sym);
+    cell->as.sym.data = strdup(sym);
+    cell->as.sym.hash = memhash(sym, cell->as.sym.size);
     return cell;
 }
 
@@ -473,6 +480,9 @@ cell_t *init_with_copy(secd_t *secd,
       case CELL_CONS: case CELL_FRAME:
         share_cell(secd, with->as.cons.car);
         share_cell(secd, with->as.cons.cdr);
+        break;
+      case CELL_SYM:
+        /* TODO */
         break;
       case CELL_REF:
         share_cell(secd, with->as.ref);

@@ -48,6 +48,7 @@ typedef  struct cell    cell_t;
 
 typedef  struct atom  atom_t;
 typedef  struct cons  cons_t;
+typedef  struct symbol symbol_t;
 typedef  struct error error_t;
 typedef  struct frame frame_t;
 typedef  struct port  port_t;
@@ -98,9 +99,9 @@ enum cell_type {
 
     /* atomic types */
     CELL_ATOM,  // one of commented:
+    CELL_SYM,
     /* atoms
     CELL_INT,
-    CELL_SYM,
     CELL_OP,
     CELL_FUNC, */
     CELL_PORT,  // I/O handle
@@ -111,7 +112,6 @@ enum cell_type {
 enum atom_type {
     NOT_AN_ATOM,   // 0, this is not an atom
     ATOM_INT,      // atom.as.num
-    ATOM_SYM,      // atom.as.sym
     ATOM_OP,       // (secd_opfunc_t *) atom.as.ptr
     ATOM_FUNC,     // (secd_nativefunc_t *) atom.as.ptr
 };
@@ -123,11 +123,6 @@ struct atom {
     enum atom_type type;
     union {
         int num;
-        struct {
-            size_t size;
-            const char *data;
-        } sym;
-
         opindex_t op;
         void *ptr;
     } as;
@@ -136,6 +131,12 @@ struct atom {
 struct cons {
     cell_t *car;    // shares
     cell_t *cdr;    // shares
+};
+
+struct symbol {
+    size_t size;
+    const char *data;
+    hash_t hash;
 };
 
 struct frame {
@@ -190,6 +191,7 @@ struct cell {
     union {
         atom_t  atom; // TODO: get rid of atom_t, make it flat
         cons_t  cons;
+        symbol_t sym;
         frame_t frame;
         port_t  port;
         error_t err;
@@ -280,7 +282,10 @@ inline static long cell_index(secd_t *secd, const cell_t *cons) {
 }
 
 inline static const char * symname(const cell_t *c) {
-    return c->as.atom.as.sym.data;
+    return c->as.sym.data;
+}
+inline static hash_t symhash(const cell_t *c) {
+    return c->as.sym.hash;
 }
 
 inline static const char * errmsg(const cell_t *err) {
@@ -322,6 +327,10 @@ inline static bool is_cons(const cell_t *cell) {
     if (is_nil(cell)) return true;
     return cell_type(cell) == CELL_CONS;
 }
+inline static bool is_symbol(const cell_t *cell) {
+    if (is_nil(cell)) return false;
+    return cell_type(cell) == CELL_SYM;
+}
 
 inline static bool is_error(const cell_t *cell) {
     if (is_nil(cell)) return false;
@@ -345,23 +354,6 @@ inline static cell_t *mcons_next(cell_t *mcons) {
 inline static cell_t *to_bool(secd_t *secd, bool cond) {
     return ((cond)? secd->truth_value : secd->false_value);
 }
-
-
-#define INIT_SYM(name) {    \
-    .type = CELL_ATOM,      \
-    .nref = DONT_FREE_THIS, \
-    .as.atom = {            \
-      .type = ATOM_SYM,     \
-      .as.sym = {           \
-        .size = sizeof(name) - 1, \
-        .data = (name) } } }
-
-#define INIT_NUM(num) {     \
-    .type = CELL_ATOM,      \
-    .nref = DONT_FREE_THIS, \
-    .as.atom = {            \
-      .type = ATOM_INT,     \
-      .as.num = (num) }}
 
 #define INIT_OP(op) {       \
     .type = CELL_ATOM,      \
@@ -423,6 +415,7 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control);
  * utilities
  */
 hash_t memhash(const char*, size_t);
+hash_t strhash(const char *strz);
 
 /* return a symbol describing the cell */
 cell_t *secd_type_sym(secd_t *secd, const cell_t *cell);

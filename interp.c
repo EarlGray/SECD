@@ -20,7 +20,7 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control) {
     cell_t *compcursor = compiled;
     while (not_nil(cursor)) {
         cell_t *opcode = list_head(cursor);
-        if (atom_type(secd, opcode) != ATOM_SYM) {
+        if (!is_symbol(opcode)) {
             errorf("compile_control: not a symbol in control path\n");
             sexp_print(secd, opcode); printf("\n");
             return new_error(secd, "compile_control_path: symbol expected");
@@ -156,8 +156,7 @@ cell_t *secd_ld(secd_t *secd) {
 
     cell_t *arg = pop_control(secd);
     assert_cell(arg, "secd_ld: stack empty");
-    assert(atom_type(secd, arg) == ATOM_SYM,
-           "secd_ld: not a symbol [%ld]", cell_index(secd, arg));
+    assert(is_symbol(arg), "secd_ld: not a symbol [%ld]", cell_index(secd, arg));
 
     const char *sym = symname(arg);
     cell_t *val = lookup_env(secd, sym, SECD_NIL);
@@ -174,7 +173,6 @@ bool atom_eq(secd_t *secd, const cell_t *a1, const cell_t *a2) {
         return false;
     switch (atype1) {
       case ATOM_INT: return (a1->as.atom.as.num == a2->as.atom.as.num);
-      case ATOM_SYM: return (str_eq(symname(a1), symname(a2)));
       case ATOM_OP: return (a1->as.atom.as.op == a2->as.atom.as.op);
       case ATOM_FUNC: return (a1->as.atom.as.ptr == a2->as.atom.as.ptr);
       default: errorf("atom_eq(secd, [%ld], [%ld]): don't know how to handle type %d\n",
@@ -238,7 +236,8 @@ bool is_equal(secd_t *secd, const cell_t *a, const cell_t *b) {
       case CELL_CONS: return list_eq(secd, a, b);
       case CELL_ATOM: return atom_eq(secd, a, b);
       case CELL_ARRAY: return array_eq(secd, a, b);
-      case CELL_STR:  return !strcmp(strval(a), strval(b));
+      case CELL_STR: return !strcmp(strval(a), strval(b));
+      case CELL_SYM: return (str_eq(symname(a), symname(b)));
       case CELL_BYTES: {
         const size_t len = mem_size(a);
         if (len != mem_size(b))
@@ -261,6 +260,7 @@ cell_t *secd_type_sym(secd_t *secd, const cell_t *cell) {
       case CELL_CONS:  type = "cons"; break;
       case CELL_ARRAY: type = "vect"; break;
       case CELL_STR:   type = "str";  break;
+      case CELL_SYM:   type = "sym"; break;
       case CELL_BYTES: type = "bvect"; break;
       case CELL_PORT:  type = "port"; break;
       case CELL_FRAME: type = "frame"; break;
@@ -268,7 +268,6 @@ cell_t *secd_type_sym(secd_t *secd, const cell_t *cell) {
         switch (atom_type(secd, cell)) {
           case NOT_AN_ATOM: return new_error(secd, "not an atom");
           case ATOM_INT: type = "int"; break;
-          case ATOM_SYM: type = "sym"; break;
           case ATOM_FUNC: type = "func"; break;
           case ATOM_OP:  type = "op"; break;
         } break;
@@ -694,56 +693,32 @@ const cell_t read_func  = INIT_OP(SECD_READ);
 const cell_t print_func = INIT_OP(SECD_PRN);
 const cell_t stop_func  = INIT_OP(SECD_STOP);
 
-const cell_t ap_sym     = INIT_SYM("AP");
-const cell_t add_sym    = INIT_SYM("ADD");
-const cell_t car_sym    = INIT_SYM("CAR");
-const cell_t cdr_sym    = INIT_SYM("CDR");
-const cell_t cons_sym   = INIT_SYM("CONS");
-const cell_t div_sym    = INIT_SYM("DIV");
-const cell_t dum_sym    = INIT_SYM("DUM");
-const cell_t eq_sym     = INIT_SYM("EQ");
-const cell_t join_sym   = INIT_SYM("JOIN");
-const cell_t ld_sym     = INIT_SYM("LD");
-const cell_t ldc_sym    = INIT_SYM("LDC");
-const cell_t ldf_sym    = INIT_SYM("LDF");
-const cell_t leq_sym    = INIT_SYM("LEQ");
-const cell_t mul_sym    = INIT_SYM("MUL");
-const cell_t print_sym  = INIT_SYM("PRINT");
-const cell_t rap_sym    = INIT_SYM("RAP");
-const cell_t read_sym   = INIT_SYM("READ");
-const cell_t rem_sym    = INIT_SYM("REM");
-const cell_t rtn_sym    = INIT_SYM("RTN");
-const cell_t sel_sym    = INIT_SYM("SEL");
-const cell_t stop_sym   = INIT_SYM("STOP");
-const cell_t sub_sym    = INIT_SYM("SUB");
-const cell_t type_sym   = INIT_SYM("TYPE");
-
 const opcode_t opcode_table[] = {
     // opcodes: for information, not to be called
     // keep symbols sorted properly
-    [SECD_ADD]  = { &add_sym,     secd_add,  0, -1},
-    [SECD_AP]   = { &ap_sym,      secd_ap,   0, -1},
-    [SECD_CAR]  = { &car_sym,     secd_car,  0,  0},
-    [SECD_CDR]  = { &cdr_sym,     secd_cdr,  0,  0},
-    [SECD_CONS] = { &cons_sym,    secd_cons, 0, -1},
-    [SECD_DIV]  = { &div_sym,     secd_div,  0, -1},
-    [SECD_DUM]  = { &dum_sym,     secd_dum,  0,  0},
-    [SECD_EQ]   = { &eq_sym,      secd_eq,   0, -1},
-    [SECD_JOIN] = { &join_sym,    secd_join, 0,  0},
-    [SECD_LD]   = { &ld_sym,      secd_ld,   1,  1},
-    [SECD_LDC]  = { &ldc_sym,     secd_ldc,  1,  1},
-    [SECD_LDF]  = { &ldf_sym,     secd_ldf,  1,  1},
-    [SECD_LEQ]  = { &leq_sym,     secd_leq,  0, -1},
-    [SECD_MUL]  = { &mul_sym,     secd_mul,  0, -1},
-    [SECD_PRN]  = { &print_sym,   secd_print,0,  0},
-    [SECD_RAP]  = { &rap_sym,     secd_rap,  0, -1},
-    [SECD_READ] = { &read_sym,    secd_read, 0,  1},
-    [SECD_REM]  = { &rem_sym,     secd_rem,  0, -1},
-    [SECD_RTN]  = { &rtn_sym,     secd_rtn,  0,  0},
-    [SECD_SEL]  = { &sel_sym,     secd_sel,  2, -1},
-    [SECD_STOP] = { &stop_sym,    SECD_NIL,  0,  0},
-    [SECD_SUB]  = { &sub_sym,     secd_sub,  0, -1},
-    [SECD_TYPE] = { &type_sym,    secd_type, 0,  0},
+    [SECD_ADD]  = { "ADD",     secd_add,  0, -1},
+    [SECD_AP]   = { "AP",      secd_ap,   0, -1},
+    [SECD_CAR]  = { "CAR",     secd_car,  0,  0},
+    [SECD_CDR]  = { "CDR",     secd_cdr,  0,  0},
+    [SECD_CONS] = { "CONS",    secd_cons, 0, -1},
+    [SECD_DIV]  = { "DIV",     secd_div,  0, -1},
+    [SECD_DUM]  = { "DUM",     secd_dum,  0,  0},
+    [SECD_EQ]   = { "EQ",      secd_eq,   0, -1},
+    [SECD_JOIN] = { "JOIN",    secd_join, 0,  0},
+    [SECD_LD]   = { "LD",      secd_ld,   1,  1},
+    [SECD_LDC]  = { "LDC",     secd_ldc,  1,  1},
+    [SECD_LDF]  = { "LDF",     secd_ldf,  1,  1},
+    [SECD_LEQ]  = { "LEQ",     secd_leq,  0, -1},
+    [SECD_MUL]  = { "MUL",     secd_mul,  0, -1},
+    [SECD_PRN]  = { "PRINT",   secd_print,0,  0},
+    [SECD_RAP]  = { "RAP",     secd_rap,  0, -1},
+    [SECD_READ] = { "READ",    secd_read, 0,  1},
+    [SECD_REM]  = { "REM",     secd_rem,  0, -1},
+    [SECD_RTN]  = { "RTN",     secd_rtn,  0,  0},
+    [SECD_SEL]  = { "SEL",     secd_sel,  2, -1},
+    [SECD_STOP] = { "STOP",    SECD_NIL,  0,  0},
+    [SECD_SUB]  = { "SUB",     secd_sub,  0, -1},
+    [SECD_TYPE] = { "TYPE",    secd_type, 0,  0},
 
     [SECD_LAST] = { NULL,         NULL,      0,  0}
 };
@@ -752,7 +727,7 @@ index_t optable_len = 0;
 
 inline size_t opcode_count(void) {
     if (optable_len == 0)
-        while (opcode_table[optable_len].sym) ++optable_len;
+        while (opcode_table[optable_len].name) ++optable_len;
     return optable_len;
 }
 
@@ -762,7 +737,7 @@ index_t search_opcode_table(cell_t *sym) {
 
     while (a != b) {
         index_t c = (a + b) / 2;
-        int ord = str_cmp( symname(sym), symname(opcode_table[c].sym));
+        int ord = str_cmp( symname(sym), opcode_table[c].name);
         if (ord == 0) return c;
         if (ord < 0) b = c;
         else a = c;
