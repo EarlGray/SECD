@@ -160,10 +160,9 @@ cell_t *lookup_env(secd_t *secd, const char *symbol, cell_t **symc) {
             env = list_next(secd, env);
             continue;
         }
-        bool open;
+        bool open = true;
         const char *mod = module_name_for_frame(secd, frame, &open);
-        assert(mod, "lookup_env: no module name");
-        size_t modlen = strlen(mod);
+        size_t modlen = (mod ? strlen(mod) : 0);
 
         cell_t *symlist = get_car(frame);
         cell_t *vallist = get_cdr(frame);
@@ -173,9 +172,16 @@ cell_t *lookup_env(secd_t *secd, const char *symbol, cell_t **symc) {
             assert(is_symbol(curc),
                    "lookup_env: variable at [%ld] is not a symbol\n", cell_index(secd, curc));
 
-            if (name_eq(symbol, symh, curc, mod, modlen, open)) {
-                if (symc != NULL) *symc = curc;
-                return get_car(vallist);
+            if (mod) {
+                if (name_eq(symbol, symh, curc, mod, modlen, open)) {
+                    if (symc != NULL) *symc = curc;
+                    return get_car(vallist);
+                }
+            } else {
+                if (symh == symhash(curc) && str_eq(symbol, symname(curc))) {
+                    if (symc != NULL) *symc = curc;
+                    return get_car(vallist);
+                }
             }
 
             symlist = list_next(secd, symlist);
@@ -256,17 +262,17 @@ static cell_t *new_frame_io(secd_t *secd, cell_t *frame, cell_t *prevenv) {
 }
 
 cell_t *setup_frame(secd_t *secd, cell_t *argnames, cell_t *argvals, cell_t *env) {
-    /* insert *module* variable into the new frame */
+    /* insert *module* variable into the new frame 
     cell_t *modsym = SECD_NIL;
     if (is_error(lookup_env(secd, SECD_FAKEVAR_MODULE, &modsym)))
         return new_error(secd, "there's no *module* variable");
 
-    char envname[64];   /* determine name for the frame */
+    char envname[64];   // determine name for the frame
     snprintf(envname, 64, ":env%ld", secd->envcounter++);
     cell_t *modname = new_symbol(secd, envname);
 
     argnames = new_cons(secd, modsym, argnames);
-    argvals = new_cons(secd, modname, argvals);
+    argvals = new_cons(secd, modname, argvals); // */
 
     /* setup the new frame */
     cell_t *frame = new_frame(secd, argnames, argvals);

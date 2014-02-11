@@ -284,7 +284,7 @@ cell_t *secdf_bind(secd_t *secd, cell_t *args) {
     }
 
     secd_insert_in_frame(secd, list_head(env), sym, val);
-    return val;
+    return sym;
 }
 
 /*
