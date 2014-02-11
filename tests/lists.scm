@@ -50,5 +50,9 @@
             (range-tco (cons n acc) (- n 1))))))
    (range-tco '() n)))
 
+(define (nth xs n)
+  (if (null? xs) 'Error:_out_of_range
+      (if (eq? n 0) (car xs) (nth (cdr xs) (- n 1)))))
+
 (define (product xs) (foldr (lambda (x y) (* x y)) 1 xs))
 (define (sum xs)     (foldr (lambda (x y) (+ x y)) 0 xs))
