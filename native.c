@@ -447,10 +447,10 @@ cell_t *secdv_set(secd_t *secd, cell_t *args) {
 }
 
 cell_t *secdf_lst2vct(secd_t *secd, cell_t *args) {
-    assert(not_nil(args), "secdf_vct2lst: no arguments");
+    assert(not_nil(args), "secdf_lst2vct: no arguments");
 
     cell_t *lst = get_car(args);
-    assert(is_cons(lst), "secdf_vct2lst: not a list");
+    assert(is_cons(lst), "secdf_lst2vct: not a list");
 
     return list_to_vector(secd, lst);
 }
@@ -860,8 +860,8 @@ const cell_t vmake_func = INIT_FUNC(secdv_make);
 const cell_t vlen_func  = INIT_FUNC(secdv_len);
 const cell_t vref_func  = INIT_FUNC(secdv_ref);
 const cell_t vset_func  = INIT_FUNC(secdv_set);
-const cell_t vlist_func = INIT_FUNC(secdf_lst2vct);
-const cell_t l2v_func   = INIT_FUNC(secdf_vct2lst);
+const cell_t vlist_func = INIT_FUNC(secdf_vct2lst);
+const cell_t l2v_func   = INIT_FUNC(secdf_lst2vct);
 /* bytevectors */
 const cell_t mkbv_fun   = INIT_FUNC(secdf_mkbvect);
 const cell_t bvlen_fun  = INIT_FUNC(secdf_bvlen);
