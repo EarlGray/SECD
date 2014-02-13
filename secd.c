@@ -9,7 +9,7 @@ int main(int argc, char *argv[]) {
     errorf(";;;     Type (secd) to get some help.\n");
 
     init_secd(&secd);
-#if CTRLDEBUG
+#if ((CTRLDEBUG) || (MEMDEBUG))
     secd.debug_port = secd_fopen(&secd, "secd.log", "w");
 #endif
 

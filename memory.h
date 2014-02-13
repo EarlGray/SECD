@@ -98,7 +98,7 @@ arr_val(const cell_t *arr, size_t index) {
     return arr->as.arr.data + index;
 }
 
-static inline cell_t *arr_mem(cell_t *arr) {
+static inline cell_t *arr_mem(const cell_t *arr) {
     return arr->as.arr.data;
 }
 

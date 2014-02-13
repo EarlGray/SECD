@@ -467,6 +467,7 @@ static cell_t *extract_argvals(secd_t *secd) {
 
     cell_t *ntop = pop_control(secd);
     int n = numval(ntop);
+    ctrldebugf(" %d args on stack\n", n);
 
     while (n-- > 0) {
         argvcursor = new_stack;
@@ -513,11 +514,7 @@ cell_t *secd_ap(secd_t *secd) {
     cell_t *newenv = get_cdr(closure);
     assert(is_cons(newenv), "secd_ap: not a cons at env in closure");
     assert(not_nil(newenv), "secd_ap: nil env");
-    if (cell_type(list_head(newenv)) != CELL_FRAME) {
-        errorf("secd_ap: env holds not a frame\n");
-        dbg_printc(secd, newenv);
-        return new_error(secd, "not a frame");
-    }
+    assert(cell_type(list_head(newenv)) == CELL_FRAME, "secd_ap: env holds not a frame\n");
 
     cell_t *argnames = get_car(func);
     cell_t *control = list_head(list_next(secd, func));
@@ -547,19 +544,11 @@ cell_t *secd_ap(secd_t *secd) {
     cell_t *frame = setup_frame(secd, argnames, argvals, newenv);
     assert_cell(frame, "secd_ap: setup_frame() failed");
 
-    cell_t *oldenv = secd->env;
-    memdebugf("secd_ap: dropping env[%ld]\n", cell_index(secd, oldenv));
-    secd->env = share_cell(secd, new_cons(secd, frame, newenv));
-    drop_cell(secd, oldenv);
-
+    memdebugf("secd_ap: dropping env[%ld]\n", cell_index(secd, secd->env));
+    assign_cell(secd, &secd->env, new_cons(secd, frame, newenv)); 
     if (ENVDEBUG) print_env(secd);
 
     set_control(secd, control);
-    /*
-    cell_t *oldctrl = secd->control;
-    secd->control = share_cell(secd, control);
-    drop_cell(secd, oldctrl);
-    */
 
     drop_cell(secd, closure); drop_cell(secd, argvals);
     return control;
@@ -571,27 +560,27 @@ cell_t *secd_rtn(secd_t *secd) {
     assert(is_nil(secd->control), "secd_rtn: commands after RTN");
 
     assert(not_nil(secd->stack), "secd_rtn: stack is empty");
-    cell_t *top = pop_stack(secd);
+    cell_t *result = pop_stack(secd);
     assert(is_nil(secd->stack), "secd_rtn: stack holds more than 1 value");
 
     cell_t *prevstack = pop_dump(secd);
     cell_t *prevenv = pop_dump(secd);
     cell_t *prevcontrol = pop_dump(secd);
 
-    drop_cell(secd, secd->env);
+    secd->stack = share_cell(secd, new_cons(secd, result, prevstack));
+    drop_cell(secd, result); drop_cell(secd, prevstack);
 
-    secd->stack = share_cell(secd, new_cons(secd, top, prevstack));
-    drop_cell(secd, top); drop_cell(secd, prevstack);
+    drop_cell(secd, secd->env);
+    secd->env = prevenv; // share_cell(secd, prevenv); drop_cell(secd, prevenv);
 
     secd->control = prevcontrol; // share_cell(secd, prevcontrol); drop_cell(secd, prevcontrol);
-    secd->env = prevenv; // share_cell(secd, prevenv); drop_cell(secd, prevenv);
 
     /* restoring I/O */
     cell_t *frame_io = get_car(prevenv);
     secd->input_port = get_car(frame_io->as.frame.io);
     secd->output_port = get_cdr(frame_io->as.frame.io);
 
-    return top;
+    return result;
 }
 
 

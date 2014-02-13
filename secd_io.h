@@ -29,10 +29,10 @@ static inline bool is_closed(cell_t *port) {
 #include "conf.h"
 
 #if (MEMDEBUG)
-# define memdebugf(...) do { \
-    printf("%ld |   ", secd->tick); \
-    printf(__VA_ARGS__);  \
-  } while (0)
+# define memdebugf(...) if (not_nil(secd->debug_port)) { \
+    secd_printf(secd, secd->debug_port, "%ld |   ", secd->tick); \
+    secd_printf(secd, secd->debug_port, __VA_ARGS__);  \
+  }
 # if (MEMTRACE)
 #  define memtracef(...) printf(__VA_ARGS__)
 # else

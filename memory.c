@@ -16,6 +16,30 @@
 void free_array(secd_t *secd, cell_t *this);
 void push_free(secd_t *secd, cell_t *c);
 
+inline static cell_t *share_array(secd_t *secd, cell_t *mem) {
+    return share_cell(secd, arr_meta(mem)) + 1;
+}
+inline static cell_t *drop_array(secd_t *secd, cell_t *mem) {
+    cell_t *meta = arr_meta(mem);
+    -- meta->nref;
+    if (0 == meta->nref) {
+        if (meta->as.mcons.cells) {
+            size_t size = arrmeta_size(secd, meta);
+            size_t i;
+
+            /* free the items */
+            for (i = 0; i < size; ++i) {
+                /* don't free uninitialized */
+                if (cell_type(mem + i) != CELL_UNDEF)
+                    drop_dependencies(secd, mem + i);
+            }
+        }
+
+        free_array(secd, mem);
+    }
+    return SECD_NIL;
+}
+
 /*
  *  Utilities
  */
@@ -70,6 +94,8 @@ cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
       case CELL_SYM:
         if (c->as.sym.size != DONT_FREE_THIS)
             free((char *)c->as.sym.data); 
+            /* TODO: this silently ignores symbol memory corruption */
+            c->as.sym.size = DONT_FREE_THIS; 
         break;
       case CELL_FRAME:
         drop_cell(secd, c->as.frame.io);
@@ -81,26 +107,9 @@ cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
         }
         break;
       case CELL_STR:
-      case CELL_ARRAY: {
-        cell_t *arr = arr_ref(c, 0);
-        cell_t *meta = arr_meta(arr);
-        -- meta->nref;
-        if (0 == meta->nref) {
-            if (meta->as.mcons.cells) {
-                size_t size = arrmeta_size(secd, meta);
-                size_t i;
-
-                /* free the items */
-                for (i = 0; i < size; ++i) {
-                    /* don't free uninitialized */
-                    if (cell_type(arr + i) != CELL_UNDEF)
-                        drop_dependencies(secd, arr + i);
-                }
-            }
-
-            free_array(secd, arr);
-        }
-        } break;
+      case CELL_ARRAY:
+        drop_array(secd, arr_mem(c));
+        break;
       case CELL_REF:
         drop_cell(secd, c->as.ref);
         break;
@@ -213,6 +222,7 @@ static inline void mark_free(cell_t *metacons) { metacons->nref = 0; }
 
 static cell_t *init_meta(secd_t __unused *secd, cell_t *cell, cell_t *prev, cell_t *next) {
     cell->type = CELL_ARRMETA;
+    cell->nref = 0;
     cell->as.mcons.prev = prev;
     cell->as.mcons.next = next;
     cell->as.mcons.cells = false;
@@ -251,6 +261,8 @@ cell_t *alloc_array(secd_t *secd, size_t size) {
     oldmeta->as.mcons.next = meta;
 
     secd->arrayptr = meta;
+
+    memdebugf("NEW ARR[%ld], size %zd\n", cell_index(secd, meta), size);
     return meta + 1;
 }
 
@@ -289,6 +301,7 @@ void free_array(secd_t *secd, cell_t *this) {
             secd->arrayptr = pprev;
         }
     }
+    memdebugf("FREE ARR[%ld]", cell_index(secd, meta));
 }
 
 void print_array_layout(secd_t *secd) {
@@ -357,12 +370,12 @@ cell_t *new_array(secd_t *secd, size_t size) {
     /* try to allocate memory */
     cell_t *mem = alloc_array(secd, size);
     assert_cell(mem, "new_array: memory allocation failed");
+    arr_meta(mem)->as.mcons.cells = true;
 
     cell_t *arr = pop_free(secd);
     arr->type = CELL_ARRAY;
-    arr->as.arr.data = mem;
-    arr_meta(mem)->nref = 1;
-    arr_meta(mem)->as.mcons.cells = true;
+    arr->as.arr.data = share_array(secd, mem);
+    arr->as.arr.offset = 0;
     return arr;
 }
 
@@ -378,8 +391,7 @@ typedef union {
 static cell_t *init_strref(secd_t *secd, cell_t *cell, arrref_t mem, size_t size) {
     cell->type = CELL_STR;
 
-    share_cell(secd, arr_meta(mem.as_cell));
-    cell->as.str.data = mem.as_cstr;
+    cell->as.str.data = (char *)share_array(secd, mem.as_cell);
     cell->as.str.offset = 0;
     cell->as.str.size = size;
     return cell;
@@ -488,7 +500,7 @@ cell_t *init_with_copy(secd_t *secd,
         share_cell(secd, with->as.ref);
         break;
       case CELL_ARRAY:
-        share_cell(secd, arr_meta(with->as.arr.data));
+        share_array(secd, arr_mem(with));
         break;
       case CELL_STR: case CELL_BYTES:
         share_cell(secd, arr_meta((cell_t *)strmem((cell_t *)with)));
@@ -563,7 +575,14 @@ inline static cell_t *list_push(secd_t *secd, cell_t **to, cell_t *what) {
     cell_t *newtop = new_cons(secd, what, *to);
 
 #if MEMDEBUG
-    memdebugf("PUSH %s[%ld (%ld, %ld)]\n", cell_index(secd, top));
+    const char *src;
+    if (*to == secd->stack)        src = "S";
+    else if (*to == secd->env)     src = "E";
+    else if (*to == secd->control) src = "C";
+    else if (*to == secd->dump)    src = "D";
+    else                           src = "?";
+    memdebugf("PUSH %s[%ld (%ld, %ld)]\n", src, cell_index(secd, newtop), 
+            cell_index(secd, what), cell_index(secd, *to));
 #endif
 
     drop_cell(secd, *to);

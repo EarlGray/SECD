@@ -302,6 +302,20 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
             return secd_mem_info(secd);
         } else if (str_eq(symname(arg1), "env")) {
             print_env(secd);
+        } else if (str_eq(symname(arg1), "dump")) {
+            cell_t *dlist = SECD_NIL;
+            cell_t *lstcur = SECD_NIL;
+            cell_t *dmpcur;
+            for (dmpcur = secd->dump; not_nil(dmpcur); dmpcur = list_next(secd, dmpcur)) {
+                cell_t *cns = new_cons(secd, new_number(secd, cell_index(secd, dmpcur)), SECD_NIL);
+                if (not_nil(dlist)) {
+                    lstcur->as.cons.cdr = share_cell(secd, cns);
+                    lstcur = cns;
+                } else {
+                    dlist = lstcur = cns;
+                }
+            }
+            return dlist;
         } else if (str_eq(symname(arg1), "cell")) {
             if (is_nil(list_next(secd, args)))
                 goto help;
@@ -388,7 +402,7 @@ cell_t *secdv_make(secd_t *secd, cell_t *args) {
         return fill_array(secd, arr, fill);
     } else
         /* make it CELL_UNDEF */
-        memset(arr->as.arr.data, 0, sizeof(cell_t) * len);
+        memset((char *)arr_ref(arr, 0), CELL_UNDEF, sizeof(cell_t) * len);
 
     return arr;
 }
