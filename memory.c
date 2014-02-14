@@ -782,15 +782,27 @@ cell_t *secd_referers_for(secd_t *secd, cell_t *cell) {
     return result;
 }
 
-static void increment_nref_for_owned(cell_t *cell) {
+static void increment_nref_for_owned(secd_t *secd, cell_t *cell) {
     if (is_nil(cell)) return;
 
     ++cell->nref;
+    if (cell->nref > 1) return;
+
+    if (cell_type(cell) == CELL_ARRMETA) {
+        if (cell->as.mcons.cells) 
+        {
+            size_t i;
+            size_t len = arrmeta_size(secd, cell);
+            for (i = 0; i < len; ++i)
+                increment_nref_for_owned(secd, meta_mem(cell) + i);
+        }
+    }
+
     cell_t *ref1, *ref2, *ref3;
     secd_owned_cell_for(cell, &ref1, &ref2, &ref3);
-    if (not_nil(ref1)) increment_nref_for_owned(ref1);
-    if (not_nil(ref2)) increment_nref_for_owned(ref2);
-    if (not_nil(ref3)) increment_nref_for_owned(ref3);
+    if (not_nil(ref1)) increment_nref_for_owned(secd, ref1);
+    if (not_nil(ref2)) increment_nref_for_owned(secd, ref2);
+    if (not_nil(ref3)) increment_nref_for_owned(secd, ref3);
 }
 
 void secd_mark_and_sweep_gc(secd_t *secd) {
@@ -804,30 +816,22 @@ void secd_mark_and_sweep_gc(secd_t *secd) {
     meta = mcons_next(secd->arrlist);
     while (not_nil(meta)) {
         meta->nref = 0;
+        if (meta->as.mcons.cells) {
+            size_t i;
+            size_t len = arrmeta_size(secd, cell);
+            for (i = 0; i < len; ++i)
+                meta_mem(meta)[i].nref = 0;
+        }
         meta = mcons_next(meta);
     }
 
     /* set new refcounts */
-    increment_nref_for_owned(secd->stack);
-    increment_nref_for_owned(secd->control);
-    increment_nref_for_owned(secd->env);
-    increment_nref_for_owned(secd->dump);
+    increment_nref_for_owned(secd, secd->stack);
+    increment_nref_for_owned(secd, secd->control);
+    increment_nref_for_owned(secd, secd->env);
+    increment_nref_for_owned(secd, secd->dump);
 
-    increment_nref_for_owned(secd->debug_port);
-
-    meta = mcons_next(secd->arrlist);
-    while (not_nil(meta)) {
-        if (!is_array_free(secd, meta) 
-            && (meta->nref > 0) 
-            && meta->as.mcons.cells) 
-        {
-            size_t i;
-            size_t len = arrmeta_size(secd, meta);
-            for (i = 0; i < len; ++i)
-                increment_nref_for_owned(meta_mem(meta) + i);
-        }
-        meta = mcons_next(meta);
-    }
+    increment_nref_for_owned(secd, secd->debug_port);
 
     /* make new secd->free_list, free unused arrays */
     secd->free = SECD_NIL;

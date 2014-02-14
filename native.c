@@ -341,8 +341,8 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
             return secd_referers_for(secd, secd->begin + numval(numc));
         } else if (str_eq(symname(arg1), "heap")) {
             print_array_layout(secd);
-        //} else if (str_eq(symname(arg1), "gc")) {
-        //    secd->postop = SECDPOST_GC;
+        } else if (str_eq(symname(arg1), "gc")) {
+            secd->postop = SECDPOST_GC;
         } else if (str_eq(symname(arg1), "tick")) {
             printf(";; tick = %lu\n", secd->tick);
             return new_number(secd, secd->tick);
