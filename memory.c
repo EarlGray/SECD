@@ -788,21 +788,21 @@ static void increment_nref_for_owned(secd_t *secd, cell_t *cell) {
     ++cell->nref;
     if (cell->nref > 1) return;
 
-    if (cell_type(cell) == CELL_ARRMETA) {
-        if (cell->as.mcons.cells) 
-        {
-            size_t i;
-            size_t len = arrmeta_size(secd, cell);
-            for (i = 0; i < len; ++i)
-                increment_nref_for_owned(secd, meta_mem(cell) + i);
-        }
+    if (cell_type(cell) != CELL_ARRMETA) {
+        cell_t *ref1, *ref2, *ref3;
+        secd_owned_cell_for(cell, &ref1, &ref2, &ref3);
+        if (not_nil(ref1)) increment_nref_for_owned(secd, ref1);
+        if (not_nil(ref2)) increment_nref_for_owned(secd, ref2);
+        if (not_nil(ref3)) increment_nref_for_owned(secd, ref3);
+        return;
     }
 
-    cell_t *ref1, *ref2, *ref3;
-    secd_owned_cell_for(cell, &ref1, &ref2, &ref3);
-    if (not_nil(ref1)) increment_nref_for_owned(secd, ref1);
-    if (not_nil(ref2)) increment_nref_for_owned(secd, ref2);
-    if (not_nil(ref3)) increment_nref_for_owned(secd, ref3);
+    if (cell->as.mcons.cells) {
+        size_t i;
+        size_t len = arrmeta_size(secd, cell);
+        for (i = 0; i < len; ++i)
+            increment_nref_for_owned(secd, meta_mem(cell) + i);
+    }
 }
 
 void secd_mark_and_sweep_gc(secd_t *secd) {
@@ -835,11 +835,13 @@ void secd_mark_and_sweep_gc(secd_t *secd) {
 
     /* make new secd->free_list, free unused arrays */
     secd->free = SECD_NIL;
+    secd->free_cells = 0;
     for (cell = secd->begin; cell < secd->fixedptr; ++cell) {
         if (cell->nref == 0) {
-            if (cell_type(cell) != CELL_FREE)
-                printf(";; warning: cell %ld was not CELL_FREE\n",
+            if (cell_type(cell) != CELL_FREE) {
+                memdebugf(";; m&s: cell %ld collected\n",
                         cell_index(secd, cell));
+            }
 
             push_free(secd, cell);
         }

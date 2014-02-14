@@ -297,8 +297,7 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
             printf(";;  fixedptr = %zd\n", secd->fixedptr - secd->begin);
             printf(";;  arrayptr = %zd (%zd)\n",
                     secd->arrayptr - secd->begin, secd->arrayptr - secd->end);
-            printf(";;  Fixed cells: %zd free, %zd dump\n",
-                    secd->free_cells, secd->used_dump);
+            printf(";;  Fixed cells: %zd free\n", secd->free_cells);
             return secd_mem_info(secd);
         } else if (str_eq(symname(arg1), "env")) {
             print_env(secd);
@@ -346,13 +345,24 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
         } else if (str_eq(symname(arg1), "tick")) {
             printf(";; tick = %lu\n", secd->tick);
             return new_number(secd, secd->tick);
+        } else if (str_eq(symname(arg1), "state")) {
+            printf(";; stack = %ld\n", cell_index(secd, secd->stack));
+            printf(";; env   = %ld\n", cell_index(secd, secd->env));
+            printf(";; ctrl  = %ld\n", cell_index(secd, secd->control));
+            printf(";; dump  = %ld\n\n", cell_index(secd, secd->dump));
+            printf(";; #t = %ld\n", cell_index(secd, secd->truth_value));
+            printf(";; #f = %ld\n\n", cell_index(secd, secd->false_value));
+            printf(";; *stdin*  = %ld\n", cell_index(secd, secd->input_port));
+            printf(";; *stdout* = %ld\n", cell_index(secd, secd->output_port));
+            printf(";; *stddbg* = %ld\n\n", cell_index(secd, secd->debug_port));
         } else {
             goto help;
         }
     }
     return new_symbol(secd, "ok");
 help:
-    errorf(";; Options are 'tick, 'heap, 'env, 'mem, 'dump, 'gc\n");
+    errorf(";; Options are 'env, 'mem, 'heap,\n");
+    errorf(";;    'tick, 'dump, 'state, 'gc, \n");
     errorf(";;    'where <smth>, 'cell <num>, 'owner <num>\n");
     errorf(";; Use them like (secd 'env) or (secd 'cell 12)\n");
     errorf(";; If you're here first time, explore (secd 'env)\n");
