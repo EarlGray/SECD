@@ -205,6 +205,10 @@ struct cell {
 
 typedef  struct secd_stat  secd_stat_t;
 
+typedef enum {
+    SECD_NOPOST = 0,
+    SECDPOST_GC
+} secdpostop_t;
 
 struct secd {
     /**** memory layout ****/
@@ -238,15 +242,16 @@ struct secd {
     cell_t *output_port;
     cell_t *debug_port;
 
-    long envcounter;
-
     /* booleans */
     cell_t *truth_value;
     cell_t *false_value;
 
-    /* some statistics */
+    long envcounter;
     unsigned long tick;
 
+    secdpostop_t postop;
+
+    /* some statistics */
     size_t used_stack;
     size_t used_control;
     size_t used_dump;

@@ -1,5 +1,6 @@
 #include "memory.h"
 #include "secd_io.h"
+#include "secdops.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -17,24 +18,15 @@ void free_array(secd_t *secd, cell_t *this);
 void push_free(secd_t *secd, cell_t *c);
 
 inline static cell_t *share_array(secd_t *secd, cell_t *mem) {
-    return share_cell(secd, arr_meta(mem)) + 1;
+    share_cell(secd, arr_meta(mem));
+    return mem;
 }
+
 inline static cell_t *drop_array(secd_t *secd, cell_t *mem) {
     cell_t *meta = arr_meta(mem);
     -- meta->nref;
     if (0 == meta->nref) {
-        if (meta->as.mcons.cells) {
-            size_t size = arrmeta_size(secd, meta);
-            size_t i;
-
-            /* free the items */
-            for (i = 0; i < size; ++i) {
-                /* don't free uninitialized */
-                if (cell_type(mem + i) != CELL_UNDEF)
-                    drop_dependencies(secd, mem + i);
-            }
-        }
-
+        drop_dependencies(secd, meta);
         free_array(secd, mem);
     }
     return SECD_NIL;
@@ -115,6 +107,20 @@ cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
         break;
       case CELL_PORT:
         secd_pclose(secd, c);
+        break;
+      case CELL_ARRMETA:
+        if (c->as.mcons.cells) {
+            size_t size = arrmeta_size(secd, c);
+            size_t i;
+
+            /* free the items */
+            for (i = 0; i < size; ++i) {
+                /* don't free uninitialized */
+                cell_t *ith = meta_mem(c) + i;
+                if (cell_type(ith) != CELL_UNDEF)
+                    drop_dependencies(secd, ith);
+            }
+        }
         break;
       case CELL_ATOM:
       case CELL_ERROR:
@@ -263,14 +269,14 @@ cell_t *alloc_array(secd_t *secd, size_t size) {
     secd->arrayptr = meta;
 
     memdebugf("NEW ARR[%ld], size %zd\n", cell_index(secd, meta), size);
-    return meta + 1;
+    return meta_mem(meta);
 }
 
-void free_array(secd_t *secd, cell_t *this) {
-    assertv(this <= secd->arrlist, "free_array: tried to free arrlist");
-    assertv(secd->arrayptr < this, "free_array: not an array");
+void free_array(secd_t *secd, cell_t *mem) {
+    assertv(mem <= secd->arrlist, "free_array: tried to free arrlist");
+    assertv(secd->arrayptr < mem, "free_array: not an array");
 
-    cell_t *meta = arr_meta(this);
+    cell_t *meta = arr_meta(mem);
     cell_t *prev = mcons_prev(meta);
 
     if (meta != secd->arrayptr) {
@@ -620,14 +626,14 @@ cell_t *pop_stack(secd_t *secd) {
     return list_pop(secd, &secd->stack);
 }
 
-cell_t *set_control(secd_t *secd, cell_t *opcons) {
-    assert(is_cons(opcons),
-           "set_control: failed, not a cons at [%ld]\n", cell_index(secd, opcons));
-    if (! is_control_compiled(secd, opcons)) {
-        opcons = compile_control_path(secd, opcons);
-        assert_cell(opcons, "set_control: failed to compile control path");
-    }
-    return assign_cell(secd, &secd->control, opcons);
+cell_t *set_control(secd_t *secd, cell_t **opcons) {
+    assert(is_cons(*opcons),
+           "set_control: failed, not a cons at [%ld]\n", cell_index(secd, *opcons));
+    compile_ctrl(secd, opcons);
+    assert_cell(*opcons, "set_control: failed to compile control path");
+    assert(cell_type(*opcons) == CELL_CONS, "set_control: not a cons");
+    assert(atom_type(secd, get_car(*opcons)) == ATOM_OP, "set_control: not an ATOM_OP");
+    return assign_cell(secd, &secd->control, *opcons);
 }
 
 cell_t *pop_control(secd_t *secd) {
@@ -720,6 +726,118 @@ cell_t *fifo_pop(secd_t *secd, cell_t **fifo) {
     }
 }
 
+/*
+ *   Machine-wide operations
+ */
+void secd_owned_cell_for(cell_t *cell, 
+        cell_t **ref1, cell_t **ref2, cell_t **ref3)
+{
+    *ref1 = *ref2 = *ref3 = SECD_NIL;
+    switch (cell_type(cell)) {
+      case CELL_CONS:
+          *ref1 = get_car(cell); *ref2 = get_cdr(cell);
+          break;
+      case CELL_FRAME: 
+          *ref1 = get_car(cell); *ref2 = get_cdr(cell);
+          *ref3 = cell->as.frame.io;
+          break;
+      case CELL_STR:
+          *ref1 = arr_meta((cell_t*)strmem(cell));
+          break;
+      case CELL_ARRAY: case CELL_BYTES:
+          *ref1 = arr_meta(arr_mem(cell)); 
+          break; 
+      case CELL_PORT:
+          if (!cell->as.port.file)
+              *ref1 = cell->as.port.as.str;
+          break;
+      case CELL_REF: *ref1 = cell->as.ref; break;
+      default: break;
+    }
+}
+
+static cell_t *prepend_index(secd_t *secd, cell_t* hd, cell_t *lst) {
+    return new_cons(secd, new_number(secd, cell_index(secd, hd)), lst);
+}
+
+cell_t *secd_referers_for(secd_t *secd, cell_t *cell) {
+    cell_t *result = SECD_NIL;
+
+    cell_t *ith;
+    for (ith = secd->begin; ith < secd->fixedptr; ++ith) {
+        cell_t *ref1, *ref2, *ref3;
+        secd_owned_cell_for(ith, &ref1, &ref2, &ref3);
+        if (ref1 == cell) result = prepend_index(secd, ith, result);
+        if (ref2 == cell) result = prepend_index(secd, ith, result);
+        if (ref3 == cell) result = prepend_index(secd, ith, result);
+    }
+    return result;
+}
+
+static void increment_nref_for_owned(cell_t *cell) {
+    cell_t *ref1, *ref2, *ref3;
+    secd_owned_cell_for(cell, &ref1, &ref2, &ref3);
+    if (not_nil(ref1)) ++ref1->nref;
+    if (not_nil(ref2)) ++ref2->nref;
+    if (not_nil(ref3)) ++ref3->nref;
+}
+
+void secd_mark_and_sweep_gc(secd_t *secd) {
+    /* set all refcounts to zero */
+    cell_t *cell;
+    cell_t *meta;
+
+    for (cell = secd->begin; cell < secd->fixedptr; ++cell)
+        cell->nref = 0;
+
+    meta = mcons_next(secd->arrlist);
+    while (not_nil(meta)) {
+        meta->nref = 0;
+        meta = mcons_next(meta);
+    }
+
+    /* set new refcounts */
+    ++secd->stack->nref; ++secd->env->nref;
+    ++secd->control->nref; ++secd->dump->nref;
+    if (secd->debug_port)
+        ++secd->debug_port->nref;
+
+    for (cell = secd->begin; cell < secd->fixedptr; ++cell)
+        increment_nref_for_owned(cell);
+
+    meta = mcons_next(secd->arrlist);
+    while (not_nil(meta)) {
+        if (!is_array_free(secd, meta) && meta->as.mcons.cells) {
+            size_t i;
+            size_t len = arrmeta_size(secd, meta);
+            for (i = 0; i < len; ++i)
+                increment_nref_for_owned(meta_mem(meta) + i);
+        }
+        meta = mcons_next(meta);
+    }
+
+    /* make new secd->free_list, free unused arrays */
+    secd->free = SECD_NIL;
+    for (cell = secd->begin; cell < secd->fixedptr; ++cell) {
+        if (cell->nref == 0) {
+            if (cell_type(cell) != CELL_FREE)
+                printf(";; warning: cell %ld was not CELL_FREE\n",
+                        cell_index(secd, cell));
+
+            push_free(secd, cell);
+        }
+    }
+
+    meta = mcons_next(secd->arrlist);
+    while (not_nil(meta)) {
+        if (meta->nref == 0) {
+            drop_dependencies(secd, meta);
+            free_array(secd, meta_mem(meta));
+        }
+        meta = mcons_next(meta);
+    }
+}
+
 void init_mem(secd_t *secd, cell_t *heap, size_t size) {
     secd->begin = heap;
     secd->end = heap + size;
@@ -729,7 +847,7 @@ void init_mem(secd_t *secd, cell_t *heap, size_t size) {
 
     secd->arrlist = secd->arrayptr;
     init_meta(secd, secd->arrlist, SECD_NIL, SECD_NIL);
-    secd->arrlist->nref = 0;
+    secd->arrlist->nref = DONT_FREE_THIS;
 
     secd->used_stack = 0;
     secd->used_dump = 0;

@@ -95,7 +95,8 @@ bool compile_ctrl(secd_t *secd, cell_t **ctrl) {
     cell_t *compiled = compiled_ctrl(secd, *ctrl);
     if (is_nil(compiled))
         return false;
-    *ctrl = compiled;
+    drop_cell(secd, *ctrl);
+    *ctrl = share_cell(secd, compiled);
     return true;
 }
 
@@ -372,7 +373,6 @@ cell_t *secd_sel(secd_t *secd) {
     ctrldebugf("SEL\n");
 
     cell_t *condcell = pop_stack(secd);
-
     bool cond = not_nil(condcell) ? true : false;
     drop_cell(secd, condcell);
 
@@ -381,9 +381,9 @@ cell_t *secd_sel(secd_t *secd) {
     assert(is_cons(thenb) && is_cons(elseb), "secd_sel: both branches must be conses");
 
     cell_t *joinb = secd->control;
-    secd->control = share_cell(secd, cond ? thenb : elseb);
-
     push_dump(secd, joinb);
+
+    secd->control = share_cell(secd, cond ? thenb : elseb);
 
     drop_cell(secd, thenb); drop_cell(secd, elseb); drop_cell(secd, joinb);
     return secd->control;
@@ -407,12 +407,7 @@ cell_t *secd_ldf(secd_t *secd) {
     cell_t *func = pop_control(secd);
     assert_cell(func, "secd_ldf: failed to get the control path");
 
-    cell_t *body = list_head(list_next(secd, func));
-    cell_t *compiled = compiled_ctrl(secd, body);
-    if (compiled) {
-        drop_cell(secd, body);
-        func->as.cons.cdr->as.cons.car = share_cell(secd, compiled);
-    }
+    compile_ctrl(secd, &func->as.cons.cdr->as.cons.car);
 
     cell_t *closure = new_cons(secd, func, secd->env);
     drop_cell(secd, func);
@@ -516,12 +511,6 @@ cell_t *secd_ap(secd_t *secd) {
     assert(not_nil(newenv), "secd_ap: nil env");
     assert(cell_type(list_head(newenv)) == CELL_FRAME, "secd_ap: env holds not a frame\n");
 
-    cell_t *argnames = get_car(func);
-    cell_t *control = list_head(list_next(secd, func));
-    assert(is_cons(control), "secd_ap: control path is not a list");
-
-    compile_ctrl(secd, &control);
-
 #if TAILRECURSION
     cell_t *new_dump = new_dump_if_tailrec(secd, secd->control, secd->dump);
     if (new_dump) {
@@ -541,6 +530,7 @@ cell_t *secd_ap(secd_t *secd) {
     drop_cell(secd, secd->stack);
     secd->stack = SECD_NIL;
 
+    cell_t *argnames = get_car(func);
     cell_t *frame = setup_frame(secd, argnames, argvals, newenv);
     assert_cell(frame, "secd_ap: setup_frame() failed");
 
@@ -548,10 +538,10 @@ cell_t *secd_ap(secd_t *secd) {
     assign_cell(secd, &secd->env, new_cons(secd, frame, newenv)); 
     if (ENVDEBUG) print_env(secd);
 
-    set_control(secd, control);
+    set_control(secd, &func->as.cons.cdr->as.cons.car);
 
     drop_cell(secd, closure); drop_cell(secd, argvals);
-    return control;
+    return secd->truth_value;
 }
 
 cell_t *secd_rtn(secd_t *secd) {
@@ -605,9 +595,6 @@ cell_t *secd_rap(secd_t *secd) {
     cell_t *newenv = get_cdr(closure);
     cell_t *func = get_car(closure);
     cell_t *argnames = get_car(func);
-    cell_t *control = get_car(list_next(secd, func));
-
-    compile_ctrl(secd, &control);
 
     push_dump(secd, secd->control);
     push_dump(secd, get_cdr(secd->env));
@@ -629,11 +616,11 @@ cell_t *secd_rap(secd_t *secd) {
     cell_t *oldenv = secd->env;
     secd->env = share_cell(secd, newenv);
 
-    set_control(secd, control);
+    set_control(secd, &func->as.cons.cdr->as.cons.car);
 
     drop_cell(secd, oldenv);
     drop_cell(secd, closure); drop_cell(secd, argvals);
-    return secd->control;
+    return secd->truth_value;
 }
 
 

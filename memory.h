@@ -34,7 +34,7 @@ cell_t *free_cell(secd_t *, cell_t *c);
 cell_t *push_stack(secd_t *secd, cell_t *newc);
 cell_t *pop_stack(secd_t *secd);
 
-cell_t *set_control(secd_t *secd, cell_t *opcons);
+cell_t *set_control(secd_t *secd, cell_t **opcons);
 cell_t *pop_control(secd_t *secd);
 
 cell_t *push_dump(secd_t *secd, cell_t *cell);
@@ -60,7 +60,9 @@ inline static cell_t *drop_cell(secd_t *secd, cell_t *c) {
         return NULL;
     }
     if (c->nref <= 0) {
-        assert(c->nref > 0, "drop_cell[%ld]: negative", cell_index(secd, c));
+        errorf("%lu | drop_cell[%ld]: negative", secd->tick, cell_index(secd, c));
+        return new_error(secd, "drop_cell[%ld]: c->nref=%d",
+                cell_index(secd, c), c->nref);
     }
 
     -- c->nref;
@@ -76,6 +78,9 @@ inline static cell_t *assign_cell(secd_t *secd, cell_t **cell, cell_t *what) {
     return *cell;
 }
 
+cell_t *secd_referers_for(secd_t *secd, cell_t *cell);
+void secd_owned_cell_for(cell_t *cell, cell_t **ref1, cell_t **ref2, cell_t **ref3);
+
 /*
  *    Array routines
  */
@@ -85,12 +90,16 @@ static inline size_t arrmeta_size(secd_t *secd, const cell_t *metacons) {
     return metacons->as.mcons.prev - metacons - 1;
 }
 
-static inline cell_t *arr_meta(cell_t *arr) {
-    if (cell_type(arr - 1) != CELL_ARRMETA) {
+static inline cell_t *arr_meta(cell_t *mem) {
+    if (cell_type(mem - 1) != CELL_ARRMETA) {
         errorf("arr_meta: not a meta");
         return SECD_NIL;
     }
-    return arr - 1;
+    return mem - 1;
+}
+
+static inline cell_t *meta_mem(cell_t *meta) {
+    return meta + 1;
 }
 
 static inline const cell_t *
@@ -118,8 +127,10 @@ cell_t *fill_array(secd_t *secd, cell_t *arr, cell_t *with);
 
 
 /*
- *
+ *    Global machine operations
  */
+
+void secd_mark_and_sweep_gc(secd_t *secd);
 
 void init_mem(secd_t *secd, cell_t *heap, size_t size);
 

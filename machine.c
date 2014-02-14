@@ -21,12 +21,12 @@ secd_t * init_secd(secd_t *secd) {
 
     init_mem(secd, heap, N_CELLS);
 
-    secd->input_port = secd_stdin(secd);
-    secd->output_port = secd_stdout(secd);
-    secd->debug_port = SECD_NIL;
-
-    secd->truth_value = new_symbol(secd, "#t");
+    secd->truth_value = share_cell(secd, new_symbol(secd, "#t"));
     secd->false_value = SECD_NIL;
+
+    secd->input_port = share_cell(secd, secd_stdin(secd));
+    secd->output_port = share_cell(secd, secd_stdout(secd));
+    secd->debug_port = SECD_NIL;
 
     init_env(secd);
 
@@ -37,7 +37,7 @@ secd_t * init_secd(secd_t *secd) {
 cell_t * run_secd(secd_t *secd, cell_t *ctrl) {
     cell_t *op;
 
-    set_control(secd, ctrl);
+    set_control(secd, &ctrl);
 
 #if (TIMING)
     struct timeval ts_then;
@@ -73,6 +73,13 @@ cell_t * run_secd(secd_t *secd, cell_t *ctrl) {
         if (usec < 0) usec += 1000000;
         ctrldebugf("    0.%06d s elapsed\n", usec);
 #endif
+        switch (secd->postop) {
+          case SECDPOST_GC:
+              secd_mark_and_sweep_gc(secd);
+              secd->postop = SECD_NOPOST;
+              break;
+          default: break;
+        }
 
         ++secd->tick;
     }

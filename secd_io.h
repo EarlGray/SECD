@@ -9,6 +9,7 @@ cell_t *secd_stdin(secd_t *secd);
 cell_t *secd_stdout(secd_t *secd);
 cell_t *secd_stderr(secd_t *secd);
 cell_t *secd_stddbg(secd_t *secd);
+cell_t *secd_set_dbg(secd_t *secd, cell_t *dbgport);
 
 cell_t *secd_fopen(secd_t *secd, const char *fname, const char *mode);
 long secd_portsize(secd_t *secd, cell_t *port);

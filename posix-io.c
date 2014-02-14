@@ -28,6 +28,10 @@ cell_t *secd_stderr(secd_t *secd) {
 cell_t *secd_stddbg(secd_t __unused *secd) {
     return SECD_NIL;
 }
+cell_t *secd_set_dbg(secd_t *secd, cell_t *dbgport) {
+    secd->debug_port = share_cell(secd, dbgport);
+    return secd->debug_port;
+}
 
 cell_t *secd_fopen(secd_t *secd, const char *fname, const char *mode) {
     FILE *f = fopen(fname, mode);

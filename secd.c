@@ -10,7 +10,7 @@ int main(int argc, char *argv[]) {
 
     init_secd(&secd);
 #if ((CTRLDEBUG) || (MEMDEBUG))
-    secd.debug_port = secd_fopen(&secd, "secd.log", "w");
+    secd_set_dbg(secd, secd_fopen(&secd, "secd.log", "w"));
 #endif
 
     cell_t *cmdport = SECD_NIL;

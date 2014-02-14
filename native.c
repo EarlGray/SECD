@@ -336,8 +336,13 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
                 goto help;
             cell_t *c = get_car(list_next(secd, args));
             return new_number(secd, c - secd->begin);
+        } else if (str_eq(symname(arg1), "owner")) {
+            cell_t *numc = get_car(list_next(secd, args));
+            return secd_referers_for(secd, secd->begin + numval(numc));
         } else if (str_eq(symname(arg1), "heap")) {
             print_array_layout(secd);
+        } else if (str_eq(symname(arg1), "gc")) {
+            secd->postop = SECDPOST_GC;
         } else if (str_eq(symname(arg1), "tick")) {
             printf(";; tick = %lu\n", secd->tick);
             return new_number(secd, secd->tick);
@@ -347,8 +352,8 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
     }
     return new_symbol(secd, "ok");
 help:
-    errorf(";; Options are 'tick, 'heap, 'env, 'mem, \n");
-    errorf(";;         'where <smth>, 'cell <num>\n");
+    errorf(";; Options are 'tick, 'heap, 'env, 'mem, 'dump, 'gc\n");
+    errorf(";;    'where <smth>, 'cell <num>, 'owner <num>\n");
     errorf(";; Use them like (secd 'env) or (secd 'cell 12)\n");
     errorf(";; If you're here first time, explore (secd 'env)\n");
     errorf(";;    to get some idea of what is available\n");
