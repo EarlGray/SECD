@@ -54,5 +54,16 @@
   (if (null? xs) 'Error:_out_of_range
       (if (eq? n 0) (car xs) (nth (cdr xs) (- n 1)))))
 
+(define (last xs)
+  (if (null? xs)
+      '()
+      (if (null? (cdr xs)) (car xs) (last (cdr xs)))))
+
+(define (take n xs)
+  (cond
+    ((null? xs) '())
+    ((eq? n 0)  '())
+    (else (cons (car xs) (take (- n 1) (cdr xs))))))
+
 (define (product xs) (foldr (lambda (x y) (* x y)) 1 xs))
 (define (sum xs)     (foldr (lambda (x y) (+ x y)) 0 xs))

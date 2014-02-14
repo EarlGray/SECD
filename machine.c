@@ -132,15 +132,17 @@ cell_t *serialize_cell(secd_t *secd, cell_t *cell) {
           }
           break;
       case CELL_ARRMETA: {
-            cell_t *meta = arr_ref(cell, -1);
-            cell_t *arr = cell;
-            if (!meta->as.mcons.cells) {
-                arr = new_clone(secd, cell);
+            cell_t *arr;
+            if (cell->as.mcons.cells)
+                arr = new_array_for(secd, meta_mem(cell));
+            else {
+                arr = new_strref(secd, meta_mem(cell), sizeof(cell_t) * arrmeta_size(secd, cell));
                 arr->type = CELL_BYTES;
             }
+
             cell_t *arrc = new_cons(secd, arr, SECD_NIL);
-            cell_t *nextc = chain_index(secd, mcons_next(meta), arrc);
-            opt = chain_index(secd, mcons_prev(meta), nextc);
+            cell_t *nextc = chain_index(secd, mcons_next(cell), arrc);
+            opt = chain_index(secd, mcons_prev(cell), nextc);
         } break;
       case CELL_FRAME: {
             cell_t *ioc = chain_index(secd, cell->as.frame.io, SECD_NIL);

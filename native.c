@@ -912,7 +912,7 @@ native_functions[] = {
     // predefined errors
     { "error:out_of_memory",&secd_out_of_memory },
     { "error:nil",          &secd_nil_failure   },
-    { "erorr:generic",      &secd_failure       },
+    { "error:generic",      &secd_failure       },
 
     { "string-length",  &strlen_fun },
     { "symbol->string", &symstr_fun },

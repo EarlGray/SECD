@@ -380,12 +380,7 @@ cell_t *new_op(secd_t *secd, opindex_t opind) {
     return cell;
 }
 
-cell_t *new_array(secd_t *secd, size_t size) {
-    /* try to allocate memory */
-    cell_t *mem = alloc_array(secd, size);
-    assert_cell(mem, "new_array: memory allocation failed");
-    arr_meta(mem)->as.mcons.cells = true;
-
+cell_t *new_array_for(secd_t *secd, cell_t *mem) {
     cell_t *arr = pop_free(secd);
     arr->type = CELL_ARRAY;
     arr->as.arr.data = share_array(secd, mem);
@@ -393,34 +388,37 @@ cell_t *new_array(secd_t *secd, size_t size) {
     return arr;
 }
 
+cell_t *new_array(secd_t *secd, size_t size) {
+    /* try to allocate memory */
+    cell_t *mem = alloc_array(secd, size);
+    assert_cell(mem, "new_array: memory allocation failed");
+    arr_meta(mem)->as.mcons.cells = true;
+
+    return new_array_for(secd, mem);
+}
 
 /*
  *  String allocation
  */
-typedef union {
-    char *as_cstr;
-    cell_t *as_cell;
-} arrref_t;
-
-static cell_t *init_strref(secd_t *secd, cell_t *cell, arrref_t mem, size_t size) {
+static cell_t *init_strref(secd_t *secd, cell_t *cell, cell_t *mem, size_t size) {
     cell->type = CELL_STR;
 
-    cell->as.str.data = (char *)share_array(secd, mem.as_cell);
+    cell->as.str.data = (char *)share_array(secd, mem);
     cell->as.str.offset = 0;
     cell->as.str.size = size;
     return cell;
 }
 
-cell_t *new_strref(secd_t *secd, arrref_t mem, size_t size) {
+cell_t *new_strref(secd_t *secd, cell_t *mem, size_t size) {
     cell_t *ref = pop_free(secd);
     assert_cell(ref, "new_strref: allocation failed");
     return init_strref(secd, ref, mem, size);
 }
 
 cell_t *new_string_of_size(secd_t *secd, size_t size) {
-    arrref_t mem;
-    mem.as_cell = alloc_array(secd, bytes_to_cell(size));
-    assert_cell(mem.as_cell, "new_string_of_size: alloc failed");
+    cell_t *mem;
+    mem = alloc_array(secd, bytes_to_cell(size));
+    assert_cell(mem, "new_string_of_size: alloc failed");
 
     return new_strref(secd, mem, size);
 }
@@ -527,7 +525,8 @@ cell_t *init_with_copy(secd_t *secd,
       case CELL_UNDEF:
         break;
       case CELL_ARRMETA: case CELL_FREE:
-        return new_error(secd, "trying to initialize with CELL_ARRMETA");
+        errorf("init_with_copy: CELL_ARRMETA/CELL_FREE\n");
+        return new_error(secd, "trying to initialize with CELL_ARRMETA/CELL_FREE");
     }
     return cell;
 }
@@ -818,7 +817,7 @@ void secd_mark_and_sweep_gc(secd_t *secd) {
         meta->nref = 0;
         if (meta->as.mcons.cells) {
             size_t i;
-            size_t len = arrmeta_size(secd, cell);
+            size_t len = arrmeta_size(secd, meta);
             for (i = 0; i < len; ++i)
                 meta_mem(meta)[i].nref = 0;
         }
@@ -847,13 +846,25 @@ void secd_mark_and_sweep_gc(secd_t *secd) {
         }
     }
 
+    cell_t *prevmeta = secd->arrlist;
     meta = mcons_next(secd->arrlist);
     while (not_nil(meta)) {
-        if (meta->nref == 0) {
-            drop_dependencies(secd, meta);
-            free_array(secd, meta_mem(meta));
+        if (is_array_free(secd, meta) || (meta->nref > 0)) {
+            prevmeta = meta;
+            meta = mcons_next(meta);
+            continue;
         }
-        meta = mcons_next(meta);
+
+        cell_t *pprev = secd->arrlist;
+        if (prevmeta != secd->arrlist)
+            pprev = mcons_prev(prevmeta);
+
+        drop_dependencies(secd, meta);
+        /* here prevmeta may disappear: */
+        free_array(secd, meta_mem(meta));
+
+        prevmeta = pprev;
+        meta = mcons_next(pprev);
     }
 }
 

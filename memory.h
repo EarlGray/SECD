@@ -12,16 +12,25 @@ cell_t *new_cons(secd_t *secd, cell_t *car, cell_t *cdr);
 cell_t *new_frame(secd_t *secd, cell_t *syms, cell_t *vals);
 cell_t *new_number(secd_t *secd, int num);
 cell_t *new_symbol(secd_t *secd, const char *sym);
+
+cell_t *new_array(secd_t *secd, size_t size);
+cell_t *new_array_for(secd_t *secd, cell_t *mem);
+
 cell_t *new_string(secd_t *secd, const char *str);
 cell_t *new_string_of_size(secd_t *secd, size_t size);
+cell_t *new_strref(secd_t *secd, cell_t *mem, size_t size);
+
 cell_t *new_bytevector_of_size(secd_t *secd, size_t size);
+
 cell_t *new_op(secd_t *secd, opindex_t opind);
+
 cell_t *new_fileport(secd_t *secd, void *f, const char *mode);
 cell_t *new_strport(secd_t *secd, cell_t *str, const char *mode);
+
 cell_t *new_const_clone(secd_t *secd, const cell_t *from);
 cell_t *new_clone(secd_t *secd, cell_t *from);
+
 cell_t *new_error(secd_t *secd, const char *fmt, ...);
-cell_t *new_array(secd_t *secd, size_t size);
 
 cell_t *init_with_copy(
         secd_t *secd,
