@@ -222,9 +222,11 @@ void push_free(secd_t *secd, cell_t *c) {
 /* checks if the array described by the metadata cons is free */
 static inline bool is_array_free(secd_t *secd, cell_t *metacons) {
     if (metacons == secd->arrlist) return false;
-    return metacons->nref == 0;
+    return metacons->as.mcons.free;
 }
-static inline void mark_free(cell_t *metacons) { metacons->nref = 0; }
+static inline void mark_free(cell_t *metacons, bool free) {
+    metacons->as.mcons.free = free;
+}
 
 static cell_t *init_meta(secd_t __unused *secd, cell_t *cell, cell_t *prev, cell_t *next) {
     cell->type = CELL_ARRMETA;
@@ -244,11 +246,13 @@ cell_t *alloc_array(secd_t *secd, size_t size) {
             if (cursize >= size) {
                 /* allocate this gap */
                 if (cursize > size + 1) {
+                    /* make a free gap after */
                     cell_t *newmeta = cur + size + 1;
                     init_meta(secd, newmeta, mcons_prev(cur), cur);
-                    mark_free(newmeta);
+                    mark_free(newmeta, true);
                 }
-                return cur + 1;
+                mark_free(cur, false);
+                return meta_mem(cur);
             }
         }
         cur = mcons_next(cur);
@@ -269,6 +273,7 @@ cell_t *alloc_array(secd_t *secd, size_t size) {
     secd->arrayptr = meta;
 
     memdebugf("NEW ARR[%ld], size %zd\n", cell_index(secd, meta), size);
+    mark_free(meta, false);
     return meta_mem(meta);
 }
 
@@ -278,6 +283,9 @@ void free_array(secd_t *secd, cell_t *mem) {
 
     cell_t *meta = arr_meta(mem);
     cell_t *prev = mcons_prev(meta);
+
+    assertv(meta->nref == 0, "free_array: someone seems to still use the array");
+    mark_free(meta, true);
 
     if (meta != secd->arrayptr) {
         if (is_array_free(secd, prev)) {
@@ -294,7 +302,7 @@ void free_array(secd_t *secd, cell_t *mem) {
             next->as.mcons.prev = newprev;
             newprev->as.mcons.next = next;
         }
-        mark_free(meta);
+        mark_free(meta, true);
     } else {
         /* move arrayptr into the array area */
         prev->as.mcons.next = SECD_NIL;
@@ -775,11 +783,14 @@ cell_t *secd_referers_for(secd_t *secd, cell_t *cell) {
 }
 
 static void increment_nref_for_owned(cell_t *cell) {
+    if (is_nil(cell)) return;
+
+    ++cell->nref;
     cell_t *ref1, *ref2, *ref3;
     secd_owned_cell_for(cell, &ref1, &ref2, &ref3);
-    if (not_nil(ref1)) ++ref1->nref;
-    if (not_nil(ref2)) ++ref2->nref;
-    if (not_nil(ref3)) ++ref3->nref;
+    if (not_nil(ref1)) increment_nref_for_owned(ref1);
+    if (not_nil(ref2)) increment_nref_for_owned(ref2);
+    if (not_nil(ref3)) increment_nref_for_owned(ref3);
 }
 
 void secd_mark_and_sweep_gc(secd_t *secd) {
@@ -797,17 +808,19 @@ void secd_mark_and_sweep_gc(secd_t *secd) {
     }
 
     /* set new refcounts */
-    ++secd->stack->nref; ++secd->env->nref;
-    ++secd->control->nref; ++secd->dump->nref;
-    if (secd->debug_port)
-        ++secd->debug_port->nref;
+    increment_nref_for_owned(secd->stack);
+    increment_nref_for_owned(secd->control);
+    increment_nref_for_owned(secd->env);
+    increment_nref_for_owned(secd->dump);
 
-    for (cell = secd->begin; cell < secd->fixedptr; ++cell)
-        increment_nref_for_owned(cell);
+    increment_nref_for_owned(secd->debug_port);
 
     meta = mcons_next(secd->arrlist);
     while (not_nil(meta)) {
-        if (!is_array_free(secd, meta) && meta->as.mcons.cells) {
+        if (!is_array_free(secd, meta) 
+            && (meta->nref > 0) 
+            && meta->as.mcons.cells) 
+        {
             size_t i;
             size_t len = arrmeta_size(secd, meta);
             for (i = 0; i < len; ++i)
@@ -854,3 +867,4 @@ void init_mem(secd_t *secd, cell_t *heap, size_t size) {
     secd->used_control = 0;
     secd->free_cells = 0;
 }
+

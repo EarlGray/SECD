@@ -147,7 +147,8 @@ struct frame {
 struct metacons {
     cell_t *prev;   // prev from arrlist, arrlist-ward
     cell_t *next;   // next from arrlist, arrptr-ward
-    bool cells;     // does area contain cells
+    bool free:1;    // is area free
+    bool cells:1;   // does area contain cells
 };
 
 struct port {
