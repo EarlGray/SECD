@@ -23,7 +23,7 @@ size_t utf8len(unichar_t ucs) {
     else                     return 0;
 }
 
-/* takes a stream *to, a codepoint ucs, writes codepoint sequence 
+/* takes a stream *to, a codepoint ucs, writes codepoint sequence
  * into the stream, returns the next posiiton in the stream */
 char *utf8cpy(char *to, unichar_t ucs) {
     if (ucs < 0x80) {
@@ -47,7 +47,7 @@ char *utf8cpy(char *to, unichar_t ucs) {
 }
 
 /* takes a byte 'head' representing start of a sequence
- * returns length of the sequence, 
+ * returns length of the sequence,
  * possibly updating *headbits with meaningful bits of 'head' */
 int utf8seqlen(char head, unichar_t *headbits) {
     if ((0x80 & head) == 0) {
@@ -66,7 +66,7 @@ int utf8seqlen(char head, unichar_t *headbits) {
     return 0;
 }
 
-/* takes stream *u8, reads a sequence from it, 
+/* takes stream *u8, reads a sequence from it,
  * return codepoint of the sequence,
  * possibly updates **next */
 unichar_t utf8get(const char *u8, const char **next) {
@@ -244,8 +244,8 @@ cell_t *secdf_append(secd_t *secd, cell_t *args) {
  */
 
 static bool get_two_nums(secd_t *secd, cell_t *lst,
-        size_t *fst, size_t *snd, 
-        const char *signiture) 
+        size_t *fst, size_t *snd,
+        const char *signiture)
 {
     lst = list_next(secd, lst);
     if (is_nil(lst)) return true;
@@ -446,7 +446,7 @@ cell_t *secdv_ref(secd_t *secd, cell_t *args) {
 
     assert(ind < (int)arr_size(secd, arr), "secdv_ref: index is out of range");
 
-    return new_clone(secd, arr->as.arr.data + ind);
+    return new_clone(secd, arr_ref(arr, ind));
 }
 
 cell_t *secdv_set(secd_t *secd, cell_t *args) {

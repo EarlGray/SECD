@@ -427,6 +427,9 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control, cell_t **fvars);
 hash_t memhash(const char*, size_t);
 hash_t strhash(const char *strz);
 
+cell_t *secd_first(secd_t *secd, cell_t *stream);
+cell_t *secd_rest(secd_t *secd, cell_t *stream);
+
 /* return a symbol describing the cell */
 cell_t *secd_type_sym(secd_t *secd, const cell_t *cell);
 

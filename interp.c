@@ -151,11 +151,10 @@ cell_t *secd_cons(secd_t *secd) {
 cell_t *secd_car(secd_t *secd) {
     ctrldebugf("CAR\n");
     cell_t *cons = pop_stack(secd);
-    assert(not_nil(cons), "secd_car: cons is NIL");
     assert_cell(cons, "secd_car: pop_stack() failed");
-    assert(is_cons(cons), "secd_car: cons expected");
+    assert(not_nil(cons), "secd_car: cons is NIL");
 
-    cell_t *car = push_stack(secd, get_car(cons));
+    cell_t *car = push_stack(secd, secd_first(secd, cons));
     drop_cell(secd, cons);
     return car;
 }
@@ -165,9 +164,8 @@ cell_t *secd_cdr(secd_t *secd) {
     cell_t *cons = pop_stack(secd);
     assert(not_nil(cons), "secd_cdr: cons is NIL");
     assert_cell(cons, "secd_cdr: pop_stack() failed");
-    assert(is_cons(cons), "secd_cdr: cons expected");
 
-    cell_t *cdr = push_stack(secd, get_cdr(cons));
+    cell_t *cdr = push_stack(secd, secd_rest(secd, cons));
     drop_cell(secd, cons);
     return cdr;
 }

@@ -149,6 +149,7 @@ void init_mem(secd_t *secd, cell_t *heap, size_t size);
 typedef  unsigned int  unichar_t;
 
 char *utf8cpy(char *to, unichar_t ucs);
+unichar_t utf8get(const char *u8, const char **next);
 
 size_t list_length(secd_t *secd, cell_t *lst);
 cell_t *list_to_vector(secd_t *secd, cell_t *lst);

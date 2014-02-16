@@ -88,12 +88,12 @@ void dbg_printc(secd_t *secd, cell_t *c) {
 }
 
 void sexp_print_array(secd_t *secd, const cell_t *cell) {
-    const cell_t *arr = cell->as.arr.data;
+    const cell_t *arr = arr_val(cell, 0);
     const size_t len = arr_size(secd, cell);
     size_t i;
 
     printf("#(");
-    for (i = 0; i < len; ++i) {
+    for (i = cell->as.arr.offset; i < len; ++i) {
         sexp_print(secd, arr + i);
         printf(" ");
     }
@@ -136,7 +136,7 @@ void sexp_print(secd_t* secd, const cell_t *cell) {
       case CELL_FRAME:  printf("#<envframe> "); break;
       case CELL_CONS:   sexp_print_list(secd, cell); break; break;
       case CELL_ARRAY:  sexp_print_array(secd, cell); break;
-      case CELL_STR:    printf("\"%s\"", strval(cell)); break;
+      case CELL_STR:    printf("\"%s\"", strval(cell) + cell->as.str.offset); break;
       case CELL_SYM:    printf("%s", symname(cell)); break;
       case CELL_BYTES:  sexp_print_bytes(secd, cell); break;
       case CELL_ERROR:  printf("#!\"%s\"", errmsg(cell)); break;

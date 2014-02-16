@@ -85,9 +85,9 @@ cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
     switch (t) {
       case CELL_SYM:
         if (c->as.sym.size != DONT_FREE_THIS)
-            free((char *)c->as.sym.data); 
+            free((char *)c->as.sym.data);
             /* TODO: this silently ignores symbol memory corruption */
-            c->as.sym.size = DONT_FREE_THIS; 
+            c->as.sym.size = DONT_FREE_THIS;
         break;
       case CELL_FRAME:
         drop_cell(secd, c->as.frame.io);
@@ -594,7 +594,7 @@ inline static cell_t *list_push(secd_t *secd, cell_t **to, cell_t *what) {
     else if (*to == secd->control) src = "C";
     else if (*to == secd->dump)    src = "D";
     else                           src = "?";
-    memdebugf("PUSH %s[%ld (%ld, %ld)]\n", src, cell_index(secd, newtop), 
+    memdebugf("PUSH %s[%ld (%ld, %ld)]\n", src, cell_index(secd, newtop),
             cell_index(secd, what), cell_index(secd, *to));
 #endif
 
@@ -733,10 +733,72 @@ cell_t *fifo_pop(secd_t *secd, cell_t **fifo) {
     }
 }
 
+cell_t *secd_first(secd_t *secd, cell_t *stream) {
+    switch (cell_type(stream)) {
+        case CELL_CONS:
+            if (not_nil(stream))
+                return get_car(stream);
+            break;
+        case CELL_ARRAY:
+            if ((size_t)stream->as.arr.offset < arr_size(secd, stream))
+                return new_clone(secd, arr_ref(stream, stream->as.arr.offset));
+            break;
+        case CELL_STR: {
+            const char *mem = strval(stream) + stream->as.str.offset;
+            if (mem[0])
+                return new_number(secd, (int) utf8get(mem, NULL));
+            } break;
+        case CELL_BYTES:
+            if ((size_t)stream->as.str.offset < mem_size(stream))
+                return new_number(secd, (int) strval(stream)[ stream->as.str.offset ]);
+            break;
+        default:
+            return new_error(secd, "first: %s is not iterable", secd_type_sym(secd, stream));
+    }
+    /* End-of-stream */
+    return SECD_NIL;
+}
+
+cell_t *secd_rest(secd_t *secd, cell_t *stream) {
+    switch (cell_type(stream)) {
+        case CELL_CONS:
+            if (not_nil(stream))
+                return get_cdr(stream);
+            break;
+        case CELL_ARRAY:
+            if ((size_t)stream->as.arr.offset < arr_size(secd, stream)) {
+                cell_t *nxt = new_clone(secd, stream);
+                ++nxt->as.arr.offset;
+                return nxt;
+            }
+            break;
+        case CELL_STR: {
+            const char *mem = strval(stream);
+            if (mem[ stream->as.str.offset ]) {
+                const char *nxtmem;
+                utf8get(mem, &nxtmem);
+                cell_t *nxt = new_clone(secd, stream);
+                nxt->as.str.offset += (nxtmem - mem);
+                return nxt;
+            }
+            } break;
+        case CELL_BYTES:
+            if ((size_t)stream->as.str.offset < mem_size(stream)) {
+                cell_t *next = new_clone(secd, stream);
+                ++next->as.str.offset;
+                return next;
+            }
+            break;
+        default:
+            return new_error(secd, "rest: %s is not iterable", secd_type_sym(secd, stream));
+    }
+    return SECD_NIL;
+}
+
 /*
  *   Machine-wide operations
  */
-void secd_owned_cell_for(cell_t *cell, 
+void secd_owned_cell_for(cell_t *cell,
         cell_t **ref1, cell_t **ref2, cell_t **ref3)
 {
     *ref1 = *ref2 = *ref3 = SECD_NIL;
@@ -744,7 +806,7 @@ void secd_owned_cell_for(cell_t *cell,
       case CELL_CONS:
           *ref1 = get_car(cell); *ref2 = get_cdr(cell);
           break;
-      case CELL_FRAME: 
+      case CELL_FRAME:
           *ref1 = get_car(cell); *ref2 = get_cdr(cell);
           *ref3 = cell->as.frame.io;
           break;
@@ -752,8 +814,8 @@ void secd_owned_cell_for(cell_t *cell,
           *ref1 = arr_meta((cell_t*)strmem(cell));
           break;
       case CELL_ARRAY: case CELL_BYTES:
-          *ref1 = arr_meta(arr_mem(cell)); 
-          break; 
+          *ref1 = arr_meta(arr_mem(cell));
+          break;
       case CELL_PORT:
           if (!cell->as.port.file)
               *ref1 = cell->as.port.as.str;
