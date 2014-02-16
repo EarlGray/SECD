@@ -506,7 +506,7 @@ cell_t *init_with_copy(secd_t *secd,
         share_cell(secd, with->as.cons.cdr);
         break;
       case CELL_SYM:
-        /* TODO */
+        cell->as.sym.data = strdup(symname(with));
         break;
       case CELL_REF:
         share_cell(secd, with->as.ref);
@@ -636,7 +636,7 @@ cell_t *pop_stack(secd_t *secd) {
 cell_t *set_control(secd_t *secd, cell_t **opcons) {
     assert(is_cons(*opcons),
            "set_control: failed, not a cons at [%ld]\n", cell_index(secd, *opcons));
-    compile_ctrl(secd, opcons);
+    compile_ctrl(secd, opcons, SECD_NIL);
     assert_cell(*opcons, "set_control: failed to compile control path");
     assert(cell_type(*opcons) == CELL_CONS, "set_control: not a cons");
     assert(atom_type(secd, get_car(*opcons)) == ATOM_OP, "set_control: not an ATOM_OP");

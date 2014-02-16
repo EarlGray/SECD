@@ -37,6 +37,7 @@ secd_t * init_secd(secd_t *secd) {
 cell_t * run_secd(secd_t *secd, cell_t *ctrl) {
     cell_t *op;
 
+    share_cell(secd, ctrl);
     set_control(secd, &ctrl);
 
 #if (TIMING)

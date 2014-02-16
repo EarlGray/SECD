@@ -12,6 +12,6 @@ typedef struct {
 extern const opcode_t opcode_table[];
 extern size_t opcode_count(void);
 
-bool compile_ctrl(secd_t *secd, cell_t **ctrl);
+bool compile_ctrl(secd_t *secd, cell_t **ctrl, cell_t **fvars);
 
 #endif //__SECD_OPS_H__
