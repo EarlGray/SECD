@@ -502,13 +502,13 @@ static cell_t *read_token(secd_t *secd, secd_parser_t *p) {
     }
 
 error_exit:
-    errorf("read_secd: failed\n");
     if (inp) free_cell(secd, inp);
-    return new_error(secd,
-                    "sexp_read: read_list failed on token %d\n", p->token);
+    errorf("read_token: failed\n");
+    return new_error(secd, "read_token: failed on token %1$d '%1$c'", p->token);
 }
 
 cell_t *read_list(secd_t *secd, secd_parser_t *p) {
+    const char *parse_err = NULL;
     cell_t *head = SECD_NIL;
     cell_t *tail = SECD_NIL;
 
@@ -525,23 +525,48 @@ cell_t *read_list(secd_t *secd, secd_parser_t *p) {
               ++ p->nested;
               val = read_list(secd, p);
               if (p->token == TOK_ERR) {
-                  free_cell(secd, head);
-                  errorf("read_list: TOK_ERR\n");
-                  return new_error(secd, "read_list: error reading subexpression");
+                  parse_err = "read_list: error reading subexpression";
+                  goto error_exit;
               }
-              if (p->token == TOK_EOF) {
-                  free_cell(secd, head);
-                  errorf("read_list: TOK_EOF, ')' expected\n");
+              if (p->token != ')') {
+                  parse_err = "read_list: TOK_EOF, ')' expected";
+                  goto error_exit;
               }
-              assert(p->token == ')', "read_list: not a closing bracket");
               break;
 
            default:
               val = read_token(secd, p);
               if (is_error(val)) {
-                  free_cell(secd, head);
-                  errorf("read_list: read_token failed\n");
-                  return val;
+                  parse_err = "read_list: read_token failed";
+                  goto error_exit;
+              }
+              /* reading dot-lists */
+              if (is_symbol(val) && (str_eq(symname(val), "."))) {
+                  free_cell(secd, val);
+
+                  switch (lexnext(p)) {
+                    case TOK_ERR: case ')':
+                      parse_err = "read_list: failed to read a token after dot";
+                      goto error_exit;
+                    case '(':
+                      /* there may be a list after dot */
+                      val = read_list(secd, p);
+                      if (p->token != ')') {
+                          parse_err = "read_list: expected a ')' reading sublist after dot";
+                          goto error_exit;
+                      }
+                      lexnext(p); // consume ')'
+                      break;
+
+                    default:
+                      val = read_token(secd, p);
+                      lexnext(p);
+                  }
+
+                  if (is_nil(head)) /* Guile-like: (. val) returns val */
+                      return val;
+                  tail->as.cons.cdr = share_cell(secd, val);
+                  return head;
               }
         }
 
@@ -553,6 +578,10 @@ cell_t *read_list(secd_t *secd, secd_parser_t *p) {
             head = tail = newtail;
         }
     }
+error_exit:
+    free_cell(secd, head);
+    errorf("read_list: TOK_ERR, %s\n", parse_err);
+    return new_error(secd, parse_err);
 }
 
 cell_t *sexp_read(secd_t *secd, secd_parser_t *p) {

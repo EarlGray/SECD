@@ -41,7 +41,7 @@ void print_env(secd_t *secd) {
     }
 }
 
-cell_t *make_native_frame(secd_t *secd, 
+cell_t *make_native_frame(secd_t *secd,
                           const native_binding_t *binding,
                           const char *framename)
 {
@@ -89,7 +89,7 @@ static cell_t *lookup_fake_variables(secd_t *secd, const char *sym) {
     hash_t symh = strhash(sym);
     if ((symh == stdinhash) && str_eq(sym, SECD_FAKEVAR_STDIN))
         return secd->input_port;
-    if ((symh == stdouthash) && str_eq(sym, SECD_FAKEVAR_STDOUT)) 
+    if ((symh == stdouthash) && str_eq(sym, SECD_FAKEVAR_STDOUT))
         return secd->output_port;
     if ((symh == modulehash) && str_eq(sym, SECD_FAKEVAR_STDDBG))
         return secd->debug_port;
@@ -106,7 +106,7 @@ static const char *module_name_for_frame(secd_t *secd, cell_t *frame, bool *open
     while (not_nil(symlist)) {
         cell_t *sym = list_head(symlist);
         if ((symhash(sym) == modulehash)
-            && str_eq(SECD_FAKEVAR_MODULE, symname(sym))) 
+            && str_eq(SECD_FAKEVAR_MODULE, symname(sym)))
         {
             cell_t *mod = list_head(vallist);
             if (!is_symbol(mod)) {
@@ -128,7 +128,7 @@ static const char *module_name_for_frame(secd_t *secd, cell_t *frame, bool *open
     return NULL;
 }
 
-static bool name_eq(const char *sym, hash_t symh, cell_t *cursym, 
+static bool name_eq(const char *sym, hash_t symh, cell_t *cursym,
         const char *modname, size_t modlen, bool open)
 {
     const char *cur = symname(cursym);
@@ -228,17 +228,28 @@ static cell_t *new_frame_io(secd_t *secd, cell_t *frame, cell_t *prevenv) {
     cell_t *frame_io = SECD_NIL;
     cell_t *symlist = get_car(frame);
     cell_t *vallist = get_cdr(frame);
+
+    if (is_symbol(symlist)) {
+        frame->as.cons.car = share_cell(secd, new_cons(secd, symlist, SECD_NIL));
+        frame->as.cons.cdr = share_cell(secd, new_cons(secd, vallist, SECD_NIL));
+        drop_cell(secd, symlist); drop_cell(secd, vallist);
+    } else
     while (not_nil(symlist)) {
         cell_t *sym = get_car(symlist);
-        if (str_eq(symname(sym), "*stdin*")) {
+        hash_t symh = symhash(sym);
+        if ((symh == stdinhash)
+            && str_eq(symname(sym), SECD_FAKEVAR_STDIN))
+        {
             cell_t *val = get_car(vallist);
             assert(cell_type(val) == CELL_PORT, "*stdin* must bind a port");
             if (is_nil(frame_io))
                 frame_io = new_cons(secd, val, SECD_NIL);
             else
                 frame_io->as.cons.car = share_cell(secd, val);
-        }
-        if (str_eq(symname(sym), "*stdout*")) {
+        } else
+        if ((symh == stdouthash)
+            && str_eq(symname(sym), SECD_FAKEVAR_STDOUT))
+        {
             cell_t *val = get_car(vallist);
             assert(cell_type(val) == CELL_PORT, "*stdout* must bind a port");
             if (is_nil(frame_io))
@@ -247,8 +258,19 @@ static cell_t *new_frame_io(secd_t *secd, cell_t *frame, cell_t *prevenv) {
                 frame_io->as.cons.cdr = share_cell(secd, val);
         }
 
-        symlist = list_next(secd, symlist);
-        vallist = list_next(secd, vallist);
+        cell_t *nextsyms = list_next(secd, symlist);
+        cell_t *nextvals = list_next(secd, vallist);
+
+        /* dot-lists of arguments? */
+        if (is_symbol(nextsyms)) {
+            symlist->as.cons.cdr = share_cell(secd, new_cons(secd, nextsyms, SECD_NIL));
+            vallist->as.cons.cdr = share_cell(secd, new_cons(secd, nextvals, SECD_NIL));
+            drop_cell(secd, nextsyms); drop_cell(secd, nextvals);
+            break;
+        }
+
+        symlist = nextsyms;
+        vallist = nextvals;
     }
     cell_t *prev_io = get_car(prevenv)->as.frame.io;
     if (is_nil(frame_io))
@@ -262,7 +284,7 @@ static cell_t *new_frame_io(secd_t *secd, cell_t *frame, cell_t *prevenv) {
 }
 
 cell_t *setup_frame(secd_t *secd, cell_t *argnames, cell_t *argvals, cell_t *env) {
-    /* insert *module* variable into the new frame 
+    /* insert *module* variable into the new frame
     cell_t *modsym = SECD_NIL;
     if (is_error(lookup_env(secd, SECD_FAKEVAR_MODULE, &modsym)))
         return new_error(secd, "there's no *module* variable");
