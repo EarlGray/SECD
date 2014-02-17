@@ -1,8 +1,10 @@
 #!/bin/sh
 
-SECDVM=./secd
-COMPILER=scm2secd.secd
-REPL=repl.secd
+DIR=`dirname $0`
+SECDVM=$DIR/secd
+COMPILER=$DIR/scm2secd.secd
+REPLSRC=$DIR/repl.scm
+REPL=$DIR/repl.secd
 
 die () {
     echo $@ >&2
@@ -11,7 +13,7 @@ die () {
 
 interp () {
     # is there compiled REPL code?
-    [ -r "$REPL" ] || $SECDVM $COMPILER <repl.scm >$REPL
+    [ -r "$REPL" ] || $SECDVM $COMPILER <$REPLSRC >$REPL
     exec `which rlwrap` $SECDVM $REPL
 }
 
