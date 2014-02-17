@@ -846,6 +846,21 @@ cell_t *secdf_readchar(secd_t *secd, cell_t *args) {
     return new_number(secd, c);
 }
 
+cell_t *secdf_readu8(secd_t *secd, cell_t *args) {
+    cell_t *port = SECD_NIL;
+    if (not_nil(args)) {
+        port = get_car(args);
+        assert(cell_type(port) == CELL_PORT, "(read-u8 <port>): port expected");
+    } else {
+        port = secd->input_port;
+    }
+
+    int b = secd_getc(secd, port);
+    if (b == SECD_EOF)
+        return new_symbol(secd, EOF_OBJ);
+    return new_number(secd, b);
+}
+
 cell_t *secdf_eofp(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_eofp\n");
     cell_t *arg1 = list_head(args);
@@ -905,6 +920,7 @@ const cell_t fiopen_fun = INIT_FUNC(secdf_ifopen);
 const cell_t siopen_fun = INIT_FUNC(secdf_siopen);
 const cell_t fgetc_fun  = INIT_FUNC(secdf_readchar);
 const cell_t fread_fun  = INIT_FUNC(secdf_readstring);
+const cell_t freadb_fun = INIT_FUNC(secdf_readu8);
 const cell_t pclose_fun = INIT_FUNC(secdf_pclose);
 
 const native_binding_t
@@ -941,6 +957,7 @@ native_functions[] = {
     { "open-input-file",    &fiopen_fun },
     { "open-input-string",  &siopen_fun },
     { "read-char",          &fgetc_fun  },
+    { "read-u8",            &freadb_fun },
     { "read-string",        &fread_fun  },
     { "port-close",         &pclose_fun },
 
