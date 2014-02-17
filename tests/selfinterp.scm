@@ -21,10 +21,10 @@
 (define (self-eval-step s e c d)
   (let ((cmd (car c)) (c1 (cdr c)))
     (begin 
-      (display "\n\n  s = ") (display s)
-      (display "\n  e = ") (display e)
-      (display "\n  c = ") (display c)
-      (display "\n  d = ") (display d)
+      ;(display "\n\n  s = ") (display s)
+      ;(display "\n  e = ") (display e)
+      ;(display "\n  c = ") (display c)
+      ;(display "\n  d = ") (display d)
       (cond
         ((eq? cmd 'LDC)
           (let ((cn (car c1)) (c2 (cdr c1)))
@@ -82,6 +82,14 @@
           (let ((v (car s))
                 (s1 (car d)) (e1 (cadr d)) (c1 (caddr d)) (d1 (cdddr d)))
             (self-eval-step (cons v s1) e1 c1 d1)))
+
+        ((eq? cmd 'READ)
+          (let ((inp (read)))
+            (self-eval-step (cons inp s) e c1 d)))
+        ((eq? cmd 'PRINT)
+          (begin
+            (display (car s))
+            (self-eval-step s e c d)))
         ;; TODO: DUM, RAP
 
         ((eq? cmd 'STOP)
@@ -90,5 +98,8 @@
           (list 'Error:_unknown_command cmd))
       ))))
 
-(define (self-eval ctrl)
+(define (self-eval-secd ctrl)
   (self-eval-step '() '() ctrl '()))
+
+(define (self-eval expr)
+  (self-eval-secd (append (secd-compile expr) '(STOP))))
