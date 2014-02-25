@@ -89,6 +89,32 @@ cell_t * run_secd(secd_t *secd, cell_t *ctrl) {
 /*
  *  Serialization
  */
+cell_t *secd_type_sym(secd_t *secd, const cell_t *cell) {
+    const char *type = "unknown";
+    switch (cell_type(cell)) {
+      case CELL_CONS:  type = "cons"; break;
+      case CELL_ARRAY: type = "vect"; break;
+      case CELL_STR:   type = "str";  break;
+      case CELL_SYM:   type = "sym"; break;
+      case CELL_BYTES: type = "bvect"; break;
+      case CELL_PORT:  type = "port"; break;
+      case CELL_FRAME: type = "frame"; break;
+      case CELL_ATOM:
+        switch (atom_type(secd, cell)) {
+          case NOT_AN_ATOM: return new_error(secd, "not an atom");
+          case ATOM_INT: type = "int"; break;
+          case ATOM_FUNC: type = "func"; break;
+          case ATOM_OP:  type = "op"; break;
+        } break;
+      case CELL_UNDEF: type = "void"; break;
+      case CELL_ARRMETA: type = "meta"; break;
+      case CELL_ERROR: type = "err"; break;
+      case CELL_REF:   type = "ref"; break;
+      case CELL_FREE:  type = "free"; break;
+    }
+    return new_symbol(secd, type);
+}
+
 static cell_t *chain_index(secd_t *secd, const cell_t *cell, cell_t *prev) {
     return new_cons(secd, new_number(secd, cell_index(secd, cell)), prev);
 }

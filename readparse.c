@@ -51,7 +51,7 @@ void dbg_print_cell(secd_t *secd, const cell_t *c) {
                                cell_index(secd, arr_val(c, 0))); break;
       case CELL_STR: printf("STR[%ld]\n",
                              cell_index(secd, (cell_t*)strval(c))); break;
-      case CELL_SYM: printf("SYM[%08x]='%s'\n", c->as.sym.hash, c->as.sym.data); break;
+      case CELL_SYM: printf("SYM[%08x]='%s'\n", symhash(c), symname(c)); break;
       case CELL_BYTES: printf("BVECT[%ld]\n",
                                cell_index(secd, (cell_t*)strval(c))); break;
       case CELL_REF: printf("REF[%ld]\n", cell_index(secd, c->as.ref)); break;

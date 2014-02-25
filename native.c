@@ -281,7 +281,7 @@ cell_t *secdf_hash(secd_t *secd, cell_t *args) {
 
     cell_t *cell = list_head(args);
     if (is_symbol(cell))
-        return new_number(secd, cell->as.sym.hash);
+        return new_number(secd, symhash(cell));
     return SECD_NIL;
 }
 
