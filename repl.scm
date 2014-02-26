@@ -1,7 +1,9 @@
 (letrec
 ;; what:
 (
-(secd-not (lambda (b) (if b (eq? 1 2) (eq? 1 1))))
+(secd-true (eq? 1 1))
+(secd-false (eq? 1 2))
+(secd-not (lambda (b) (if b secd-false secd-true)))
 
 (length (lambda (xs)
   (letrec
@@ -254,6 +256,21 @@
 (vector? (lambda (obj) (eq? (secd-type obj) 'vect)))
 (port?  (lambda (obj) (eq? (secd-type obj) 'port)))
 (bytevector? (lambda (obj) (eq? (secd-type obj) 'bvect)))
+(procedure? (lambda (obj)
+  (cond
+    ((eq? (secd-type obj) 'func)
+        #t)
+    ((eq? (secd-type obj) 'cons)
+      (cond
+        ((secd-not (eq? (secd-type (car (cdr obj))) 'frame)) secd-false)
+        ((secd-not (eq? (secd-type (car(car(cdr(car obj))))) 'op)) secd-false)
+        (else
+          (let ((args (car (car obj))))
+            (cond
+              ((null? args) #t)
+              ((secd-not (eq? (secd-type (car args)) 'sym)) secd-false)
+              (else #t))))))
+    (else secd-false))))
 
 )
  
