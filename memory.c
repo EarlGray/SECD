@@ -248,7 +248,12 @@ cell_t *alloc_array(secd_t *secd, size_t size) {
                 if (cursize > size + 1) {
                     /* make a free gap after */
                     cell_t *newmeta = cur + size + 1;
-                    init_meta(secd, newmeta, mcons_prev(cur), cur);
+                    cell_t *prevmeta = mcons_prev(cur);
+                    init_meta(secd, newmeta, prevmeta, cur);
+
+                    cur->as.mcons.prev = newmeta;
+                    prevmeta->as.mcons.next = newmeta;
+
                     mark_free(newmeta, true);
                 }
                 mark_free(cur, false);
