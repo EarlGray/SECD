@@ -351,8 +351,10 @@ cell_t *secd_leq(secd_t *secd) {
     cell_t *opnd1 = pop_stack(secd);
     cell_t *opnd2 = pop_stack(secd);
 
-    assert(is_number(opnd1), "secd_leq: int expected as opnd1");
-    assert(is_number(opnd2), "secd_leq: int expected as opnd2");
+    assert(is_number(opnd1) || cell_type(opnd1) == CELL_CHAR,
+            "secd_leq: int/char expected as opnd1");
+    assert(is_number(opnd2) || cell_type(opnd2) == CELL_CHAR,
+            "secd_leq: int/char expected as opnd2");
 
     cell_t *result = to_bool(secd, numval(opnd1) <= numval(opnd2));
     drop_cell(secd, opnd1); drop_cell(secd, opnd2);

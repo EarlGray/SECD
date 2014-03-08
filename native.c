@@ -167,6 +167,24 @@ static char *utf8memcpy(char *dst, const char *src, size_t bytes) {
     return dst;
 }
 
+static size_t utf8list_len(secd_t *secd, cell_t *lst) {
+    size_t strsize = 1;     // for zero
+    cell_t *cur = lst;
+
+    /* determine size in bytes */
+    while (not_nil(cur)) {
+        cell_t *num = get_car(cur);
+        if (! (is_number(num) || cell_type(num) == CELL_CHAR)) {
+            errorf("list_to_string: a number expected\n");
+            return strsize;
+        }
+
+        strsize += utf8len(numval(cur));
+        cur = list_next(secd, cur);
+    }
+
+    return strsize;
+}
 
 /*
  *   List processing
@@ -397,6 +415,20 @@ cell_t *secdf_bind(secd_t *secd, cell_t *args) {
     return sym;
 }
 
+cell_t *secdf_chrint(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdf_chrint: no argument");
+    cell_t *chr = get_car(args);
+    assert(cell_type(chr) == CELL_CHAR, "secdf_chrint: not a character");
+    return new_number(secd, numval(chr));
+}
+
+cell_t *secdf_intchr(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdf_intchr: no arguments");
+    cell_t *num = get_car(args);
+    assert(is_number(num), "secdf_intchr: not a number");
+    return new_char(secd, numval(num));
+}
+
 /*
  *     Vector
  */
@@ -541,7 +573,7 @@ static cell_t *string_to_list(secd_t *secd, const char *cstr) {
         if (codepoint == 0)
             return res;
 
-        cell_t *nchr = new_number(secd, codepoint);
+        cell_t *nchr = new_char(secd, codepoint);
         cell_t *ncons = new_cons(secd, nchr, SECD_NIL);
         if (not_nil(res)) {
             cur->as.cons.cdr = share_cell(secd, ncons);
@@ -551,25 +583,6 @@ static cell_t *string_to_list(secd_t *secd, const char *cstr) {
     }
 }
 
-static size_t utf8list_len(secd_t *secd, cell_t *lst) {
-    size_t strsize = 1;     // for zero
-    cell_t *cur = lst;
-
-    /* determine size in bytes */
-    while (not_nil(cur)) {
-        cell_t *num = get_car(cur);
-        if (! is_number(num)) {
-            errorf("list_to_string: a number expected\n");
-            return strsize;
-        }
-
-        strsize += utf8len(numval(cur));
-        cur = list_next(secd, cur);
-    }
-
-    return strsize;
-}
-
 static cell_t *list_to_string(secd_t *secd, cell_t *lst) {
     size_t strsize = utf8list_len(secd, lst);
     cell_t *str = new_string_of_size(secd, strsize);
@@ -577,7 +590,7 @@ static cell_t *list_to_string(secd_t *secd, cell_t *lst) {
 
     while (not_nil(lst)) {
         cell_t *num = get_car(lst);
-        if (! is_number(num)) {
+        if (cell_type(num) != CELL_CHAR) {
             free_cell(secd, str);
             return new_error(secd, "list_to_string: a number expected");
         }
@@ -890,6 +903,9 @@ const cell_t hash_func  = INIT_FUNC(secdf_hash);
 /* list functions */
 const cell_t list_func  = INIT_FUNC(secdf_list);
 const cell_t appnd_func = INIT_FUNC(secdf_append);
+/* char functions  */
+const cell_t chrint_fun = INIT_FUNC(secdf_chrint);
+const cell_t intchr_fun = INIT_FUNC(secdf_intchr);
 /* string routines */
 const cell_t strlen_fun = INIT_FUNC(secdf_strlen);
 const cell_t strsym_fun = INIT_FUNC(secdf_str2sym);
@@ -934,6 +950,9 @@ native_functions[] = {
     { "list->string",   &lststr_fun },
     //{ "string->number", &strnum_fun },
     //{ "number->string", &numstr_fun },
+
+    { "char->integer",  &chrint_fun },
+    { "integer->char",  &intchr_fun },
 
     { "make-bytevector",    &mkbv_fun  },
     { "bytevector-length",  &bvlen_fun },

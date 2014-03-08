@@ -39,14 +39,14 @@ void dbg_print_cell(secd_t *secd, const cell_t *c) {
         break;
       case CELL_INT:  printf("%d", c->as.num); break;
       case CELL_CHAR:
-        if (isprint(c->as.num)) printf("#\\%c", (char)c->as.num);
-        else printf("#x%x", c->as.num);
+        if (isprint(c->as.num)) printf("#\\%c\n", (char)c->as.num);
+        else printf("#x%x\n", c->as.num);
         break;
       case CELL_OP:   print_opcode(c->as.op); break;
-      case CELL_FUNC: printf("*%p()", c->as.ptr); break;
+      case CELL_FUNC: printf("*%p()\n", c->as.ptr); break;
       case CELL_ARRAY: printf("ARR[%ld]\n",
                                cell_index(secd, arr_val(c, 0))); break;
-      case CELL_STR: printf("STR[%ld]\n",
+      case CELL_STR: printf("STR[%ld\n",
                              cell_index(secd, (cell_t*)strval(c))); break;
       case CELL_SYM: printf("SYM[%08x]='%s'\n", symhash(c), symname(c)); break;
       case CELL_BYTES: printf("BVECT[%ld]\n",
@@ -132,7 +132,7 @@ void sexp_print(secd_t* secd, const cell_t *cell) {
       case CELL_INT:    printf("%d", cell->as.num); break;
       case CELL_CHAR:
         if (isprint(cell->as.num)) printf("#\\%c", (char)cell->as.num);
-        else printf("#\\x%x", cell->as.num)
+        else printf("#\\x%x", numval(cell));
         break;
       case CELL_OP:     print_opcode(cell->as.op); break;
       case CELL_FUNC:   printf("*%p()", cell->as.ptr); break;

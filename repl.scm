@@ -255,6 +255,7 @@
 (string? (lambda (obj) (eq? (secd-type obj) 'str)))
 (vector? (lambda (obj) (eq? (secd-type obj) 'vect)))
 (port?  (lambda (obj) (eq? (secd-type obj) 'port)))
+(char?  (lambda (obj) (eq? (secd-type obj) 'char)))
 (bytevector? (lambda (obj) (eq? (secd-type obj) 'bvect)))
 (procedure? (lambda (obj)
   (cond
