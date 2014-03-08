@@ -366,8 +366,8 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
             printf(";; env   = %ld\n", cell_index(secd, secd->env));
             printf(";; ctrl  = %ld\n", cell_index(secd, secd->control));
             printf(";; dump  = %ld\n\n", cell_index(secd, secd->dump));
-            printf(";; #t = %ld\n", cell_index(secd, secd->truth_value));
-            printf(";; #f = %ld\n\n", cell_index(secd, secd->false_value));
+            printf(";; %s = %ld\n",   SECD_TRUE,  cell_index(secd, secd->truth_value));
+            printf(";; %s = %ld\n\n", SECD_FALSE, cell_index(secd, secd->false_value));
             printf(";; *stdin*  = %ld\n", cell_index(secd, secd->input_port));
             printf(";; *stdout* = %ld\n", cell_index(secd, secd->output_port));
             printf(";; *stddbg* = %ld\n\n", cell_index(secd, secd->debug_port));

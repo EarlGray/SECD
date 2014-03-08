@@ -365,7 +365,7 @@ cell_t *secd_sel(secd_t *secd) {
     ctrldebugf("SEL\n");
 
     cell_t *condcell = pop_stack(secd);
-    bool cond = not_nil(condcell) ? true : false;
+    bool cond = secd_bool(secd, condcell);
     drop_cell(secd, condcell);
 
     cell_t *thenb = pop_control(secd);

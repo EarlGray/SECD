@@ -21,8 +21,8 @@ secd_t * init_secd(secd_t *secd) {
 
     init_mem(secd, heap, N_CELLS);
 
-    secd->truth_value = share_cell(secd, new_symbol(secd, "#t"));
-    secd->false_value = SECD_NIL;
+    secd->truth_value = share_cell(secd, new_symbol(secd, SECD_TRUE));
+    secd->false_value = share_cell(secd, new_symbol(secd, SECD_FALSE));
 
     secd->input_port = share_cell(secd, secd_stdin(secd));
     secd->output_port = share_cell(secd, secd_stdout(secd));

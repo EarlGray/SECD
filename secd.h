@@ -41,6 +41,9 @@
 
 #define SECD_NIL   NULL
 
+#define SECD_FALSE  "#f"
+#define SECD_TRUE   "#t"
+
 typedef  uint32_t       hash_t;
 
 typedef  struct secd    secd_t;
@@ -338,10 +341,6 @@ inline static cell_t *mcons_next(cell_t *mcons) {
     return mcons->as.mcons.next;
 }
 
-inline static cell_t *to_bool(secd_t *secd, bool cond) {
-    return ((cond)? secd->truth_value : secd->false_value);
-}
-
 #define INIT_OP(op) {       \
     .type = CELL_OP,        \
     .nref = DONT_FREE_THIS, \
@@ -408,5 +407,14 @@ cell_t *secd_type_sym(secd_t *secd, const cell_t *cell);
 
 /* in the sense of 'equal?' */
 bool is_equal(secd_t *secd, const cell_t *a, const cell_t *b);
+
+inline static cell_t *to_bool(secd_t *secd, bool cond) {
+    return ((cond)? secd->truth_value : secd->false_value);
+}
+inline static bool secd_bool(secd_t *secd, cell_t *cell) {
+    if (is_symbol(cell) && (is_equal(secd, cell, secd->false_value)))
+        return false;
+    return true;
+}
 
 #endif //__SECD_H__

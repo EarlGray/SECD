@@ -1,9 +1,9 @@
 (letrec
 ;; what:
 (
-(secd-true (eq? 1 1))
-(secd-false (eq? 1 2))
-(secd-not (lambda (b) (if b secd-false secd-true)))
+(#t (eq? 1 1))
+(#f (eq? 1 2))
+(secd-not (lambda (b) (if b #f #t)))
 
 (length (lambda (xs)
   (letrec
@@ -272,6 +272,7 @@
               ((secd-not (eq? (secd-type (car args)) 'sym)) secd-false)
               (else #t))))))
     (else secd-false))))
+(apply (lambda (command arglist) (secd-apply command arglist)))
 
 )
  

@@ -73,7 +73,6 @@ void init_env(secd_t *secd) {
 
     /* initialize the first frame */
     cell_t *frame = make_native_frame(secd, native_functions, ":secd");
-    secd_insert_in_frame(secd, frame, secd->truth_value, secd->truth_value);
 
     cell_t *frame_io = new_cons(secd, secd->input_port, secd->output_port);
     frame->as.frame.io = share_cell(secd, frame_io);
