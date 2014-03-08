@@ -123,8 +123,7 @@ cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
         }
         break;
       case CELL_INT: case CELL_FUNC: case CELL_OP:
-      case CELL_ERROR:
-      case CELL_UNDEF:
+      case CELL_ERROR: case CELL_UNDEF:
         return c;
       default:
         return new_error(secd, "drop_dependencies: unknown cell_type 0x%x", t);
@@ -367,6 +366,13 @@ cell_t *new_number(secd_t *secd, int num) {
     return cell;
 }
 
+cell_t *new_char(secd_t *secd, int c) {
+    cell_t *cell = pop_free(secd);
+    cell->type = CELL_CHAR;
+    cell->as.num = c;
+    return cell;
+}
+
 cell_t *new_symbol(secd_t *secd, const char *sym) {
     cell_t *cell = pop_free(secd);
     cell->type = CELL_SYM;
@@ -523,7 +529,8 @@ cell_t *init_with_copy(secd_t *secd,
       case CELL_PORT:
         /* TODO */
         break;
-      case CELL_INT: case CELL_OP: case CELL_FUNC:
+      case CELL_INT: case CELL_CHAR:
+      case CELL_OP: case CELL_FUNC:
       case CELL_ERROR: case CELL_UNDEF:
         break;
       case CELL_ARRMETA: case CELL_FREE:

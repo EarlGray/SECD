@@ -38,6 +38,10 @@ void dbg_print_cell(secd_t *secd, const cell_t *c) {
                cell_index(secd, get_car(c)), cell_index(secd, get_cdr(c)));
         break;
       case CELL_INT:  printf("%d", c->as.num); break;
+      case CELL_CHAR:
+        if (isprint(c->as.num)) printf("#\\%c", (char)c->as.num);
+        else printf("#x%x", c->as.num);
+        break;
       case CELL_OP:   print_opcode(c->as.op); break;
       case CELL_FUNC: printf("*%p()", c->as.ptr); break;
       case CELL_ARRAY: printf("ARR[%ld]\n",
@@ -126,6 +130,10 @@ void sexp_print(secd_t* secd, const cell_t *cell) {
     switch (cell_type(cell)) {
       case CELL_UNDEF:  printf("#?"); break;
       case CELL_INT:    printf("%d", cell->as.num); break;
+      case CELL_CHAR:
+        if (isprint(cell->as.num)) printf("#\\%c", (char)cell->as.num);
+        else printf("#\\x%x", cell->as.num)
+        break;
       case CELL_OP:     print_opcode(cell->as.op); break;
       case CELL_FUNC:   printf("*%p()", cell->as.ptr); break;
       case CELL_FRAME:  printf("#<envframe> "); break;
@@ -165,16 +173,17 @@ enum {
     TOK_SYM = -2,
     TOK_NUM = -3,
     TOK_STR = -4,
+    TOK_CHAR = -5,
 
-    TOK_QUOTE = -5,
-    TOK_QQ = -6,
-    TOK_UQ = -7,
-    TOK_UQSPL = -8,
+    TOK_QUOTE = -6,
+    TOK_QQ = -7,
+    TOK_UQ = -8,
+    TOK_UQSPL = -9,
 
     TOK_ERR = -65536
 };
 
-const char not_symbol_chars[] = " ();\n";
+const char not_symbol_chars[] = " ();\n\t";
 
 struct secd_parser {
     secd_t *secd;
@@ -327,6 +336,61 @@ cleanup_and_exit:
     return (p->token = TOK_ERR);
 }
 
+const struct {
+    const char *name;
+    int chr;
+} scheme_chars_names[] = {
+    { "alarm",     '\x07' },
+    { "backspace", '\x08' },
+    { "delete",    '\x7f' },
+    { "escape",    '\x1b' },
+    { "newline",   '\x0a' },
+    { "null",      '\x00' },
+    { "return",    '\x0d' },
+    { "space",     ' ' },
+    { "tab",       '\t' },
+
+    { NULL,        0 }
+};
+
+token_t lexchar(secd_parser_t *p) {
+    char *s = p->symtok;
+    while (p->issymbc[p->lc]
+           && ((s - p->symtok) < MAX_LEXEME_SIZE))
+    {
+        *s++ = p->lc;
+        nextchar(p);
+    }
+    *s = '\0';
+
+    if (p->symtok[0] == '\0') {
+        p->numtok = p->lc;
+        nextchar(p);
+        return (p->token = TOK_CHAR);
+    }
+    if (p->symtok[1] == '\0') {
+        p->numtok = p->symtok[0];
+        return (p->token = TOK_CHAR);
+    }
+    if (p->symtok[0] == 'x') {
+        char *end = NULL;
+        p->numtok = (int)strtol(p->symtok + 1, &end, 16);
+        if (end && (end[0] == '\0'))
+            return (p->token = TOK_CHAR);
+    }
+    int i = 0;
+    for (i = 0; scheme_chars_names[i].name; ++i) {
+        if (scheme_chars_names[i].name[0] > p->symtok[0])
+            break;
+        if (str_eq(scheme_chars_names[i].name, p->symtok)) {
+            p->numtok = scheme_chars_names[i].chr;
+            return (p->token = TOK_CHAR);
+        }
+    }
+
+    return (p->token = TOK_ERR);
+}
+
 token_t lexnext(secd_parser_t *p) {
     /* skip spaces */
     while (isspace(p->lc))
@@ -355,19 +419,13 @@ token_t lexnext(secd_parser_t *p) {
                 p->symtok[2] = '\0';
                 nextchar(p);
                 return (p->token = TOK_SYM);
+            /* chars */
+            case '\\': nextchar(p); return lexchar(p);
             /* numbers */
-            case 'x': case 'X':
-                nextchar(p);
-                return lexnumber(p, 16);
-            case 'o': case 'O':
-                nextchar(p);
-                return lexnumber(p, 8);
-            case 'b': case 'B':
-                nextchar(p);
-                return lexnumber(p, 2);
-            case 'd': case 'D':
-                nextchar(p);
-                return lexnumber(p, 10);
+            case 'x': case 'X': nextchar(p); return lexnumber(p, 16);
+            case 'o': case 'O': nextchar(p); return lexnumber(p, 8);
+            case 'b': case 'B': nextchar(p); return lexnumber(p, 2);
+            case 'd': case 'D': nextchar(p); return lexnumber(p, 10);
         }
         return p->token;
       case '\'':
@@ -453,6 +511,8 @@ static cell_t *read_token(secd_t *secd, secd_parser_t *p) {
         return inp;
       case TOK_NUM:
         return new_number(secd, p->numtok);
+      case TOK_CHAR:
+        return new_char(secd, p->numtok);
       case TOK_SYM:
         return new_symbol(secd, p->symtok);
       case TOK_STR:

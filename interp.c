@@ -60,7 +60,7 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control, cell_t **fvars) {
         if (new_cmd->as.op == SECD_AP) {
             /* look ahead for possible number of arguments after AP */
             cell_t *next = list_head(cursor);
-            if (cell_type(next) == CELL_INT) {
+            if (is_number(next)) {
                 tail_append(secd, &compcursor,
                             new_cons(secd, next, SECD_NIL));
                 cursor = list_next(secd, cursor);
@@ -251,7 +251,8 @@ bool is_equal(secd_t *secd, const cell_t *a, const cell_t *b) {
       case CELL_ARRAY: return array_eq(secd, a, b);
       case CELL_STR:   return !strcmp(strval(a), strval(b));
       case CELL_SYM:   return (str_eq(symname(a), symname(b)));
-      case CELL_INT:   return (a->as.num == b->as.num);
+      case CELL_INT: case CELL_CHAR:
+                       return (a->as.num == b->as.num);
       case CELL_OP:    return (a->as.op == b->as.op);
       case CELL_FUNC:  return (a->as.ptr == b->as.ptr);
       case CELL_BYTES: {

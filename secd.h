@@ -99,6 +99,7 @@ enum cell_type {
     /* atomic types */
     CELL_SYM,
     CELL_INT,
+    CELL_CHAR,
     CELL_OP,
     CELL_FUNC,
     CELL_PORT,  // I/O handle
@@ -108,11 +109,6 @@ enum cell_type {
 
 typedef cell_t* (*secd_opfunc_t)(secd_t *);
 typedef cell_t* (*secd_nativefunc_t)(secd_t *, cell_t *);
-
-struct atom {
-    union {
-    } as;
-};
 
 struct cons {
     cell_t *car;    // shares

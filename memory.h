@@ -11,6 +11,7 @@
 cell_t *new_cons(secd_t *secd, cell_t *car, cell_t *cdr);
 cell_t *new_frame(secd_t *secd, cell_t *syms, cell_t *vals);
 cell_t *new_number(secd_t *secd, int num);
+cell_t *new_char(secd_t *secd, int chr);
 cell_t *new_symbol(secd_t *secd, const char *sym);
 
 cell_t *new_array(secd_t *secd, size_t size);

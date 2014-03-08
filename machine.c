@@ -100,6 +100,7 @@ const char * secd_type_names[] = {
     [CELL_REF]   = "ref",
     [CELL_SYM]   = "sym",
     [CELL_INT]   = "int",
+    [CELL_CHAR]  = "char",
     [CELL_OP]    = "op",
     [CELL_FUNC]  = "func",
     [CELL_PORT]  = "port",
@@ -143,7 +144,7 @@ cell_t *serialize_cell(secd_t *secd, cell_t *cell) {
       case CELL_SYM:
           opt = new_cons(secd, cell, SECD_NIL);
           break;
-      case CELL_INT:
+      case CELL_INT: case CELL_CHAR:
         opt = new_cons(secd, cell, SECD_NIL);
         break;
       case CELL_OP: {
