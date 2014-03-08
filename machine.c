@@ -52,10 +52,10 @@ cell_t * run_secd(secd_t *secd, cell_t *ctrl) {
         op = pop_control(secd);
         assert_cell(op, "run: no command");
         assert_or_continue(
-                atom_type(secd, op) == ATOM_OP,
+                cell_type(op) == CELL_OP,
                 "run: not an opcode at [%ld]\n", cell_index(secd, op));
 
-        int opind = op->as.atom.as.op;
+        int opind = op->as.op;
         secd_opfunc_t callee = (secd_opfunc_t) opcode_table[ opind ].fun;
         if (SECD_NIL == callee)
             return SECD_NIL;  // STOP
@@ -89,29 +89,29 @@ cell_t * run_secd(secd_t *secd, cell_t *ctrl) {
 /*
  *  Serialization
  */
+const char * secd_type_names[] = {
+    [CELL_CONS]  = "cons",
+    [CELL_ARRAY] = "vect",
+    [CELL_STR]   = "str",
+    [CELL_BYTES] = "bvect",
+    [CELL_FRAME] = "frame",
+    [CELL_ARRMETA] = "meta",
+    [CELL_FREE]  = "free",
+    [CELL_REF]   = "ref",
+    [CELL_SYM]   = "sym",
+    [CELL_INT]   = "int",
+    [CELL_OP]    = "op",
+    [CELL_FUNC]  = "func",
+    [CELL_PORT]  = "port",
+    [CELL_ERROR] = "err"
+};
+
 cell_t *secd_type_sym(secd_t *secd, const cell_t *cell) {
     const char *type = "unknown";
-    switch (cell_type(cell)) {
-      case CELL_CONS:  type = "cons"; break;
-      case CELL_ARRAY: type = "vect"; break;
-      case CELL_STR:   type = "str";  break;
-      case CELL_SYM:   type = "sym"; break;
-      case CELL_BYTES: type = "bvect"; break;
-      case CELL_PORT:  type = "port"; break;
-      case CELL_FRAME: type = "frame"; break;
-      case CELL_ATOM:
-        switch (atom_type(secd, cell)) {
-          case NOT_AN_ATOM: return new_error(secd, "not an atom");
-          case ATOM_INT: type = "int"; break;
-          case ATOM_FUNC: type = "func"; break;
-          case ATOM_OP:  type = "op"; break;
-        } break;
-      case CELL_UNDEF: type = "void"; break;
-      case CELL_ARRMETA: type = "meta"; break;
-      case CELL_ERROR: type = "err"; break;
-      case CELL_REF:   type = "ref"; break;
-      case CELL_FREE:  type = "free"; break;
-    }
+    enum cell_type t = cell_type(cell);
+    assert(t <= CELL_ERROR, "secd_type_sym: type is invalid");
+    type = secd_type_names[t];
+    assert(t, "secd_type_names: unkonwn type of %d", t);
     return new_symbol(secd, type);
 }
 
@@ -143,21 +143,16 @@ cell_t *serialize_cell(secd_t *secd, cell_t *cell) {
       case CELL_SYM:
           opt = new_cons(secd, cell, SECD_NIL);
           break;
-      case CELL_ATOM:
-          switch (atom_type(secd, cell)) {
-            case ATOM_INT:
-              opt = new_cons(secd, cell, SECD_NIL);
-              break;
-            case ATOM_OP: {
-              cell_t *namec = new_symbol(secd, opcode_table[ cell->as.atom.as.op ].name);
-              opt = new_cons(secd, namec, SECD_NIL);
-            } break;
-            case ATOM_FUNC:
-              opt = new_cons(secd, new_number(secd, (long)cell->as.atom.as.ptr), SECD_NIL);
-              break;
-            default: opt = SECD_NIL;
-          }
-          break;
+      case CELL_INT:
+        opt = new_cons(secd, cell, SECD_NIL);
+        break;
+      case CELL_OP: {
+        cell_t *namec = new_symbol(secd, opcode_table[ cell->as.op ].name);
+        opt = new_cons(secd, namec, SECD_NIL);
+      } break;
+      case CELL_FUNC:
+        opt = new_cons(secd, new_number(secd, (long)cell->as.ptr), SECD_NIL);
+        break;
       case CELL_ARRMETA: {
             cell_t *arr;
             if (cell->as.mcons.cells)

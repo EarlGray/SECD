@@ -122,7 +122,7 @@ cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
             }
         }
         break;
-      case CELL_ATOM:
+      case CELL_INT: case CELL_FUNC: case CELL_OP:
       case CELL_ERROR:
       case CELL_UNDEF:
         return c;
@@ -362,9 +362,8 @@ cell_t *new_frame(secd_t *secd, cell_t *syms, cell_t *vals) {
 
 cell_t *new_number(secd_t *secd, int num) {
     cell_t *cell = pop_free(secd);
-    cell->type = CELL_ATOM;
-    cell->as.atom.type = ATOM_INT;
-    cell->as.atom.as.num = num;
+    cell->type = CELL_INT;
+    cell->as.num = num;
     return cell;
 }
 
@@ -379,9 +378,8 @@ cell_t *new_symbol(secd_t *secd, const char *sym) {
 
 cell_t *new_op(secd_t *secd, opindex_t opind) {
     cell_t *cell = pop_free(secd);
-    cell->type = CELL_ATOM;
-    cell->as.atom.type = ATOM_OP;
-    cell->as.atom.as.op = opind;
+    cell->type = CELL_OP;
+    cell->as.op = opind;
     return cell;
 }
 
@@ -525,9 +523,8 @@ cell_t *init_with_copy(secd_t *secd,
       case CELL_PORT:
         /* TODO */
         break;
-      case CELL_ERROR:
-      case CELL_ATOM:
-      case CELL_UNDEF:
+      case CELL_INT: case CELL_OP: case CELL_FUNC:
+      case CELL_ERROR: case CELL_UNDEF:
         break;
       case CELL_ARRMETA: case CELL_FREE:
         errorf("init_with_copy: CELL_ARRMETA/CELL_FREE\n");
@@ -644,7 +641,7 @@ cell_t *set_control(secd_t *secd, cell_t **opcons) {
     compile_ctrl(secd, opcons, SECD_NIL);
     assert_cell(*opcons, "set_control: failed to compile control path");
     assert(cell_type(*opcons) == CELL_CONS, "set_control: not a cons");
-    assert(atom_type(secd, get_car(*opcons)) == ATOM_OP, "set_control: not an ATOM_OP");
+    assert(cell_type(get_car(*opcons)) == CELL_OP, "set_control: not an ATOM_OP");
     return assign_cell(secd, &secd->control, *opcons);
 }
 

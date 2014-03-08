@@ -251,16 +251,14 @@ static bool get_two_nums(secd_t *secd, cell_t *lst,
     if (is_nil(lst)) return true;
 
     cell_t *startc = get_car(lst);
-    asserti(atom_type(secd, startc) == ATOM_INT,
-           "%s: an int expected as second argument", signiture);
+    asserti(is_number(startc), "%s: an int expected as second argument", signiture);
     *fst = numval(startc);
 
     lst = list_next(secd, lst);
     if (is_nil(lst)) return true;
 
     cell_t *endc = get_car(lst);
-    asserti(atom_type(secd, endc) == ATOM_INT,
-           "%s: an int expected as third argument", signiture);
+    asserti(is_number(endc), "%s: an int expected as third argument", signiture);
     *snd = numval(endc);
 
     return true;
@@ -319,7 +317,7 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
             if (is_nil(list_next(secd, args)))
                 goto help;
             cell_t *numc = get_car(list_next(secd, args));
-            if (atom_type(secd, numc) != ATOM_INT) {
+            if (! is_number(numc)) {
                 printf(";; cell number must be int\n");
                 return SECD_NIL;
             }
@@ -407,7 +405,7 @@ cell_t *secdv_make(secd_t *secd, cell_t *args) {
     assert(is_cons(args), "secdv_make: invalid arguments");
 
     cell_t *num = get_car(args);
-    assert(atom_type(secd, num) == ATOM_INT, "secdv_make: a number expected");
+    assert(is_number(num), "secdv_make: a number expected");
 
     size_t len = numval(num);
     cell_t *arr = new_array(secd, len);
@@ -441,7 +439,7 @@ cell_t *secdv_ref(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "secdv_ref: a second argument expected");
 
     cell_t *num = get_car(args);
-    assert(atom_type(secd, num) == ATOM_INT, "secdv_ref: an index expected");
+    assert(is_number(num), "secdv_ref: an index expected");
     int ind = numval(num);
 
     assert(ind < (int)arr_size(secd, arr), "secdv_ref: index is out of range");
@@ -459,7 +457,7 @@ cell_t *secdv_set(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "secdv_set: second argument expected");
 
     cell_t *num = get_car(args);
-    assert(atom_type(secd, num) == ATOM_INT, "secdv_set: an index expected");
+    assert(is_number(num), "secdv_set: an index expected");
 
     int ind = numval(num);
     assert(ind < (int)arr_size(secd, arr), "secdv_set: index is out of range");
@@ -560,7 +558,7 @@ static size_t utf8list_len(secd_t *secd, cell_t *lst) {
     /* determine size in bytes */
     while (not_nil(cur)) {
         cell_t *num = get_car(cur);
-        if (atom_type(secd, num) != ATOM_INT) {
+        if (! is_number(num)) {
             errorf("list_to_string: a number expected\n");
             return strsize;
         }
@@ -579,7 +577,7 @@ static cell_t *list_to_string(secd_t *secd, cell_t *lst) {
 
     while (not_nil(lst)) {
         cell_t *num = get_car(lst);
-        if (atom_type(secd, num) != ATOM_INT) {
+        if (! is_number(num)) {
             free_cell(secd, str);
             return new_error(secd, "list_to_string: a number expected");
         }
@@ -617,7 +615,7 @@ cell_t *secdf_mkbvect(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "secdf_mkbvect: no arguments");
 
     cell_t *numc = get_car(args);
-    assert(atom_type(secd, numc) == ATOM_INT, "secdf_mkbvect: not a number");
+    assert(is_number(numc), "secdf_mkbvect: not a number");
 
     cell_t *bv = new_bytevector_of_size(secd, numval(numc));
     assert_cell(bv, "secdf_mkbvect: failed to allocate");
@@ -625,8 +623,7 @@ cell_t *secdf_mkbvect(secd_t *secd, cell_t *args) {
     args = list_next(secd, args);
     if (not_nil(args)) {
         cell_t *numc = get_car(args);
-        assert(atom_type(secd, numc) == ATOM_INT,
-                "secdf_mkbvect: fill value must be an int");
+        assert(is_number(numc), "secdf_mkbvect: fill value must be an int");
         memset(strmem(bv), numval(numc), mem_size(bv));
     }
     return bv;

@@ -4,7 +4,6 @@ Tasks Pending:
 |-------|--------------------
 | T1    | move symbols to the heap; 
 | T2    | `ATOM_CHAR`: read/print, support, `char->int`
-| T5    | refactor out `atom_type`
 | T6    | move into indexes instead of `cell_t *` 
 | F1    | FEATURE: fast symbol lookup
 | F3    | FEATURE: non-blocking I/O
@@ -18,6 +17,7 @@ Tasks Done:
 |-------|--------------------
 | T3    | bytevectors, `utf8->string`
 | T4    | reader: dot-lists
+| T5    | refactor out `atom_type`
 | T8    | `open-input-port`, `port?`, `read`, `read-u8`, `read-string`
 | F2    | FEATURE: alternative garbade collection - (secd 'gc), mark & sweep
 | T7    | polymorohic CAR/CDR; use arrays for `ATOM_OP`

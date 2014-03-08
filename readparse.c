@@ -18,15 +18,6 @@ void print_opcode(opindex_t op) {
     printf("#[%d]# ", op);
 }
 
-void sexp_print_atom(secd_t *secd, const cell_t *c) {
-    switch (atom_type(secd, c)) {
-      case ATOM_INT: printf("%d", c->as.atom.as.num); break;
-      case ATOM_OP: print_opcode(c->as.atom.as.op); break;
-      case ATOM_FUNC: printf("*%p()", c->as.atom.as.ptr); break;
-      case NOT_AN_ATOM: printf("???");
-    }
-}
-
 void dbg_print_cell(secd_t *secd, const cell_t *c) {
     if (is_nil(c)) {
          printf("NIL\n");
@@ -46,7 +37,9 @@ void dbg_print_cell(secd_t *secd, const cell_t *c) {
         printf("FRAME(syms: [%ld], vals: [%ld])\n",
                cell_index(secd, get_car(c)), cell_index(secd, get_cdr(c)));
         break;
-      case CELL_ATOM: sexp_print_atom(secd, c); printf("\n"); break;
+      case CELL_INT:  printf("%d", c->as.num); break;
+      case CELL_OP:   print_opcode(c->as.op); break;
+      case CELL_FUNC: printf("*%p()", c->as.ptr); break;
       case CELL_ARRAY: printf("ARR[%ld]\n",
                                cell_index(secd, arr_val(c, 0))); break;
       case CELL_STR: printf("STR[%ld]\n",
@@ -132,7 +125,9 @@ static void sexp_print_list(secd_t *secd, const cell_t *cell) {
 void sexp_print(secd_t* secd, const cell_t *cell) {
     switch (cell_type(cell)) {
       case CELL_UNDEF:  printf("#?"); break;
-      case CELL_ATOM:   sexp_print_atom(secd, cell); break;
+      case CELL_INT:    printf("%d", cell->as.num); break;
+      case CELL_OP:     print_opcode(cell->as.op); break;
+      case CELL_FUNC:   printf("*%p()", cell->as.ptr); break;
       case CELL_FRAME:  printf("#<envframe> "); break;
       case CELL_CONS:   sexp_print_list(secd, cell); break; break;
       case CELL_ARRAY:  sexp_print_array(secd, cell); break;

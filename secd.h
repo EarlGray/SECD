@@ -46,7 +46,6 @@ typedef  uint32_t       hash_t;
 typedef  struct secd    secd_t;
 typedef  struct cell    cell_t;
 
-typedef  struct atom  atom_t;
 typedef  struct cons  cons_t;
 typedef  struct symbol symbol_t;
 typedef  struct error error_t;
@@ -98,33 +97,20 @@ enum cell_type {
     CELL_REF,   // a pivot point between compound and atomic types
 
     /* atomic types */
-    CELL_ATOM,  // one of commented:
     CELL_SYM,
-    /* atoms
     CELL_INT,
     CELL_OP,
-    CELL_FUNC, */
+    CELL_FUNC,
     CELL_PORT,  // I/O handle
 
     CELL_ERROR,
-};
-
-enum atom_type {
-    NOT_AN_ATOM,   // 0, this is not an atom
-    ATOM_INT,      // atom.as.num
-    ATOM_OP,       // (secd_opfunc_t *) atom.as.ptr
-    ATOM_FUNC,     // (secd_nativefunc_t *) atom.as.ptr
 };
 
 typedef cell_t* (*secd_opfunc_t)(secd_t *);
 typedef cell_t* (*secd_nativefunc_t)(secd_t *, cell_t *);
 
 struct atom {
-    enum atom_type type;
     union {
-        int num;
-        opindex_t op;
-        void *ptr;
     } as;
 };
 
@@ -190,14 +176,16 @@ struct cell {
     size_t nref:NREF_BITS;
 
     union {
-        atom_t  atom; // TODO: get rid of atom_t, make it flat
-        cons_t  cons;
+        cons_t   cons;
         symbol_t sym;
-        frame_t frame;
-        port_t  port;
-        error_t err;
+        frame_t  frame;
+        port_t   port;
+        error_t  err;
         string_t str;
         array_t  arr;
+        int      num;
+        void    *ptr; // CELL_FUNC
+        opindex_t op;
 
         cell_t *ref;
         struct metacons mcons;
@@ -269,11 +257,6 @@ inline static enum cell_type cell_type(const cell_t *c) {
     return c->type;
 }
 
-inline static enum atom_type atom_type(secd_t __unused *secd, const cell_t *c) {
-    if (cell_type(c) != CELL_ATOM) return NOT_AN_ATOM;
-    return (enum atom_type)(c->as.atom.type);
-}
-
 inline static bool is_nil(const cell_t *cell) {
     return cell == SECD_NIL;
 }
@@ -299,7 +282,7 @@ inline static const char * errmsg(const cell_t *err) {
 }
 
 inline static int numval(const cell_t *c) {
-    return c->as.atom.as.num;
+    return c->as.num;
 }
 inline static const char *strval(const cell_t *c) {
     return c->as.str.data;
@@ -337,9 +320,7 @@ inline static bool is_symbol(const cell_t *cell) {
     return cell_type(cell) == CELL_SYM;
 }
 inline static bool is_number(const cell_t *cell) {
-    if (cell_type(cell) != CELL_ATOM)
-        return false;
-    return cell->as.atom.type == ATOM_INT;
+    return cell->type == CELL_INT;
 }
 
 inline static bool is_error(const cell_t *cell) {
@@ -366,18 +347,14 @@ inline static cell_t *to_bool(secd_t *secd, bool cond) {
 }
 
 #define INIT_OP(op) {       \
-    .type = CELL_ATOM,      \
+    .type = CELL_OP,        \
     .nref = DONT_FREE_THIS, \
-    .as.atom = {            \
-      .type = ATOM_OP,      \
-      .as.num = (op) }}
+    .as.num = (op) }
 
 #define INIT_FUNC(func) {   \
-    .type = CELL_ATOM,      \
+    .type = CELL_FUNC,      \
     .nref = DONT_FREE_THIS, \
-    .as.atom = {            \
-      .type = ATOM_FUNC,    \
-      .as.ptr = (func) } }
+    .as.ptr = (func) }
 
 #define INIT_ERROR(txt) {   \
     .type = CELL_ERROR,     \
@@ -418,7 +395,7 @@ cell_t *serialize_cell(secd_t *secd, cell_t *cell);
 cell_t *secd_mem_info(secd_t *secd);
 
 /* control path */
-bool is_control_compiled(secd_t *secd, cell_t *control);
+bool is_control_compiled(cell_t *control);
 cell_t *compile_control_path(secd_t *secd, cell_t *control, cell_t **fvars);
 
 /*

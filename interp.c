@@ -54,13 +54,13 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control, cell_t **fvars) {
         assert(opind >= 0, "Opcode not found: %s", symname(opcode))
 
         cell_t *new_cmd = new_op(secd, opind);
-        tail_append_and_move(secd, &compiled, &compcursor, 
+        tail_append_and_move(secd, &compiled, &compcursor,
                              new_cons(secd, new_cmd, SECD_NIL));
 
-        if (new_cmd->as.atom.as.op == SECD_AP) {
+        if (new_cmd->as.op == SECD_AP) {
             /* look ahead for possible number of arguments after AP */
             cell_t *next = list_head(cursor);
-            if (atom_type(secd, next) == ATOM_INT) {
+            if (cell_type(next) == CELL_INT) {
                 tail_append(secd, &compcursor,
                             new_cons(secd, next, SECD_NIL));
                 cursor = list_next(secd, cursor);
@@ -68,7 +68,7 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control, cell_t **fvars) {
         }
 
         if (opcode_table[opind].args > 0) {
-            switch (new_cmd->as.atom.as.op) {
+            switch (new_cmd->as.op) {
                 case SECD_SEL: {
                     cell_t *newfv;
                     cell_t *thenb = compile_control_path(secd, list_head(cursor),
@@ -78,7 +78,7 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control, cell_t **fvars) {
                     tail_append(secd, &compcursor, new_cons(secd, thenb, SECD_NIL));
                     cursor = list_next(secd, cursor);
 
-                    cell_t *elseb = compile_control_path(secd, list_head(cursor), 
+                    cell_t *elseb = compile_control_path(secd, list_head(cursor),
                                                          (fvars ? &newfv : NULL));
                     if (fvars)
                         tail_append_and_move(secd, &freevars, &fvcursor, newfv);
@@ -90,12 +90,12 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control, cell_t **fvars) {
                 assert(is_symbol(list_head(cursor)),
                        "compile_ctrl: not a symbol after LD");
                 if (fvars)
-                    tail_append_and_move(secd, &freevars, &fvcursor, 
+                    tail_append_and_move(secd, &freevars, &fvcursor,
                                 new_cons(secd, list_head(cursor), SECD_NIL));
                 // fall through
 
               default:
-                tail_append(secd, &compcursor, 
+                tail_append(secd, &compcursor,
                             new_cons(secd, list_head(cursor), SECD_NIL));
                 cursor = list_next(secd, cursor);
             }
@@ -106,12 +106,12 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control, cell_t **fvars) {
     return compiled;
 }
 
-bool is_control_compiled(secd_t *secd, cell_t *control) {
-    return atom_type(secd, list_head(control)) == ATOM_OP;
+bool is_control_compiled(cell_t *control) {
+    return cell_type(list_head(control)) == CELL_OP;
 }
 
 cell_t* compiled_ctrl(secd_t *secd, cell_t *ctrl, cell_t **fvars) {
-    if (is_control_compiled(secd, ctrl))
+    if (is_control_compiled(ctrl))
         return SECD_NIL;
 
     ctrldebugf(" compiling control path\n");
@@ -195,22 +195,6 @@ cell_t *secd_ld(secd_t *secd) {
     return push_stack(secd, val);
 }
 
-bool atom_eq(secd_t *secd, const cell_t *a1, const cell_t *a2) {
-    enum atom_type atype1 = atom_type(secd, a1);
-    if (a1 == a2)
-        return true;
-    if (atype1 != atom_type(secd, a2))
-        return false;
-    switch (atype1) {
-      case ATOM_INT: return (a1->as.atom.as.num == a2->as.atom.as.num);
-      case ATOM_OP: return (a1->as.atom.as.op == a2->as.atom.as.op);
-      case ATOM_FUNC: return (a1->as.atom.as.ptr == a2->as.atom.as.ptr);
-      default: errorf("atom_eq(secd, [%ld], [%ld]): don't know how to handle type %d\n",
-                       cell_index(secd, a1), cell_index(secd, a2), atype1);
-    }
-    return false;
-}
-
 bool list_eq(secd_t *secd, const cell_t *xs, const cell_t *ys) {
     asserti(is_cons(xs), "list_eq: [%ld] is not a cons", cell_index(secd, xs));
 
@@ -263,11 +247,13 @@ bool is_equal(secd_t *secd, const cell_t *a, const cell_t *b) {
         return false;
 
     switch (cell_type(a)) {
-      case CELL_CONS: return list_eq(secd, a, b);
-      case CELL_ATOM: return atom_eq(secd, a, b);
+      case CELL_CONS:  return list_eq(secd, a, b);
       case CELL_ARRAY: return array_eq(secd, a, b);
-      case CELL_STR: return !strcmp(strval(a), strval(b));
-      case CELL_SYM: return (str_eq(symname(a), symname(b)));
+      case CELL_STR:   return !strcmp(strval(a), strval(b));
+      case CELL_SYM:   return (str_eq(symname(a), symname(b)));
+      case CELL_INT:   return (a->as.num == b->as.num);
+      case CELL_OP:    return (a->as.op == b->as.op);
+      case CELL_FUNC:  return (a->as.ptr == b->as.ptr);
       case CELL_BYTES: {
         const size_t len = mem_size(a);
         if (len != mem_size(b))
@@ -310,13 +296,13 @@ cell_t *secd_eq(secd_t *secd) {
 static cell_t *arithm_op(secd_t *secd, int op(int, int)) {
     cell_t *a = pop_stack(secd);
     assert_cell(a, "secd_arithm: pop_stack(a) failed")
-    assert(atom_type(secd, a) == ATOM_INT, "secd_add: a is not int");
+    assert(is_number(a), "secd_add: a is not int");
 
     cell_t *b = pop_stack(secd);
     assert_cell(b, "secd_arithm: pop_stack(b) failed");
-    assert(atom_type(secd, b) == ATOM_INT, "secd_add: b is not int");
+    assert(is_number(b), "secd_add: b is not int");
 
-    int res = op(a->as.atom.as.num, b->as.atom.as.num);
+    int res = op(numval(a), numval(b));
     drop_cell(secd, a); drop_cell(secd, b);
     return push_stack(secd, new_number(secd, res));
 }
@@ -364,10 +350,10 @@ cell_t *secd_leq(secd_t *secd) {
     cell_t *opnd1 = pop_stack(secd);
     cell_t *opnd2 = pop_stack(secd);
 
-    assert(atom_type(secd, opnd1) == ATOM_INT, "secd_leq: int expected as opnd1");
-    assert(atom_type(secd, opnd2) == ATOM_INT, "secd_leq: int expected as opnd2");
+    assert(is_number(opnd1), "secd_leq: int expected as opnd1");
+    assert(is_number(opnd2), "secd_leq: int expected as opnd2");
 
-    cell_t *result = to_bool(secd, opnd1->as.atom.as.num <= opnd2->as.atom.as.num);
+    cell_t *result = to_bool(secd, numval(opnd1) <= numval(opnd2));
     drop_cell(secd, opnd1); drop_cell(secd, opnd2);
     return push_stack(secd, result);
 }
@@ -431,10 +417,10 @@ static cell_t * new_dump_if_tailrec(secd_t *secd, cell_t *control, cell_t *dump)
         return SECD_NIL;
 
     cell_t *nextop = list_head(control);
-    if (atom_type(secd, nextop) != ATOM_OP)
+    if (cell_type(nextop) != CELL_OP)
         return SECD_NIL;
 
-    opindex_t opind = nextop->as.atom.as.op;
+    opindex_t opind = nextop->as.op;
 
     if (opind == SECD_RTN) {
         return dump;
@@ -445,9 +431,9 @@ static cell_t * new_dump_if_tailrec(secd_t *secd, cell_t *control, cell_t *dump)
         /* a situation of CONS CAR - it is how `begin` implemented */
         cell_t *nextcontrol = list_next(secd, control);
         cell_t *afternext = list_head(nextcontrol);
-        if (atom_type(secd, afternext) != ATOM_OP)
+        if (cell_type(afternext) != CELL_OP)
             return SECD_NIL;
-        if (afternext->as.atom.as.op != SECD_CAR)
+        if (afternext->as.op != SECD_CAR)
             return SECD_NIL;
         return new_dump_if_tailrec(secd, list_next(secd, nextcontrol), dump);
     }
@@ -459,7 +445,7 @@ static cell_t * new_dump_if_tailrec(secd_t *secd, cell_t *control, cell_t *dump)
 #endif
 
 static cell_t *extract_argvals(secd_t *secd) {
-    if (atom_type(secd, list_head(secd->control)) != ATOM_INT) {
+    if (!is_number(list_head(secd->control))) {
         return pop_stack(secd); // don't forget to drop
     }
 
@@ -487,7 +473,7 @@ static cell_t *extract_argvals(secd_t *secd) {
 }
 
 static cell_t *secd_ap_native(secd_t *secd, cell_t *clos, cell_t *args) {
-    secd_nativefunc_t native = (secd_nativefunc_t)clos->as.atom.as.ptr;
+    secd_nativefunc_t native = (secd_nativefunc_t)clos->as.ptr;
     cell_t *result = native(secd, args);
     assert_cell(result, "secd_ap: a built-in routine failed");
     push_stack(secd, result);
@@ -506,7 +492,7 @@ cell_t *secd_ap(secd_t *secd) {
     assert_cell(argvals, "secd_ap: no arguments on stack");
     assert(is_cons(argvals), "secd_ap: a list expected for arguments");
 
-    if (atom_type(secd, closure) == ATOM_FUNC)
+    if (cell_type(closure) == CELL_FUNC)
         return secd_ap_native(secd, closure, argvals);
 
     assert(is_cons(closure), "secd_ap: closure is not a cons");
@@ -542,7 +528,7 @@ cell_t *secd_ap(secd_t *secd) {
     assert_cell(frame, "secd_ap: setup_frame() failed");
 
     memdebugf("secd_ap: dropping env[%ld]\n", cell_index(secd, secd->env));
-    assign_cell(secd, &secd->env, new_cons(secd, frame, newenv)); 
+    assign_cell(secd, &secd->env, new_cons(secd, frame, newenv));
     if (ENVDEBUG) print_env(secd);
 
     set_control(secd, &func->as.cons.cdr->as.cons.car);
@@ -571,7 +557,7 @@ cell_t *secd_rtn(secd_t *secd) {
     secd->env = prevenv;
     // share_cell(secd, prevenv); drop_cell(secd, prevenv);
 
-    secd->control = prevcontrol; 
+    secd->control = prevcontrol;
     // share_cell(secd, prevcontrol); drop_cell(secd, prevcontrol);
 
     /* restoring I/O */
@@ -611,7 +597,7 @@ cell_t *secd_rap(secd_t *secd) {
 
     cell_t *frame = setup_frame(secd, argnames, argvals, list_next(secd, newenv));
     assert_cell(frame, "secd_rap: setup_frame() failed");
-        
+
 #if ENVDEBUG
     printf("new frame: \n"); dbg_printc(secd, frame);
     printf(" argnames: \n"); dbg_printc(secd, argnames);
