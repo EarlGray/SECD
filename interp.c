@@ -478,7 +478,7 @@ static cell_t *extract_argvals(secd_t *secd) {
 static cell_t *secd_ap_native(secd_t *secd, cell_t *clos, cell_t *args) {
     secd_nativefunc_t native = (secd_nativefunc_t)clos->as.ptr;
     cell_t *result = native(secd, args);
-    assert_cell(result, "secd_ap: a built-in routine failed");
+    assert_cellf(result, "secd_ap: a built-in routine failed: %s", errmsg(result));
     push_stack(secd, result);
 
     drop_cell(secd, clos); drop_cell(secd, args);

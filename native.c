@@ -538,6 +538,24 @@ cell_t *secdf_strlen(secd_t *secd, cell_t *args) {
     return new_number(secd, utf8strlen((const char *)str->as.str.data));
 }
 
+cell_t *secdf_strref(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdf_strref: no arguments");
+
+    cell_t *str = get_car(args);
+    assert(cell_type(str) == CELL_STR, "secdf_strref: not a string");
+
+    args = list_next(secd, args);
+    cell_t *numc = get_car(args);
+
+    assert(is_number(numc), "secdf_strref: a number expected");
+    const char *nthptr = utf8nth(strmem(str), numval(numc));
+    if (!*nthptr)
+        return new_error(secd, "secdf_strref: index out of range");
+
+    unichar_t c = utf8get(nthptr, NULL);
+    return new_char(secd, c);
+}
+
 cell_t *secdf_str2sym(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "secdf_str2sym: no arguments");
 
@@ -752,6 +770,51 @@ cell_t *secdf_str2bv(secd_t *secd, cell_t *args) {
     return bv;
 }
 
+#if 0
+/*
+ *    Hashtables
+ */
+#define HT_INITIAL_CAPACITY    2
+
+#define HT_ARRAY        0
+#define HT_CAP          1
+#define HT_SIZE         2
+#define HT_EQFUNC       3
+#define HT_HASHFUNC     4
+
+cell_t *new_hashtable(secd_t *secd, cell_t *eqfunc, cell_t *hashfunc) {
+    cell_t *ht = alloc_array(secd, 5);
+
+    cell_t *arr = alloc_array(secd, numval(cap));
+    init_with_copy(secd, arr_ref(ht, HT_ARRAY), arr);
+
+    init_number(secd, arr_ref(ht, HT_CAP),  HT_INITIAL_CAPACITY);
+    init_number(secd, arr_ref(ht, HT_SIZE), 0); /* no items */
+
+    if (not_nil(eqfunc))
+        init_with_copy(secd, arr_ref(ht, HT_EQFUNC), eqfunc);
+    if (not_nil(hashfunc))
+        init_with_copy(secd, arr_ref(ht, HT_HASHFUNC), hashfunc);
+
+    return ht;
+}
+
+cell_t *secd_ht_lookup(secd_t *secd, cell_t *ht, cell_t 
+
+
+cell_t *secdht_make(secd_t *secd, cell_t *args) {
+
+}
+
+cell_t *secdht_ref(secd_t *secd, cell_t *args) {
+}
+
+cell_t *secdht_set(secd_t *secd, cell_t *args) {
+}
+
+cell_t *secdht_unset(secd_t *secd, cell_t *args) {
+}
+#endif
 
 /*
  *    I/O ports
@@ -908,6 +971,7 @@ const cell_t chrint_fun = INIT_FUNC(secdf_chrint);
 const cell_t intchr_fun = INIT_FUNC(secdf_intchr);
 /* string routines */
 const cell_t strlen_fun = INIT_FUNC(secdf_strlen);
+const cell_t strref_fun = INIT_FUNC(secdf_strref);
 const cell_t strsym_fun = INIT_FUNC(secdf_str2sym);
 const cell_t symstr_fun = INIT_FUNC(secdf_sym2str);
 const cell_t strlst_fun = INIT_FUNC(secdf_str2lst);
@@ -944,6 +1008,7 @@ native_functions[] = {
     { "error:generic",      &secd_failure       },
 
     { "string-length",  &strlen_fun },
+    { "string-ref",     &strref_fun },
     { "symbol->string", &symstr_fun },
     { "string->symbol", &strsym_fun },
     { "string->list",   &strlst_fun },

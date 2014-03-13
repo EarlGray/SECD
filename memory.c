@@ -359,11 +359,15 @@ cell_t *new_frame(secd_t *secd, cell_t *syms, cell_t *vals) {
     return cons;
 }
 
+cell_t *init_number(cell_t *c, int n) {
+    c->type = CELL_INT;
+    c->as.num = n;
+    return c;
+}
+
 cell_t *new_number(secd_t *secd, int num) {
     cell_t *cell = pop_free(secd);
-    cell->type = CELL_INT;
-    cell->as.num = num;
-    return cell;
+    return init_number(cell, num);
 }
 
 cell_t *new_char(secd_t *secd, int c) {
