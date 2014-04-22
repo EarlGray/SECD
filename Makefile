@@ -6,12 +6,11 @@ objs += posix-io.o secd.o
 CFLAGS := -O2 -g -Wall -Wextra
 VM := ./secd
 
-ifeq ($(shell uname -s),Darwin)
-#CFLAGS += -Wno-shift-overflow
-endif
-
 $(VM): $(objs)
 	$(CC) $(CFLAGS) $(objs) -o $@
+
+.depend:
+	$(CC) -MM *.h *.c > $@
 
 sos: $(objs) sos.o repl.o
 	$(CC) $(CFLAGS) $(objs) sos.o repl.o -o $@
@@ -35,19 +34,4 @@ libsecd: $(objs) repl.o
 clean:
 	rm secd *.o libsecd* || true
 
-interp.o : interp.c memory.h secdops.h env.h
-machine.o : machine.c memory.h secdops.h env.h
-env.o : env.c memory.h env.h
-native.o : native.c memory.h env.h
-memory.o : memory.c memory.h
-readparse.o : readparse.c memory.h secdops.h
-secd.o : secd.c secd.h
-posix-io.o: posix-io.c secd.h secd_io.h
-sos.o: sos.c
-
-repl.o: repl.secd
-repl.secd: repl.scm
-
-secd_io.h: conf.h secd.h
-memory.h : secd.h
-secd.h: conf.h
+include .depend
