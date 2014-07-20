@@ -121,7 +121,7 @@ struct cons {
 struct symbol {
     size_t size;
     const char *data;
-    hash_t hash;
+    cell_t *bvect;
 };
 
 struct frame {
@@ -278,7 +278,7 @@ inline static const char * symname(const cell_t *c) {
     return c->as.sym.data;
 }
 inline static hash_t symhash(const cell_t *c) {
-    return c->as.sym.hash;
+    return ((hash_t *)c->as.sym.data)[-1];
 }
 
 inline static const char * errmsg(const cell_t *err) {

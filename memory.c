@@ -83,12 +83,6 @@ hash_t memhash(const char *key, size_t len) {
 cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
     enum cell_type t = cell_type(c);
     switch (t) {
-      case CELL_SYM:
-        if (c->as.sym.size != DONT_FREE_THIS)
-            free((char *)c->as.sym.data);
-            /* TODO: this silently ignores symbol memory corruption */
-            c->as.sym.size = DONT_FREE_THIS;
-        break;
       case CELL_FRAME:
         drop_cell(secd, c->as.frame.io);
         // fall through
@@ -122,6 +116,7 @@ cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
             }
         }
         break;
+      case CELL_SYM:
       case CELL_INT: case CELL_FUNC: case CELL_OP:
       case CELL_ERROR: case CELL_UNDEF:
         return c;
@@ -339,6 +334,8 @@ void print_array_layout(secd_t *secd) {
 /*
  *      Simple constructors
  */
+cell_t *symstore_add(secd_t *secd, const char *str);
+cell_t *symstore_lookup(secd_t *secd, const char *str);
 
 static inline cell_t*
 init_cons(secd_t *secd, cell_t *cell, cell_t *car, cell_t *cdr) {
@@ -352,10 +349,15 @@ static inline cell_t *
 init_symptr(secd_t __unused *secd, cell_t *cell, const char *str) {
     cell->type = CELL_SYM;
     cell->as.sym.size = strlen(str);
-    cell->as.sym.hash = strhash(str);
 
-    //todo ptr;
-    cell->as.sym.data = strdup(str);
+    cell_t *slice = symstore_lookup(secd, str);
+    if (cell_type(slice) != CELL_BYTES) {
+        slice = symstore_add(secd, str);
+    }
+    cell->as.sym.bvect = slice;
+    cell->as.sym.data = slice->as.str.data + slice->as.str.offset;
+
+    free_cell(secd, slice);
     return cell;
 }
 
@@ -521,7 +523,7 @@ cell_t *new_fileport(secd_t *secd, void *f, const char *mode) {
  */
 const int SYMSTORE_MAX_LOAD_RATIO = 70; // percent
 
-#define SYMSTORE_BUFSIZE  1024        // bytes
+#define SYMSTORE_BUFSIZE  16384        // bytes
 
 enum {
     /* indexes */
@@ -543,7 +545,7 @@ symstore_get(secd_t *secd, int index) {
     return init_with_copy(secd, c, arr_val(secd->symstore, index));
 }
 
-cell_t *secd_lookup_symptr(secd_t *secd, const char *str)
+cell_t *symstore_lookup(secd_t *secd, const char *str)
 {
     hash_t hash = strhash(str);
 
@@ -587,9 +589,11 @@ void symstorage_ht_rebalance(secd_t *secd) {
     cell_t *oldarr = share_cell(secd, symstore_get(secd, SYMSTORE_HASHARR));
     size_t hashcap = arr_size(secd, oldarr);
 
+    errorf(";; symstorage_ht_rebalance to %lu\n", 2 * hashcap);
     cell_t *newarr = share_cell(secd, new_array(secd, 2 * hashcap));
 
-    for (size_t i = 0; i < hashcap; ++i) {
+    size_t i;
+    for (i = 0; i < hashcap; ++i) {
         cell_t *hashlst = arr_ref(oldarr, i);
 
         if (!is_cons(hashlst)) continue;
@@ -605,9 +609,13 @@ void symstorage_ht_rebalance(secd_t *secd) {
             hashlst = list_next(secd, hashlst);
         }
     }
+
+    drop_cell(secd, oldarr);
+
+    arr_set(secd, secd->symstore, SYMSTORE_HASHARR, newarr);
 }
 
-cell_t *secd_add_symptr(secd_t *secd, const char *str) {
+cell_t *symstore_add(secd_t *secd, const char *str) {
     size_t hashsize = numval(symstore_ref(secd, SYMSTORE_HASHSZ));
 
     cell_t *arr = share_cell(secd, symstore_get(secd, SYMSTORE_HASHARR));
