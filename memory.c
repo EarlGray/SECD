@@ -532,15 +532,6 @@ enum {
     SYMSTORE_STRUCT_SIZE
 };
 
-/*
-void secd_lookup_symptr(secd_t *secd,
-                        cell_t **bufbvect,
-                        off_t *off,
-                        const char *str)
-{
-}
-*/
-
 static inline const cell_t *
 symstore_ref(secd_t *secd, int index) {
     return arr_ref(secd->symstore, index);
@@ -552,8 +543,68 @@ symstore_get(secd_t *secd, int index) {
     return init_with_copy(secd, c, arr_val(secd->symstore, index));
 }
 
-void symstorage_rebalance(secd_t *secd) {
-    /* TODO */
+cell_t *secd_lookup_symptr(secd_t *secd, const char *str)
+{
+    hash_t hash = strhash(str);
+
+    cell_t *arr = share_cell(secd, symstore_get(secd, SYMSTORE_HASHARR));
+    size_t hashcap = arr_size(secd, arr);
+
+    size_t ind = hash % hashcap;
+
+    const cell_t *entry = arr_val(arr, ind);
+    if (!is_cons(entry))
+        return SECD_NIL;
+
+    while (not_nil(entry)) {
+        cell_t *slice = list_head(entry);
+        const char *hashstr = slice->as.str.data + slice->as.str.offset;
+        if (!strcmp(hashstr, str))
+            return new_clone(secd, slice);
+
+        entry = list_next(secd, entry);
+    }
+
+    return SECD_NIL;
+}
+
+void symstorage_ht_insert(secd_t *secd, cell_t *hasharr, hash_t hash, cell_t *val) {
+    size_t hashcap = arr_size(secd, hasharr);
+
+    cell_t *hashchain = arr_ref(hasharr, hash % hashcap);
+    if (is_cons(hashchain)) {
+        cell_t *oldchain = new_clone(secd, hashchain);
+        cell_t *newchain = new_cons(secd, val, oldchain);
+
+        drop_dependencies(secd, hashchain);
+        init_with_copy(secd, hashchain, newchain);
+    } else {
+        init_cons(secd, hashchain, val, SECD_NIL);
+    }
+}
+
+void symstorage_ht_rebalance(secd_t *secd) {
+    cell_t *oldarr = share_cell(secd, symstore_get(secd, SYMSTORE_HASHARR));
+    size_t hashcap = arr_size(secd, oldarr);
+
+    cell_t *newarr = share_cell(secd, new_array(secd, 2 * hashcap));
+
+    for (size_t i = 0; i < hashcap; ++i) {
+        cell_t *hashlst = arr_ref(oldarr, i);
+
+        if (!is_cons(hashlst)) continue;
+
+        while (not_nil(hashlst)) {
+            cell_t *slice = list_head(hashlst);
+            assertv(cell_type(slice) == CELL_BYTES,
+                   "symstorage_ht_rebalance: not a bvect slice in the list");
+            char *str = slice->as.str.data + slice->as.str.offset;
+            hash_t hash = ((hash_t *)str)[-1];
+
+            symstorage_ht_insert(secd, newarr, hash, slice);
+            hashlst = list_next(secd, hashlst);
+        }
+    }
 }
 
 cell_t *secd_add_symptr(secd_t *secd, const char *str) {
@@ -563,7 +614,7 @@ cell_t *secd_add_symptr(secd_t *secd, const char *str) {
     size_t hashcap = arr_size(secd, arr);
 
     if (((100 * (hashsize + 1)) / hashcap) > SYMSTORE_MAX_LOAD_RATIO) {
-        symstorage_rebalance(secd);
+        symstorage_ht_rebalance(secd);
 
         drop_cell(secd, arr);
         arr = share_cell(secd, symstore_get(secd, SYMSTORE_HASHARR));
@@ -610,17 +661,7 @@ cell_t *secd_add_symptr(secd_t *secd, const char *str) {
     cell_t *slice = new_clone(secd, bufbvect);
     slice->as.str.offset = symoffset;
 
-    /* create a new entry in hashtable */
-    cell_t *hashchain = arr_ref(arr, hash % hashcap);
-    if (is_cons(hashchain)) {
-        cell_t *oldchain = new_clone(secd, hashchain);
-        cell_t *newchain = new_cons(secd, slice, oldchain);
-
-        drop_dependencies(secd, hashchain);
-        init_with_copy(secd, hashchain, newchain);
-    } else {
-        init_cons(secd, hashchain, slice, SECD_NIL);
-    }
+    symstorage_ht_insert(secd, arr, hash, slice);
 
     /* write hashsize, buflist back */
     arr_ref(secd->symstore, SYMSTORE_HASHSZ)->as.num = hashsize + 1;
