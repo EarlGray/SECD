@@ -174,29 +174,34 @@ struct cell {
     enum cell_type type:TYPE_BITS;
     size_t nref:NREF_BITS;
 
-    union {
-        cons_t   cons;
-        symbol_t sym;
-        frame_t  frame;
-        port_t   port;
-        error_t  err;
-        string_t str;
-        array_t  arr;
-        int      num;
-        void    *ptr; // CELL_FUNC
-        opindex_t op;
-
-        cell_t *ref;
-        struct metacons mcons;
+    union {                 // if cell_type is:
+        cons_t   cons;          // CELL_CONS, CELL_FREE
+        symbol_t sym;           // CELL_SYM
+        frame_t  frame;         // CELL_FRAME
+        port_t   port;          // CELL_PORT
+        error_t  err;           // CELL_ERR
+        string_t str;           // CELL_STR
+        array_t  arr;           // CELL_ARR, CELL_BYTES
+        int      num;           // CELL_INT, CELL_CHAR
+        void    *ptr;           // CELL_FUNC
+        opindex_t op;           // CELL_OP
+        cell_t *ref;            // CELL_REF
+        struct metacons mcons;  // CELL_ARRMETA
     } as;
 };
 
-typedef  struct secd_stat  secd_stat_t;
 
 typedef enum {
     SECD_NOPOST = 0,
     SECDPOST_GC
 } secdpostop_t;
+
+typedef struct secd_stat {
+    size_t used_stack;
+    size_t used_control;
+    size_t used_dump;
+    size_t free_cells;
+} secd_stat_t;
 
 struct secd {
     /**** memory layout ****/
@@ -212,6 +217,8 @@ struct secd {
 
     cell_t *free;       // double-linked list
     cell_t *global_env; // frame
+    cell_t *symstore;   // symbol storage info:
+                        //   ((hasharray . hashsize) . (buflist . currptr))
 
     // all cells before this one are fixed-size cells
     cell_t *fixedptr;   // pointer
@@ -234,16 +241,14 @@ struct secd {
     cell_t *truth_value;
     cell_t *false_value;
 
-    long envcounter;
+    /* how many opcodes executed */
     unsigned long tick;
 
+    /* some operation to be done after the current opcode */
     secdpostop_t postop;
 
     /* some statistics */
-    size_t used_stack;
-    size_t used_control;
-    size_t used_dump;
-    size_t free_cells;
+    secd_stat_t stat;
 };
 
 

@@ -23,6 +23,7 @@ cell_t *new_strref(secd_t *secd, cell_t *mem, size_t size);
 
 cell_t *new_bytevector_of_size(secd_t *secd, size_t size);
 
+cell_t *new_ref(secd_t *secd, cell_t *to);
 cell_t *new_op(secd_t *secd, opindex_t opind);
 
 cell_t *new_fileport(secd_t *secd, void *f, const char *mode);
@@ -131,6 +132,14 @@ static inline size_t mem_size(const cell_t *str) {
 
 static inline cell_t *arr_ref(cell_t *arr, size_t index) {
     return arr_mem(arr) + index;
+}
+
+static inline cell_t *
+arr_set(secd_t *secd, cell_t *arr, size_t index, const cell_t *val) {
+    cell_t *ref = arr_ref(arr, index);
+    drop_dependencies(secd, ref);
+    init_with_copy(secd, ref, val);
+    return arr;
 }
 
 cell_t *fill_array(secd_t *secd, cell_t *arr, cell_t *with);

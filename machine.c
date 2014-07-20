@@ -194,7 +194,7 @@ cell_t *secd_mem_info(secd_t *secd) {
     cell_t *fxdptr
         = new_cons(secd, new_number(secd, secd->fixedptr - secd->begin), arrptr);
     cell_t *freec =
-        new_cons(secd, new_number(secd, secd->free_cells), fxdptr);
+        new_cons(secd, new_number(secd, secd->stat.free_cells), fxdptr);
     return new_cons(secd, new_number(secd, secd->end - secd->begin), freec);
 }
 

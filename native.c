@@ -313,7 +313,7 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
             printf(";;  fixedptr = %zd\n", secd->fixedptr - secd->begin);
             printf(";;  arrayptr = %zd (%zd)\n",
                     secd->arrayptr - secd->begin, secd->arrayptr - secd->end);
-            printf(";;  Fixed cells: %zd free\n", secd->free_cells);
+            printf(";;  Fixed cells: %zd free\n", secd->stat.free_cells);
             return secd_mem_info(secd);
         } else if (str_eq(symname(arg1), "env")) {
             print_env(secd);
@@ -498,11 +498,8 @@ cell_t *secdv_set(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "secdv_set: third argument expected");
 
     cell_t *obj = get_car(args);
-    cell_t *ref = arr->as.arr.data + ind;
-    drop_dependencies(secd, ref);
-    init_with_copy(secd, ref, obj);
 
-    return arr;
+    return arr_set(secd, arr, ind, obj);
 }
 
 cell_t *secdf_lst2vct(secd_t *secd, cell_t *args) {
@@ -770,51 +767,6 @@ cell_t *secdf_str2bv(secd_t *secd, cell_t *args) {
     return bv;
 }
 
-#if 0
-/*
- *    Hashtables
- */
-#define HT_INITIAL_CAPACITY    2
-
-#define HT_ARRAY        0
-#define HT_CAP          1
-#define HT_SIZE         2
-#define HT_EQFUNC       3
-#define HT_HASHFUNC     4
-
-cell_t *new_hashtable(secd_t *secd, cell_t *eqfunc, cell_t *hashfunc) {
-    cell_t *ht = alloc_array(secd, 5);
-
-    cell_t *arr = alloc_array(secd, numval(cap));
-    init_with_copy(secd, arr_ref(ht, HT_ARRAY), arr);
-
-    init_number(secd, arr_ref(ht, HT_CAP),  HT_INITIAL_CAPACITY);
-    init_number(secd, arr_ref(ht, HT_SIZE), 0); /* no items */
-
-    if (not_nil(eqfunc))
-        init_with_copy(secd, arr_ref(ht, HT_EQFUNC), eqfunc);
-    if (not_nil(hashfunc))
-        init_with_copy(secd, arr_ref(ht, HT_HASHFUNC), hashfunc);
-
-    return ht;
-}
-
-cell_t *secd_ht_lookup(secd_t *secd, cell_t *ht, cell_t 
-
-
-cell_t *secdht_make(secd_t *secd, cell_t *args) {
-
-}
-
-cell_t *secdht_ref(secd_t *secd, cell_t *args) {
-}
-
-cell_t *secdht_set(secd_t *secd, cell_t *args) {
-}
-
-cell_t *secdht_unset(secd_t *secd, cell_t *args) {
-}
-#endif
 
 /*
  *    I/O ports

@@ -146,10 +146,10 @@ cell_t *pop_free(secd_t *secd) {
         if (secd->free)
             secd->free->as.cons.car = SECD_NIL;
         memdebugf("NEW [%ld]\n", cell_index(secd, cell));
-        -- secd->free_cells;
+        -- secd->stat.free_cells;
     } else {
-        assert(secd->free_cells == 0,
-               "pop_free: free=NIL when nfree=%zd\n", secd->free_cells);
+        assert(secd->stat.free_cells == 0,
+               "pop_free: free=NIL when nfree=%zd\n", secd->stat.free_cells);
         /* move fixedptr */
         if (secd->fixedptr >= secd->arrayptr)
             return &secd_out_of_memory;
@@ -180,9 +180,9 @@ void push_free(secd_t *secd, cell_t *c) {
             secd->free->as.cons.car = c;
         secd->free = c;
 
-        ++secd->free_cells;
+        ++secd->stat.free_cells;
         memdebugf("FREE[%ld], %zd free\n",
-                cell_index(secd, c), secd->free_cells);
+                cell_index(secd, c), secd->stat.free_cells);
     } else {
         memdebugf("FREE[%ld] --\n", cell_index(secd, c));
         --c;
@@ -207,7 +207,7 @@ void push_free(secd_t *secd, cell_t *c) {
             }
             memdebugf("FREE[%ld] --\n", cell_index(secd, c));
             --c;
-            --secd->free_cells;
+            --secd->stat.free_cells;
         }
 
         secd->fixedptr = c + 1;
@@ -348,6 +348,17 @@ init_cons(secd_t *secd, cell_t *cell, cell_t *car, cell_t *cdr) {
     return cell;
 }
 
+static inline cell_t *
+init_symptr(secd_t __unused *secd, cell_t *cell, const char *str) {
+    cell->type = CELL_SYM;
+    cell->as.sym.size = strlen(str);
+    cell->as.sym.hash = strhash(str);
+
+    //todo ptr;
+    cell->as.sym.data = strdup(str);
+    return cell;
+}
+
 cell_t *new_cons(secd_t *secd, cell_t *car, cell_t *cdr) {
     return init_cons(secd, pop_free(secd), car, cdr);
 }
@@ -379,10 +390,13 @@ cell_t *new_char(secd_t *secd, int c) {
 
 cell_t *new_symbol(secd_t *secd, const char *sym) {
     cell_t *cell = pop_free(secd);
-    cell->type = CELL_SYM;
-    cell->as.sym.size = strlen(sym);
-    cell->as.sym.data = strdup(sym);
-    cell->as.sym.hash = memhash(sym, cell->as.sym.size);
+    return init_symptr(secd, cell, sym);
+}
+
+cell_t *new_ref(secd_t *secd, cell_t *to) {
+    cell_t *cell = pop_free(secd);
+    cell->type = CELL_REF;
+    cell->as.ref = share_cell(secd, to);
     return cell;
 }
 
@@ -502,6 +516,142 @@ cell_t *new_fileport(secd_t *secd, void *f, const char *mode) {
     return init_port_mode(secd, cell, mode);
 }
 
+/*
+ *      Symbol management
+ */
+const int SYMSTORE_MAX_LOAD_RATIO = 70; // percent
+
+#define SYMSTORE_BUFSIZE  1024        // bytes
+
+enum {
+    /* indexes */
+    SYMSTORE_HASHSZ = 0,
+    SYMSTORE_HASHARR,
+    SYMSTORE_BUFPTR,
+    SYMSTORE_BUFLIST,
+    /* size */
+    SYMSTORE_STRUCT_SIZE
+};
+
+/*
+void secd_lookup_symptr(secd_t *secd,
+                        cell_t **bufbvect,
+                        off_t *off,
+                        const char *str)
+{
+}
+*/
+
+static inline const cell_t *
+symstore_ref(secd_t *secd, int index) {
+    return arr_ref(secd->symstore, index);
+}
+
+static inline cell_t *
+symstore_get(secd_t *secd, int index) {
+    cell_t *c = pop_free(secd);
+    return init_with_copy(secd, c, arr_val(secd->symstore, index));
+}
+
+void symstorage_rebalance(secd_t *secd) {
+    /* TODO */
+}
+
+cell_t *secd_add_symptr(secd_t *secd, const char *str) {
+    size_t hashsize = numval(symstore_ref(secd, SYMSTORE_HASHSZ));
+
+    cell_t *arr = share_cell(secd, symstore_get(secd, SYMSTORE_HASHARR));
+    size_t hashcap = arr_size(secd, arr);
+
+    if (((100 * (hashsize + 1)) / hashcap) > SYMSTORE_MAX_LOAD_RATIO) {
+        symstorage_rebalance(secd);
+
+        drop_cell(secd, arr);
+        arr = share_cell(secd, symstore_get(secd, SYMSTORE_HASHARR));
+        hashcap = arr_size(secd, arr);
+    }
+
+    off_t bufptr = numval(symstore_ref(secd, SYMSTORE_BUFPTR));
+    cell_t *buflist = share_cell(secd, symstore_get(secd, SYMSTORE_BUFLIST));
+    cell_t *bufbvect;
+
+    if (is_cons(buflist)) {
+        bufbvect = list_head(buflist);
+    } else {
+        /* initialize buflist */
+        drop_cell(secd, buflist);
+        bufbvect = new_bytevector_of_size(secd, SYMSTORE_BUFSIZE);
+        buflist = share_cell(secd, new_cons(secd, bufbvect, SECD_NIL));
+    }
+
+    size_t size = strlen(str);
+    size_t total_size = sizeof(hash_t) + size + 1;
+    assert(total_size < SYMSTORE_BUFSIZE, "Symbol is too large");
+
+    if (bufptr + total_size >= SYMSTORE_BUFSIZE) {
+        /* allocate a new buffer then */
+        bufbvect = new_bytevector_of_size(secd, SYMSTORE_BUFSIZE);
+        buflist = share_cell(secd, new_cons(secd, bufbvect, buflist));
+        bufptr = 0;
+    }
+
+    /* write the symbol into the buffer */
+    hash_t hash = strhash(str);
+    off_t symoffset = bufptr + sizeof(hash_t);
+
+    char *bytes = (void *)arr_mem(bufbvect);
+    *(hash_t *)(bytes + bufptr) = hash;
+    strcpy(bytes + symoffset, str);
+
+    bufptr += total_size;
+
+    cell_t *slice = new_clone(secd, bufbvect);
+    slice->as.str.offset = symoffset;
+
+    /* create a new entry in hashtable */
+    cell_t *hashchain = arr_ref(arr, hash % hashcap);
+    if (is_cons(hashchain)) {
+        cell_t *oldchain = new_clone(secd, hashchain);
+        cell_t *newchain = new_cons(secd, slice, oldchain);
+
+        drop_dependencies(secd, hashchain);
+        init_with_copy(secd, hashchain, newchain);
+    } else {
+        init_cons(secd, hashchain, slice, SECD_NIL);
+    }
+
+    /* write hashsize, buflist and bufptr back */
+    arr_ref(secd->symstore, SYMSTORE_HASHSZ)->as.num = hashsize + 1;
+    arr_ref(secd->symstore, SYMSTORE_BUFPTR)->as.num = bufptr;
+    arr_set(secd, secd->symstore, SYMSTORE_BUFLIST, buflist);
+
+    drop_cell(secd, arr); drop_cell(secd, buflist);
+    return slice;
+}
+
+void init_symstorage(secd_t *secd) {
+    secd->symstore = share_cell(secd, new_array(secd, SYMSTORE_STRUCT_SIZE));
+
+    /* hashsize */
+    cell_t *hashcap = share_cell(secd, new_number(secd, 0));
+    init_with_copy(secd, secd->symstore + SYMSTORE_HASHSZ, hashcap);
+
+    /* hasharray */
+    int inithashcap = 2;    /* initial table capacity */
+    cell_t *hasharray = share_cell(secd, new_array(secd, inithashcap));
+    init_with_copy(secd, secd->symstore + SYMSTORE_HASHARR, hasharray);
+
+    /* bufptr */
+    cell_t *bufptr = share_cell(secd, new_number(secd, 0));
+    init_with_copy(secd, secd->symstore + SYMSTORE_BUFPTR, bufptr);
+
+    /* buflist */
+    init_with_copy(secd, secd->symstore + SYMSTORE_BUFLIST, SECD_NIL);
+
+    drop_cell(secd, hashcap);
+    drop_cell(secd, hasharray);
+    drop_cell(secd, bufptr);
+}
 
 /*
  *      Copy constructors
@@ -510,6 +660,12 @@ cell_t *init_with_copy(secd_t *secd,
                        cell_t *__restrict cell,
                        const cell_t *__restrict with)
 {
+    if (with == SECD_NIL) {
+        cell->type = CELL_REF;
+        cell->as.ref = SECD_NIL;
+        return cell;
+    }
+
     *cell = *with;
 
     cell->nref = 0;
@@ -661,12 +817,12 @@ cell_t *pop_control(secd_t *secd) {
 }
 
 cell_t *push_dump(secd_t *secd, cell_t *cell) {
-    ++secd->used_dump;
+    ++secd->stat.used_dump;
     return list_push(secd, &secd->dump, cell);
 }
 
 cell_t *pop_dump(secd_t *secd) {
-    --secd->used_dump;
+    --secd->stat.used_dump;
     return list_pop(secd, &secd->dump);
 }
 
@@ -909,7 +1065,7 @@ void secd_mark_and_sweep_gc(secd_t *secd) {
 
     /* make new secd->free_list, free unused arrays */
     secd->free = SECD_NIL;
-    secd->free_cells = 0;
+    secd->stat.free_cells = 0;
     for (cell = secd->begin; cell < secd->fixedptr; ++cell) {
         if (cell->nref == 0) {
             if (cell_type(cell) != CELL_FREE) {
@@ -950,13 +1106,18 @@ void init_mem(secd_t *secd, cell_t *heap, size_t size) {
     secd->fixedptr = secd->begin;
     secd->arrayptr = secd->end - 1;
 
+    /* init stat */
+    secd->stat.used_stack = 0;
+    secd->stat.used_dump = 0;
+    secd->stat.used_control = 0;
+    secd->stat.free_cells = 0;
+
+    /* init array management */
     secd->arrlist = secd->arrayptr;
     init_meta(secd, secd->arrlist, SECD_NIL, SECD_NIL);
     secd->arrlist->nref = DONT_FREE_THIS;
 
-    secd->used_stack = 0;
-    secd->used_dump = 0;
-    secd->used_control = 0;
-    secd->free_cells = 0;
+    /* init symbol storage */
+    init_symstorage(secd);
 }
 
