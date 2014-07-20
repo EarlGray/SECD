@@ -527,7 +527,6 @@ enum {
     /* indexes */
     SYMSTORE_HASHSZ = 0,
     SYMSTORE_HASHARR,
-    SYMSTORE_BUFPTR,
     SYMSTORE_BUFLIST,
     /* size */
     SYMSTORE_STRUCT_SIZE
@@ -571,17 +570,19 @@ cell_t *secd_add_symptr(secd_t *secd, const char *str) {
         hashcap = arr_size(secd, arr);
     }
 
-    off_t bufptr = numval(symstore_ref(secd, SYMSTORE_BUFPTR));
+    off_t bufptr;
     cell_t *buflist = share_cell(secd, symstore_get(secd, SYMSTORE_BUFLIST));
     cell_t *bufbvect;
 
     if (is_cons(buflist)) {
         bufbvect = list_head(buflist);
+        bufptr = bufbvect->as.str.offset;
     } else {
         /* initialize buflist */
         drop_cell(secd, buflist);
         bufbvect = new_bytevector_of_size(secd, SYMSTORE_BUFSIZE);
         buflist = share_cell(secd, new_cons(secd, bufbvect, SECD_NIL));
+        bufptr = 0;
     }
 
     size_t size = strlen(str);
@@ -604,6 +605,7 @@ cell_t *secd_add_symptr(secd_t *secd, const char *str) {
     strcpy(bytes + symoffset, str);
 
     bufptr += total_size;
+    bufbvect->as.str.offset = bufptr;
 
     cell_t *slice = new_clone(secd, bufbvect);
     slice->as.str.offset = symoffset;
@@ -620,9 +622,8 @@ cell_t *secd_add_symptr(secd_t *secd, const char *str) {
         init_cons(secd, hashchain, slice, SECD_NIL);
     }
 
-    /* write hashsize, buflist and bufptr back */
+    /* write hashsize, buflist back */
     arr_ref(secd->symstore, SYMSTORE_HASHSZ)->as.num = hashsize + 1;
-    arr_ref(secd->symstore, SYMSTORE_BUFPTR)->as.num = bufptr;
     arr_set(secd, secd->symstore, SYMSTORE_BUFLIST, buflist);
 
     drop_cell(secd, arr); drop_cell(secd, buflist);
@@ -641,16 +642,11 @@ void init_symstorage(secd_t *secd) {
     cell_t *hasharray = share_cell(secd, new_array(secd, inithashcap));
     init_with_copy(secd, secd->symstore + SYMSTORE_HASHARR, hasharray);
 
-    /* bufptr */
-    cell_t *bufptr = share_cell(secd, new_number(secd, 0));
-    init_with_copy(secd, secd->symstore + SYMSTORE_BUFPTR, bufptr);
-
     /* buflist */
     init_with_copy(secd, secd->symstore + SYMSTORE_BUFLIST, SECD_NIL);
 
     drop_cell(secd, hashcap);
     drop_cell(secd, hasharray);
-    drop_cell(secd, bufptr);
 }
 
 /*
