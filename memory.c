@@ -634,18 +634,18 @@ void init_symstorage(secd_t *secd) {
     secd->symstore = share_cell(secd, new_array(secd, SYMSTORE_STRUCT_SIZE));
 
     /* hashsize */
-    cell_t *hashcap = share_cell(secd, new_number(secd, 0));
-    init_with_copy(secd, secd->symstore + SYMSTORE_HASHSZ, hashcap);
+    cell_t *hashsize = share_cell(secd, new_number(secd, 0));
+    init_with_copy(secd, arr_ref(secd->symstore, SYMSTORE_HASHSZ), hashsize);
 
     /* hasharray */
     int inithashcap = 2;    /* initial table capacity */
     cell_t *hasharray = share_cell(secd, new_array(secd, inithashcap));
-    init_with_copy(secd, secd->symstore + SYMSTORE_HASHARR, hasharray);
+    init_with_copy(secd, arr_ref(secd->symstore, SYMSTORE_HASHARR), hasharray);
 
     /* buflist */
-    init_with_copy(secd, secd->symstore + SYMSTORE_BUFLIST, SECD_NIL);
+    init_with_copy(secd, arr_ref(secd->symstore, SYMSTORE_BUFLIST), SECD_NIL);
 
-    drop_cell(secd, hashcap);
+    drop_cell(secd, hashsize);
     drop_cell(secd, hasharray);
 }
 
