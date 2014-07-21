@@ -100,7 +100,7 @@ cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
         drop_cell(secd, c->as.ref);
         break;
       case CELL_PORT:
-        secd_pclose(secd, c);
+        secd_port_close(secd, c);
         break;
       case CELL_KONT:
         drop_cell(secd, c->as.kont.stack);
@@ -483,53 +483,12 @@ cell_t *new_bytevector_of_size(secd_t *secd, size_t size) {
 /*
  *  Port allocation
  */
-static cell_t *init_port_mode(secd_t *secd, cell_t *cell, const char *mode) {
-    switch (mode[0]) {
-      case 'r':
-        cell->as.port.input = true;
-        if (mode[1] == '+') {
-            cell->as.port.output = true;
-            ++mode;
-        } else
-            cell->as.port.output = false;
-        if (mode[1] == '\0')
-            return cell;
-        break;
-
-      case 'w': case 'a':
-        cell->as.port.output = true;
-        if (mode[1] == '+') {
-            cell->as.port.input = true;
-            ++mode;
-        } else
-            cell->as.port.input = false;
-        if (mode[1] == '\0')
-            return cell;
-    }
-    // otherwise fail:
-    drop_cell(secd, cell);
-    errorf("new_fileport: failed to parse mode\n");
-    return new_error(secd, "new_port: failed to parse mode");
-}
-
-cell_t *new_strport(secd_t *secd, cell_t *str, const char *mode) {
+cell_t *new_port(secd_t *secd, const char *mode, cell_t *args) {
     cell_t *cell = pop_free(secd);
     assert_cell(cell, "new_fileport: allocation failed");
 
     cell->type = CELL_PORT;
-    cell->as.port.file = false;
-    cell->as.port.as.str = str;
-    return init_port_mode(secd, cell, mode);
-}
-
-cell_t *new_fileport(secd_t *secd, void *f, const char *mode) {
-    cell_t *cell = pop_free(secd);
-    assert_cell(cell, "new_fileport: allocation failed");
-
-    cell->type = CELL_PORT;
-    cell->as.port.file = true;
-    cell->as.port.as.file = f;
-    return init_port_mode(secd, cell, mode);
+    return secd_port_init(secd, cell, mode, args);
 }
 
 /*
@@ -1055,8 +1014,7 @@ void secd_owned_cell_for(cell_t *cell,
           *ref1 = arr_meta(arr_mem(cell));
           break;
       case CELL_PORT:
-          if (!cell->as.port.file)
-              *ref1 = cell->as.port.as.str;
+          secd_portcell_references(cell, ref1, ref2, ref3);
           break;
       case CELL_REF: *ref1 = cell->as.ref; break;
       default: break;
