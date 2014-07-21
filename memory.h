@@ -71,7 +71,7 @@ inline static cell_t *drop_cell(secd_t *secd, cell_t *c) {
         return NULL;
     }
     if (c->nref <= 0) {
-        errorf("%lu | drop_cell[%ld]: negative", secd->tick, cell_index(secd, c));
+        errorf("%lu | drop_cell[%ld]: negative\n", secd->tick, cell_index(secd, c));
         return new_error(secd, "drop_cell[%ld]: c->nref=%d",
                 cell_index(secd, c), c->nref);
     }

@@ -720,7 +720,6 @@ cell_t *init_with_copy(secd_t *secd,
         share_cell(secd, with->as.cons.cdr);
         break;
       case CELL_SYM:
-        cell->as.sym.data = strdup(symname(with));
         break;
       case CELL_REF:
         share_cell(secd, with->as.ref);
@@ -765,7 +764,7 @@ cell_t *new_clone(secd_t *secd, cell_t *from) {
 static cell_t *init_error(cell_t *cell, const char *buf) {
     cell->type = CELL_ERROR;
     cell->as.err.len = strlen(buf);
-    cell->as.err.msg = strdup(buf);
+    cell->as.err.msg = strdup(buf); /* TODO */
     return cell;
 }
 
@@ -1107,6 +1106,8 @@ void secd_mark_and_sweep_gc(secd_t *secd) {
     increment_nref_for_owned(secd, secd->dump);
 
     increment_nref_for_owned(secd, secd->debug_port);
+
+    increment_nref_for_owned(secd, secd->symstore);
 
     /* make new secd->free_list, free unused arrays */
     secd->free = SECD_NIL;
