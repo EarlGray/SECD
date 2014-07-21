@@ -117,7 +117,7 @@ There are functions implemented in C (`native.c`):
 - `char->integer`, `integer->char`;
 
 **About types:**
-Supported types are (secd `secd.h`, `enum cell_type`:
+Supported types are (see `secd.h`, `enum cell_type`):
 - CONSes that make persistent lists;
 - ARRAYs, that implement Scheme vectors;
 - STR, implementing UTF-8 encoded Unicode strings. Strings are immutable, contrary to R7RS;
@@ -139,33 +139,52 @@ Internal types:
 
 Boolean values are Scheme symbols `#t` and `#f`. Any values except `#f` are evaluated to `#t`.
 
-Values are persistent, immutable and shared. Arrays are really handles for access to "mutable" memory.  Array cells are owned by its array and are copied on every access from Scheme. Setting a cell in array means destructing the previous value and initialization of the cell with copy of the previous value. If you want to emulate mutable variable, use array boxing:
+Values are persistent, immutable and shared. Arrays are really handles for access to "mutable" memory.  Array cells are owned by its array and are copied on every access from Scheme. Setting a cell in array means destructing the previous value and initialization of the cell with copy of the new value. If you want to emulate mutable variables, use array boxing:
 ``` Scheme
 ;; emulating a counter object:
-(define (counter)
-  (let ((count (make-vector 1 0))
+(define (make-counter)
+  (let ((count (make-vector 1 0)))
     (let ((get (lambda () (vector-ref count 0)))
           (inc (lambda () (vector-set! count 0 (+ 1 (vector-ref count 0))))))
       (lambda (msg)
         (cond
           ((eq? msg 'inc) (inc))
           ((eq? msg 'get) (get))
-          (else 'doesnotunderstand)))))))
+          (else 'do-not-understand))))))
 
-(define c (counter))
-(c 'get)  ;; => 0
-(c 'inc)
-(c 'get)  ;; => 1
+(define counter (make-counter))
+(counter 'get)  ;; => 0
+(counter 'inc)
+(counter 'get)  ;; => 1
 ```
 
 **Memory management**:
-Memory is managed using reference counting by default, a simple optional Mark&Sweep garbage collection is available as `(secd 'gc)` 
+Memory is managed using reference counting by default, a simple optional Mark&Sweep garbage collection is available via `(secd 'gc)` 
+
+*Reference counting*. Every cell after allocation must be shared with `share_cell()` - this increments the refcount of the cell. When a cell is not used anymore, it must be `drop_cell()`d - it decrements the refcount and if it's 0 `free_cell()` is called. To initialize a cell of an array, use `init_with_copy()` of other cell. If a cell in an array must be set, previous value must be destructed with `drop_dependencies()` to drop all its owned cells.
+
+SECD occupes a contiguous region of memory divided into cells of type `cell_t` (starting at `secd->begin` and ending just before `secd->end`). The SECD heap is divided into 3 regions: _persistent heap_ from `secd->begin` to `secd->fixedptr`, _the free space_ from `secd->fixedptr` to `secd->arrayptr`, _array heap_ from `secd->arrayptr` to `secd->arrlist` (`secd->arrlist` is the last cell before `secd->end`). 
+_Persistent heap_ is for quick (_O(1)_) allocation of one cell (of any type except CELL_ARRMETA and CELL_UNDEF). All cells in the persistent heap belong to one of five lists: `secd->stack`, `secd->env`, `secd->control`, `secd->dump`, `secd->free`.
+
+_Array heap_ is a sparse double-linked list of CELL_ARRMETA that reflects memory order: `meta->as.mcons.next` always points to the left adjacent CELL_ARRMETA and `meta->as.mcons.prev` to the right one; the list starts at `secd->arrlist` and grows to lesser addresses. Gaps between CELL_ARRMETA are arrays managed by the left adjacent CELL_ARRMETA. Arrays have their own refcount, so there may be any non-zero number of CELL_ARRAY/CELL_STRING/CELL_BYTES in the persistent heap or in cells of other arrays pointing to that CELL_ARRMETA space, so CELL_ARRAY are persistent as well and may be copied harmlessly using `init_with_copy()`. Arrays are: used/free, their space may be treated as bytes (for strings and bytevectors) or cells (for vectors) - this information is stored in CELL_ARRMETA. All cells in a vector have refcount 1 and must be copied into the persistent heap on every access.
+
+_Memory allocation/release_. Allocation of one cell is very quick: it uses head of `cell->free` double-linked list. If `secd->free` is empty, `secd->fixedptr` is incremented for persistent heap to grow into the free space. Allocation of arrays is more complicated: it's basically a first-fit allocator starting at `secd->arrlist` and looking for a free gap of sufficient size in the array heap, that gap is divided into the new array and possibly a smaller free gap. If there is no such gap, `secd->arrayptr` is moved into the free space to allocate an array of the given size just after `secd->arrayptr`.
+
+If `secd->fixedptr` or `secd->arrayptr` can't be moved (there is no free space between them), SECD machine fails with `'error:_out_of_memory`.
+
+Deallocation: if a cell from the persistent heap is released and it's adjacent to `secd->fixedptr`, `secd->fixedptr` is decremented to release all free cells adjacent to the free space. Otherwise the cell is prepended to `secd->free` list. If an array is released and its CELL_ARRMETA is at `secd->arrayptr`, `secd->arrayptr` is moved to reclaim its memory to the free space, otherwise this array is marked as free and all dependencies of its cells are `drop_cell`d; if there are free adjacent gaps, they are merged with the new one.
+
+**Garbage collection**
+`(secd 'gc)` implements Mark&Sweep GC. See `secd_mark_and_sweep_gc()` in `memory.c` for details.
+
+**Symbol storage**.
+Symbol strings are stored in the _symstore_: it's a list of bytevector buffers in the array heap. Symbols are only created and can't be deleted (like in EVM, this allows to avoid reallocation of symbol on each repeated function call). Symbol string pointers are unique: if such symbol string already exists, a pointer to the existing string is shared, otherwise full (32-bit) hash of the string and this string with ending '\0' is appended into the last buffer in the symstore; if there is no space in that buffer, a new buffer is allocated. String lookup is implemented by a chained rebalancing hashtable that points to a symbol string by symbol hash.
 
 **Input/output**: `READ`/`PRINT` are implemented as built-in opcodes in C code.  Scheme ports are half-implemented at the moment (see the list of native I/O functions).  `(load "path/to/file.scm")` is implemented by the interpreter.
 
 **Tail-recursion**: added tail-recursive calls optimization.
 The criterion for tail-recursion optimization: given a function A which calls a function B, which calles a function C, if B does not mess the stack after C call (that is, returns the value produced by C to A), we can drop saving B state (its S,E,C) on the dump when calling C. "Not messing the stack" means that there are no commands other than `JOIN`, `RTN` and combo `CONS CAR` (used by the Scheme compiler to implement `(begin)` forms) between `AP` in B and B's `RTN`. Also all `SEL` return points saved on the dump must be dropped.
-The check for validity of TR optimization is done by function `new_dump_if_tailrec()` in `secd.c` for every AP.
+The check for validity of TR optimization is done by function `new_dump_if_tailrec()` in `interp.c` for every AP.
 
 Tail-recursion modifies AP operation to not save S,E,C of the current function on the dump, also dropping all conditional branches return points saved on the dump:
 
@@ -178,7 +197,7 @@ Tail-recursion modifies AP operation to not save S,E,C of the current function o
 
 How to run
 ----------
-`secdscheme` wrapper scripts tries to silently build all it needs:
+`secdscheme` wrapper script tries to build silently all it needs:
 ``` bash
 $ ./secdscheme
 # compiles ./secd binary
