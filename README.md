@@ -104,23 +104,64 @@ Notation: `(x.s)` means cons of value `x` and list `s`. Recursively, `(x.y.s)` m
     READ    :  puts the input s-expression on top of S:
                 (s, e, READ.c, d) -> ((read).s, e, c, d)
 
-There are some functions implemented in C for efficiency (native.c):
-- `append`, `list`, `null?`, `copy`: are heavily used by the compiler, native for efficiency;
-- `number?`, `symbol?`, `eof-object?`: may be implemented in native code only;
-- `secd`: takes a symbol as the first arguments, outputs the following: current tick number with `(secd 'tick)`, prints current environment for `(secd 'env)`, shows how many cells are available with `(secd 'free)`;
-- `interaction-environment` - this native form gets the current environment (there's no distinction between lexical and dynamical environment as in other Scheme implementations).
+There are functions implemented in C (`native.c`):
+- `append`, `list`: heavily used by the compiler, native for efficiency;
+- `eof-object?`, `secd-hash`, `defined?`;
+- `secd-bind!` used for binding global variables like `(secd-bind! 'sym val)`. Top-level `define` macros desugar to `secd-bind!`;
+- i/o related: `display`, `open-input-file`, `open-input-string`, `read-char`, `read-u8`, `read-string`, `port-close`;
+- `secd`: takes a symbol as the first argument, outputs the following: current tick number with `(secd 'tick)`, prints current environment for `(secd 'env)`, shows how many cells are available with `(secd 'free)`; memory info with `(secd 'mem)`, the array heap layout with  `(secd 'heap)`.
+- `interaction-environment` - this native form returns the current environment, the last frame is the global environment;
+- vector-related: `make-vector`, `vector-length`, `vector-ref`, `vector-set!`, `vector->list`, `list->vector`;
+- bytevectors: `make-bytevector`, `bytevector-length`, `bytevector-u8-ref`, `bytevector-u8-set!`, `utf8->string`, `string->utf8`;
+- string-related: `string-length`, `string-ref`, `string->list`, `list->string`, `symbol->string`, `string->symbol`;
+- `char->integer`, `integer->char`;
 
 **About types:**
-Supported types are CONSes, INTs and SYMs (and native functions, FUNCs, under the hood).
-Boolean values are symbols `#t` and `nil` for now. Any values except `'()` and `nil` are evaluated to `#t`.
-Only C `int` types are supported as integers
+Supported types are (secd `secd.h`, `enum cell_type`:
+- CONSes that make persistent lists;
+- ARRAYs, that implement Scheme vectors;
+- STR, implementing UTF-8 encoded Unicode strings. Strings are immutable, contrary to R7RS;
+- BYTES, implementing bytevectors as described in R7RS;
+- SYMs, implementing symbols;
+- INTs, a platform-specific `long int` C type; not an arbitrary-precision integer;
+- CHARs, a unicode point below 0x10fff;
+- FUNCs, built-in native functions;
+- OPs, SECD operations;
+- PORTs, Scheme I/O ports, file/string based, with other backends possible in the future;
 
-Values are persistent, immutable and shared.
+Internal types:
+- CELL_UNDEF, non-initialized value that is default for cells in non-initialized vectors;
+- CELL_FRAME, a frame of the environment;
+- CELL_ARRMETA: cells for arrays metainformation;
+- CELL_REF: just a pointer to another cell; used to include NILs into arrays;
+- CELL_FREE: this cell may be allocated;
+- CELL_ERROR: contains an exception thrown by failed opcode execution;
+
+Boolean values are Scheme symbols `#t` and `#f`. Any values except `#f` are evaluated to `#t`.
+
+Values are persistent, immutable and shared. Arrays are really handles for access to "mutable" memory.  Array cells are owned by its array and are copied on every access from Scheme. Setting a cell in array means destructing the previous value and initialization of the cell with copy of the previous value. If you want to emulate mutable variable, use array boxing:
+``` Scheme
+;; emulating a counter object:
+(define (counter)
+  (let ((count (make-vector 1 0))
+    (let ((get (lambda () (vector-ref count 0)))
+          (inc (lambda () (vector-set! count 0 (+ 1 (vector-ref count 0))))))
+      (lambda (msg)
+        (cond
+          ((eq? msg 'inc) (inc))
+          ((eq? msg 'get) (get))
+          (else 'doesnotunderstand)))))))
+
+(define c (counter))
+(c 'get)  ;; => 0
+(c 'inc)
+(c 'get)  ;; => 1
+```
 
 **Memory management**:
-Memory is managed using reference counting at the moment, a simple optional garbage collection is on my TODO-list. This means no contiguous memory allocation, thus no Scheme's strings, bytevectors, vectors, etc, only values composed from CONS'es, INTs, SYMs.
+Memory is managed using reference counting by default, a simple optional Mark&Sweep garbage collection is available as `(secd 'gc)` 
 
-**Input/output**: `READ`/`PRINT` are implemented as built-in commands in C code.
+**Input/output**: `READ`/`PRINT` are implemented as built-in opcodes in C code.  Scheme ports are half-implemented at the moment (see the list of native I/O functions).  `(load "path/to/file.scm")` is implemented by the interpreter.
 
 **Tail-recursion**: added tail-recursive calls optimization.
 The criterion for tail-recursion optimization: given a function A which calls a function B, which calles a function C, if B does not mess the stack after C call (that is, returns the value produced by C to A), we can drop saving B state (its S,E,C) on the dump when calling C. "Not messing the stack" means that there are no commands other than `JOIN`, `RTN` and combo `CONS CAR` (used by the Scheme compiler to implement `(begin)` forms) between `AP` in B and B's `RTN`. Also all `SEL` return points saved on the dump must be dropped.
@@ -137,12 +178,23 @@ Tail-recursion modifies AP operation to not save S,E,C of the current function o
 
 How to run
 ----------
+`secdscheme` wrapper scripts tries to silently build all it needs:
+``` bash
+$ ./secdscheme
+# compiles ./secd binary
+# creates repl.secd from repl.scm if not found
+;> (display "Hello Scheme!")
+Hello Scheme!
+```
+
+Detailed process is:
+
 First of all, compile the machine:
 ```bash
 $ make
 ```
 
-Examples of running the SECD codes (lines starting with `>` are user input):
+Examples of running SECD opcode sequences (lines starting with `>` are user input):
 
 ```bash
 $ echo "(LDC 2  LDC 2  ADD PRINT)" | ./secd
@@ -170,11 +222,11 @@ $ ./secd
 See `tests/` directory for more examples of closures/recursion/IO in SECD codes.
 
 
-Scheme compiler: scm2secd.scm
------------------------------
+Scheme compiler: scm2secd.scm and repl.scm
+------------------------------------------
 
-This file a simplest compiler from Scheme to SECD code. It is written in a quite limited subset of Scheme (using `let`/`letrec` instead of `define`, though now it supports `define` definitions). It supports very limited set of types (`symbol`s, `number`s and `list`s: no vectors, bytestrings, chars, strings, etc).
-There is a `define` macro (no function definitions yet). It is implemented as a macro that falls back to a native function `(secd-bind! 'symbol value)`. A macro can be defined with macro `define-macro` which works just like in Guile.
+This file a simple compiler from Scheme to SECD code. It is written in a quite limited subset of Scheme (using `let`/`letrec` instead of `define`, though now it supports `define` definitions).
+There is a `define` macro. It is implemented as a macro that desugars to a native function `(secd-bind! 'symbol value)`. A macro can be defined with macro `define-macro` which works just like in Guile.
 
 The compiler is self-hosted and can be bootstrapped using its pre-compiled SECD code in `scm2secd.secd`:
 
