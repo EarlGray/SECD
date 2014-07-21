@@ -249,30 +249,31 @@
           (repl))))))))
 
 ;; to be run on SECD only:
-(null?   (lambda (obj) (eq? obj '())))
-(number? (lambda (obj) (eq? (secd-type obj) 'int)))
-(symbol? (lambda (obj) (eq? (secd-type obj) 'sym)))
-(string? (lambda (obj) (eq? (secd-type obj) 'str)))
-(vector? (lambda (obj) (eq? (secd-type obj) 'vect)))
-(port?  (lambda (obj) (eq? (secd-type obj) 'port)))
-(char?  (lambda (obj) (eq? (secd-type obj) 'char)))
+(apply (lambda (command arglist) (secd-apply command arglist)))
+
+(null?       (lambda (obj) (eq? obj '())))
+(number?     (lambda (obj) (eq? (secd-type obj) 'int)))
+(symbol?     (lambda (obj) (eq? (secd-type obj) 'sym)))
+(string?     (lambda (obj) (eq? (secd-type obj) 'str)))
+(vector?     (lambda (obj) (eq? (secd-type obj) 'vect)))
+(port?       (lambda (obj) (eq? (secd-type obj) 'port)))
+(char?       (lambda (obj) (eq? (secd-type obj) 'char)))
 (bytevector? (lambda (obj) (eq? (secd-type obj) 'bvect)))
-(procedure? (lambda (obj)
+(procedure?  (lambda (obj)
   (cond
     ((eq? (secd-type obj) 'func)
         #t)
     ((eq? (secd-type obj) 'cons)
       (cond
-        ((secd-not (eq? (secd-type (car (cdr obj))) 'frame)) secd-false)
-        ((secd-not (eq? (secd-type (car(car(cdr(car obj))))) 'op)) secd-false)
+        ((secd-not (eq? (secd-type (car (cdr obj))) 'frame)) #f)
+        ((secd-not (eq? (secd-type (car(car(cdr(car obj))))) 'op)) #f)
         (else
           (let ((args (car (car obj))))
             (cond
               ((null? args) #t)
-              ((secd-not (eq? (secd-type (car args)) 'sym)) secd-false)
+              ((secd-not (eq? (secd-type (car args)) 'sym)) #f)
               (else #t))))))
-    (else secd-false))))
-(apply (lambda (command arglist) (secd-apply command arglist)))
+    (else #f))))
 
 )
  
