@@ -1,9 +1,9 @@
-objs 	:= interp.o machine.o env.o memory.o native.o readparse.o
+objs 	:= interp.o machine.o env.o memory.o native.o readparse.o ports.o
 
 # posix:
 objs 	+= posix-io.o secd.o
 
-CFLAGS 	:= -O1 -g -Wall -Wextra
+CFLAGS 	:= -O2 -g -Wall -Wextra
 VM 		:= ./secd
 SECDCC 	:= scm2secd.secd
 REPL 	:= repl.secd
