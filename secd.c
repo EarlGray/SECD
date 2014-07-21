@@ -1,14 +1,23 @@
 #include "secd.h"
 #include "secd_io.h"
 
-secd_t secd;
+#include <unistd.h>
 
 int main(int argc, char *argv[]) {
-    errorf(";;;   Welcome to SECD   \n");
-    errorf(";;;     sizeof(cell_t) is %zd\n", sizeof(cell_t));
-    errorf(";;;     Type (secd) to get some help.\n");
+    const char *mytty = NULL;
+    if (isatty(STDIN_FILENO))
+        mytty = ttyname(STDIN_FILENO);
 
+    if (mytty) {
+        errorf(";;;   Welcome to SECD   \n");
+        errorf(";;;     sizeof(cell_t) is %zd\n", sizeof(cell_t));
+        errorf(";;;     tty = %s\n", mytty);
+        errorf(";;;   Type (secd) to get some help.\n");
+    }
+
+    secd_t secd;
     init_secd(&secd);
+
 #if ((CTRLDEBUG) || (MEMDEBUG))
     secd_set_dbg(secd, secd_fopen(&secd, "secd.log", "w"));
 #endif
