@@ -1,10 +1,10 @@
 #ifndef __SECD_H__
 #define __SECD_H__
 
+/* no includes there */
 #include "conf.h"
 
 #include <stdint.h>
-#include <stddef.h>
 #include <stdio.h>
 
 #ifndef __unused
@@ -136,14 +136,17 @@ struct metacons {
     bool cells:1;   // does area contain cells
 };
 
+#define SECD_MAXPORT_TYPEBITS   3
+#define SECD_MAXPORT_TYPES      (1 << SECD_MAXPORT_TYPEBITS)
+
+typedef  struct secd_port_ops  secd_port_ops_t;
+
 struct port {
-    union {
-        cell_t *str;    // owns
-        void *file;     // owns
-    } as;
-    bool file:1;
+    unsigned ptype:SECD_MAXPORT_TYPEBITS;
     bool input:1;
     bool output:1;
+
+    int data[2];
 };
 
 struct error {
@@ -233,6 +236,8 @@ struct secd {
     cell_t *end;        // the last cell of the heap
 
     /**** I/O ****/
+    secd_port_ops_t * porttypes[ SECD_MAXPORT_TYPES ];
+
     cell_t *input_port;
     cell_t *output_port;
     cell_t *debug_port;

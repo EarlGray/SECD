@@ -122,9 +122,6 @@ static cell_t *chain_index(secd_t *secd, const cell_t *cell, cell_t *prev) {
 static cell_t *chain_string(secd_t *secd, const char *str, cell_t *prev) {
     return new_cons(secd, new_string(secd, str), prev);
 }
-static cell_t *chain_sym(secd_t *secd, const char *str, cell_t *prev) {
-    return new_cons(secd, new_symbol(secd, str), prev);
-}
 
 cell_t *serialize_cell(secd_t *secd, cell_t *cell) {
     cell_t *opt;
@@ -133,14 +130,9 @@ cell_t *serialize_cell(secd_t *secd, cell_t *cell) {
             cell_t *cdrc = chain_index(secd, get_cdr(cell), SECD_NIL);
             opt = chain_index(secd, get_car(cell), cdrc);
         } break;
-      case CELL_PORT: {
-          if (cell->as.port.file) {
-              opt = chain_sym(secd, "file", SECD_NIL);
-          } else {
-              cell_t *strc = chain_index(secd, (cell_t*)strval(cell->as.port.as.str), SECD_NIL);
-              opt = chain_sym(secd, "str", strc);
-          }
-        } break;
+      case CELL_PORT:
+          opt = secd_portdisplay(secd, cell);
+          break;
       case CELL_SYM:
           opt = new_cons(secd, cell, SECD_NIL);
           break;
