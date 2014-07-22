@@ -2,12 +2,19 @@ Tasks Pending:
 =============
 | Task  | Description        
 |-------|------------------------------------------------
-| T6    | move into indexes instead of `cell_t *` 
+| T6    | move to indexes instead of `cell_t *`  - ?
 | T7    | audit for refcounting correctness
-| F1    | FEATURE: fast symbol lookup
+| T8    | Scheme parser in Scheme
+| T9    | Scheme language testing framework + tests
+| T10   | static check for stack correctness
+| T11   | static check for TCO during function compilation
+| T12   | fast environment lookup: self-bal. tree? 
+            static analysis for free variables? -> LDV index
+| T13   | inline `let` lambdas
+| T14   | static analysis: rewrite simple tail-call iterations into loops
 | F3    | FEATURE: non-blocking I/O
 | F4    | FEATURE: green threads + mailboxes + messaging
-| F5    | FEATURE: small FFI
+| F5    | FEATURE: small FFI, native modules as .so
 | F6    | FEATURE: LLVM-backend
 
 Tasks Done:
@@ -19,9 +26,10 @@ Tasks Done:
 | T3    | bytevectors, `utf8->string`
 | T4    | reader: dot-lists
 | T5    | refactor out `atom_type`
-| T8    | `open-input-port`, `port?`, `read`, `read-u8`, `read-string`
-| F2    | FEATURE: alternative garbade collection - (secd 'gc), mark & sweep
 | T7    | polymorohic CAR/CDR; use arrays for `ATOM_OP`
+| T8    | `open-input-port`, `port?`, `read`, `read-u8`, `read-string`
+| F1    | FEATURE: fast symbol lookup
+| F2    | FEATURE: alternative garbade collection - (secd 'gc), mark & sweep
 
 Defects Pending:
 ===============
@@ -34,6 +42,6 @@ Defects Fixed:
 | Defect| Description
 |-------|--------------------
 | D3    | Crash on `(make-vector 1 '())`
-|  D1   |  `(eq? "str" "str")` not handled
+| D1    |  `(eq? "str" "str")` not handled
 | D2    | Crash on reading `#()`
 | D4    | Crash on freeing result of `(make-vector 2 'any)` -- part of T1
