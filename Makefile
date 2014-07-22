@@ -1,37 +1,49 @@
-objs := interp.o machine.o env.o memory.o native.o readparse.o
+objs 	:= interp.o machine.o env.o memory.o native.o readparse.o
 
 # posix:
-objs += posix-io.o secd.o
+objs 	+= posix-io.o secd.o
 
-CFLAGS := -O2 -g -Wall -Wextra
-VM := ./secd
+CFLAGS 	:= -O2 -g -Wall -Wextra
+VM 		:= ./secd
+SECDCC 	:= scm2secd.secd
+REPL 	:= repl.secd
+
+secdscheme: $(VM) $(REPL)
+
+$(REPL): repl.scm
 
 $(VM): $(objs)
-	$(CC) $(CFLAGS) $(objs) -o $@
+	@echo "  LD $@"
+	@$(CC) $(CFLAGS) $(objs) -o $@
 
 .depend:
-	$(CC) -MM *.h *.c > $@
+	@echo "  MKDEPEND"
+	@$(CC) -MM *.h *.c > $@
 
 sos: $(objs) sos.o repl.o
 	$(CC) $(CFLAGS) $(objs) sos.o repl.o -o $@
 
-repl.secd: repl.scm
-	$(VM) scm2secd.secd < $< > $@
-
 %.o : %.c
-	$(CC) $(CFLAGS) -c $< -o $@
+	@echo "  CC $<"
+	@$(CC) $(CFLAGS) -c $< -o $@
 
 %.o : %.secd
-	$(LD) -r -b binary -o $@ $<
+	@echo "LD  $<"
+	@$(LD) -r -b binary -o $@ $<
 
 %.secd: %.scm $(VM)
-	$(VM) scm2secd.secd < $< > tmp.secd && mv tmp.secd $@
+	@echo "  SECDCC $@"
+	@$(VM) scm2secd.secd < $< > tmp.secd && mv tmp.secd $@
 
 libsecd: $(objs) repl.o
-	ar -r libsecd.a $(objs) repl.o
+	@echo "  AR libsecd.a"
+	@ar -r libsecd.a $(objs) repl.o
 
 .PHONY: clean
 clean:
-	rm secd *.o libsecd* || true
+	@echo "  rm *.o"
+	@rm secd *.o 2>/dev/null || true
+	@echo "  rm libsecd*"
+	@rm libsecd* 2>/dev/null || true
 
 include .depend
