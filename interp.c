@@ -297,11 +297,11 @@ cell_t *secd_eq(secd_t *secd) {
 static cell_t *arithm_op(secd_t *secd, int op(int, int)) {
     cell_t *a = pop_stack(secd);
     assert_cell(a, "secd_arithm: pop_stack(a) failed")
-    assert(is_number(a), "secd_add: a is not int");
+    assert(is_number(a), "secd_arithm: a is not int");
 
     cell_t *b = pop_stack(secd);
     assert_cell(b, "secd_arithm: pop_stack(b) failed");
-    assert(is_number(b), "secd_add: b is not int");
+    assert(is_number(b), "secd_arithm: b is not int");
 
     int res = op(numval(a), numval(b));
     drop_cell(secd, a); drop_cell(secd, b);

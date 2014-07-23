@@ -521,7 +521,7 @@ cell_t *new_fileport(secd_t *secd, void *f, const char *mode) {
 /*
  *      Symbol management
  */
-const int SYMSTORE_MAX_LOAD_RATIO = 70; // percent
+const unsigned SYMSTORE_MAX_LOAD_RATIO = 70; // percent
 
 #define SYMSTORE_BUFSIZE  16384        // bytes
 

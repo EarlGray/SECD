@@ -144,10 +144,14 @@
           ((eq? 'define (caar tl))
             (let ((defform (car tl))
                   (body    (cdr tl)))
-              (let ((sym  (cadr defform))
+              (let ((what (cadr defform))
                     (expr (caddr defform)))
-                (let ((letexpr (list 'let (list `(,sym ,expr)) (cons 'begin body))))
-                   (secd-compile letexpr)))))
+                (cond
+                  ((symbol? 'what)
+                    (let ((letexpr (list 'let (list `(,what ,expr)) (cons 'begin body))))
+                       (secd-compile letexpr)))
+                  ;;((pair? 'what) ; TODO: check for let/letrec
+                  (else 'Error:_define_what?)))))
           (else (compile-begin-acc tl '(LDC ())))))
       ((eq? hd 'cond)
         (compile-cond tl))
@@ -222,11 +226,19 @@
 
 (secd-compile-top (lambda (s)
     (cond
-      ((secd-not (pair? s)) (secd-compile s))
+      ((secd-not (pair? s))
+         (secd-compile s))
       ((eq? 'define (car s))
-         (let ((sym (cadr s))
-               (expr (caddr s))) 
-           (secd-compile (list 'secd-bind! `(quote ,sym) expr))))
+         (let ((what (cadr s))
+               (expr (caddr s)))
+           (cond
+             ((symbol? what)
+                (secd-compile (list 'secd-bind! `(quote ,what) expr)))
+             ((pair? what)
+                (let ((name (car what))
+                      (args (cdr what)))
+                  (secd-compile (list 'secd-bind! `(quote ,name) (list 'lambda args expr)))))
+             (else 'Error:_define_what?))))
       (else (secd-compile s)))))
 
 (secd-from-scheme (lambda (s)
@@ -290,10 +302,10 @@
     (else #f))))
 
 )
- 
+
 ;; <let> in
 (begin
-  (cond 
+  (cond
     ((defined? 'secd)
       '())
     (else
