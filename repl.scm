@@ -97,8 +97,6 @@
         (append (secd-compile (cadr tl)) (secd-compile (car tl)) '(LEQ)))
       ((eq? hd 'secd-type)
         (append (secd-compile (car tl)) '(TYPE)))
-      ((eq? hd 'pair?)
-        (append (secd-compile (car tl)) '(TYPE LDC cons EQ)))
       ((eq? hd 'car)
         (append (secd-compile (car tl)) '(CAR)))
       ((eq? hd 'cdr)
@@ -140,7 +138,17 @@
 
       ;; (begin (e1) (e2) ... (eN)) => LDC () <e1> CONS <e2> CONS ... <eN> CONS CAR
       ((eq? hd 'begin)
-        (compile-begin-acc tl '(LDC ())))
+        (cond
+          ((null? tl) '(LDC ()))                        ;; (begin)
+          ((null? (cdr tl)) (secd-compile (car tl)))    ;; (begin (expr)) => (expr)
+          ((eq? 'define (caar tl))
+            (let ((defform (car tl))
+                  (body    (cdr tl)))
+              (let ((sym  (cadr defform))
+                    (expr (caddr defform)))
+                (let ((letexpr (list 'let (list `(,sym ,expr)) (cons 'begin body))))
+                   (secd-compile letexpr)))))
+          (else (compile-begin-acc tl '(LDC ())))))
       ((eq? hd 'cond)
         (compile-cond tl))
       ((eq? hd 'write)
@@ -212,16 +220,17 @@
         (secd-bind! '*macros* (cons (cons macroname macroclos)  *macros*))
         ''ok)))))
 
-(secd-mdefine! (lambda (definition initval)
-  (if (symbol? definition)
-      (list 'secd-bind! `(quote ,definition) initval)
-      ;; a function definition:
-      (let ((name (car definition)) (args (cdr definition)))
-           (list 'secd-bind! `(quote ,name)
-                 (list 'lambda args initval))))))
+(secd-compile-top (lambda (s)
+    (cond
+      ((secd-not (pair? s)) (secd-compile s))
+      ((eq? 'define (car s))
+         (let ((sym (cadr s))
+               (expr (caddr s))) 
+           (secd-compile (list 'secd-bind! `(quote ,sym) expr))))
+      (else (secd-compile s)))))
 
 (secd-from-scheme (lambda (s)
-    (secd-make-executable (secd-compile s) '())))
+    (secd-make-executable (secd-compile-top s) '())))
 
 
 (load (lambda (filename)
@@ -251,7 +260,12 @@
 ;; to be run on SECD only:
 (apply (lambda (command arglist) (secd-apply command arglist)))
 
+(caar   (lambda (x) (car (car x))))
+(cadar  (lambda (x) (car (cdr (car x)))))
+(caddar (lambda (x) (car (cdr (cdr (car x))))))
+
 (null?       (lambda (obj) (eq? obj '())))
+(pair?       (lambda (obj) (if (null? obj) #f (eq? (secd-type obj) 'cons))))
 (number?     (lambda (obj) (eq? (secd-type obj) 'int)))
 (symbol?     (lambda (obj) (eq? (secd-type obj) 'sym)))
 (string?     (lambda (obj) (eq? (secd-type obj) 'str)))
@@ -289,6 +303,5 @@
   (secd-bind! '*prompt* "\n;>> ")
   (secd-bind! '*macros*
     (list
-      (cons 'define-macro   secd-define-macro!)
-      (cons 'define         secd-mdefine!)))
+      (cons 'define-macro   secd-define-macro!)))
   (repl)))

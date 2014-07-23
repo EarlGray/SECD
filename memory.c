@@ -589,7 +589,7 @@ void symstorage_ht_rebalance(secd_t *secd) {
     cell_t *oldarr = share_cell(secd, symstore_get(secd, SYMSTORE_HASHARR));
     size_t hashcap = arr_size(secd, oldarr);
 
-    errorf(";; symstorage_ht_rebalance to %lu\n", 2 * hashcap);
+    //errorf(";; symstorage_ht_rebalance to %lu\n", 2 * hashcap);
     cell_t *newarr = share_cell(secd, new_array(secd, 2 * hashcap));
 
     size_t i;
