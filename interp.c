@@ -10,8 +10,6 @@
  *  Compiled form of control paths
  */
 
-index_t search_opcode_table(cell_t *sym);
-
 inline static void tail_append(secd_t *secd, cell_t **tail, cell_t *to) {
     if (is_nil(to)) return;
     (*tail)->as.cons.cdr = share_cell(secd, to);
@@ -50,7 +48,7 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control, cell_t **fvars) {
             return new_error(secd, "compile_control_path: symbol expected");
         }
 
-        index_t opind = search_opcode_table(opcode);
+        index_t opind = secdop_by_name( symname(opcode) );
         assert(opind >= 0, "Opcode not found: %s", symname(opcode))
 
         cell_t *new_cmd = new_op(secd, opind);
@@ -669,7 +667,7 @@ const cell_t stop_func  = INIT_OP(SECD_STOP);
 
 const opcode_t opcode_table[] = {
     // opcodes: for information, not to be called
-    // keep symbols sorted properly
+    // keep symbols sorted properly!
     [SECD_ADD]  = { "ADD",     secd_add,  0, -1},
     [SECD_AP]   = { "AP",      secd_ap,   0, -1},
     [SECD_CAR]  = { "CAR",     secd_car,  0,  0},
@@ -705,13 +703,13 @@ inline size_t opcode_count(void) {
     return optable_len;
 }
 
-index_t search_opcode_table(cell_t *sym) {
+index_t secdop_by_name(const char *name) {
     index_t a = 0;
     index_t b = opcode_count();
 
     while (a != b) {
         index_t c = (a + b) / 2;
-        int ord = str_cmp( symname(sym), opcode_table[c].name);
+        int ord = str_cmp( name, opcode_table[c].name);
         if (ord == 0) return c;
         if (ord < 0) b = c;
         else a = c;

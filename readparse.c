@@ -12,10 +12,10 @@
 
 void print_opcode(opindex_t op) {
     if (op < SECD_LAST) {
-        printf("#%s# ", opcode_table[op].name);
+        printf("#.%s ", opcode_table[op].name);
         return;
     }
-    printf("#[%d]# ", op);
+    printf("#.[%d] ", op);
 }
 
 void dbg_print_cell(secd_t *secd, const cell_t *c) {
@@ -544,6 +544,13 @@ static cell_t *read_token(secd_t *secd, secd_parser_t *p) {
               return inp;
             }
           case TOK_SYM: {
+              if (p->symtok[0] == '.') {
+                index_t op = secdop_by_name(p->symtok + 1);
+                if (op < 0)
+                    goto error_exit;
+
+                return new_op(secd, op);
+              }
               if (str_eq(p->symtok, "u8")) {
                   lexnext(p);
                   inp = read_bytevector(p);
