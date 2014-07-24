@@ -3,7 +3,7 @@
 (
 (#t (eq? 1 1))
 (#f (eq? 1 2))
-(secd-not (lambda (b) (if b #f #t)))
+(not (lambda (b) (if b #f #t)))
 
 (length (lambda (xs)
   (letrec
@@ -64,7 +64,7 @@
       ((pair? lst)
         (let ((hd (car lst)) (tl (cdr lst)))
            (cond
-             ((secd-not (pair? hd))
+             ((not (pair? hd))
                 (append (compile-quasiquote tl) (list 'LDC hd 'CONS)))
              ((eq? (car hd) 'unquote)
                 (append (compile-quasiquote tl) (secd-compile (cadr hd)) '(CONS)))
@@ -101,10 +101,6 @@
         (append (secd-compile (car tl)) '(CAR)))
       ((eq? hd 'cdr)
         (append (secd-compile (car tl)) '(CDR)))
-      ((eq? hd 'cadr)
-        (append (secd-compile (car tl)) '(CDR CAR)))
-      ((eq? hd 'caddr)
-        (append (secd-compile (car tl)) '(CDR CDR CAR)))
       ((eq? hd 'cons)
         (append (secd-compile (cadr tl)) (secd-compile (car tl)) '(CONS)))
       ((eq? hd 'eq? )
@@ -116,24 +112,28 @@
           (append condc '(SEL) (list thenb) (list elseb))))
       ((eq? hd 'lambda)
         (let ((args (car tl))
-              (body (append (secd-compile (cadr tl)) '(RTN))))
+              (body (append (secd-compile (cons 'begin (cdr tl))) '(RTN))))
           (list 'LDF (list args body))))
       ((eq? hd 'let)
         (let ((bindings (unzip (car tl)))
-              (body (cadr tl)))
+              (body (cdr tl)))
           (let ((args (car bindings))
                 (exprs (cadr bindings)))
             (append (compile-bindings exprs)
-                    (list 'LDF (list args (append (secd-compile body) '(RTN))))
+                    (list 'LDF
+                        (list args
+                            (append (secd-compile (cons 'begin body)) '(RTN))))
                     '(AP)))))
       ((eq? hd 'letrec)
         (let ((bindings (unzip (car tl)))
-              (body (cadr tl)))
+              (body (cdr tl)))
           (let ((args (car bindings))
                 (exprs (cadr bindings)))
               (append '(DUM)
                       (compile-bindings exprs)
-                      (list 'LDF (list args (append (secd-compile body) '(RTN))))
+                      (list 'LDF
+                        (list args
+                          (append (secd-compile (cons 'begin body)) '(RTN))))
                       '(RAP)))))
 
       ;; (begin (e1) (e2) ... (eN)) => LDC () <e1> CONS <e2> CONS ... <eN> CONS CAR
@@ -141,6 +141,7 @@
         (cond
           ((null? tl) '(LDC ()))                        ;; (begin)
           ((null? (cdr tl)) (secd-compile (car tl)))    ;; (begin (expr)) => (expr)
+          ;; TODO: actually, few (define ...) in a row must be rewritten to (letrec* ..)
           ((eq? 'define (caar tl))
             (let ((defform (car tl))
                   (body    (cdr tl)))
@@ -148,7 +149,8 @@
                     (expr (caddr defform)))
                 (cond
                   ((symbol? 'what)
-                    (let ((letexpr (list 'let (list `(,what ,expr)) (cons 'begin body))))
+                    (let ((letexpr
+                            (list 'let (list `(,what ,expr)) (cons 'begin body))))
                        (secd-compile letexpr)))
                   ;;((pair? 'what) ; TODO: check for let/letrec
                   (else 'Error:_define_what?)))))
@@ -226,18 +228,21 @@
 
 (secd-compile-top (lambda (s)
     (cond
-      ((secd-not (pair? s))
+      ((not (pair? s))
          (secd-compile s))
       ((eq? 'define (car s))
          (let ((what (cadr s))
-               (expr (caddr s)))
+               (expr (cddr s)))
            (cond
              ((symbol? what)
-                (secd-compile (list 'secd-bind! `(quote ,what) expr)))
+                (secd-compile (list 'secd-bind! `(quote ,what) (cons 'begin expr))))
              ((pair? what)
                 (let ((name (car what))
                       (args (cdr what)))
-                  (secd-compile (list 'secd-bind! `(quote ,name) (list 'lambda args expr)))))
+                  (secd-compile
+                    (list 'secd-bind!
+                          `(quote ,name)
+                          (list 'lambda args (cons 'begin expr))))))
              (else 'Error:_define_what?))))
       (else (secd-compile s)))))
 
@@ -273,8 +278,14 @@
 (apply (lambda (command arglist) (secd-apply command arglist)))
 
 (caar   (lambda (x) (car (car x))))
+(cadr   (lambda (x) (car (cdr x))))
 (cadar  (lambda (x) (car (cdr (car x)))))
 (caddar (lambda (x) (car (cdr (cdr (car x))))))
+(cddr   (lambda (x) (cdr (cdr x))))
+(caddr  (lambda (x) (car (cdr (cdr x)))))
+
+(> (lambda (x y) (cond ((eq? x y) #f) (else (<= y x)))))
+(< (lambda (x y) (cond ((eq? x y) #f) (else (<= x y)))))
 
 (null?       (lambda (obj) (eq? obj '())))
 (pair?       (lambda (obj) (if (null? obj) #f (eq? (secd-type obj) 'cons))))
@@ -291,8 +302,8 @@
         #t)
     ((eq? (secd-type obj) 'cons)
       (cond
-        ((secd-not (eq? (secd-type (car (cdr obj))) 'frame)) #f)
-        ((secd-not (eq? (secd-type (car(car(cdr(car obj))))) 'op)) #f)
+        ((not (eq? (secd-type (car (cdr obj))) 'frame)) #f)
+        ((not (eq? (secd-type (car(car(cdr(car obj))))) 'op)) #f)
         (else
           (let ((args (car (car obj))))
             (cond
