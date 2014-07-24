@@ -297,8 +297,7 @@
           (let ((args (car (car obj))))
             (cond
               ((null? args) #t)
-              ((secd-not (eq? (secd-type (car args)) 'sym)) #f)
-              (else #t))))))
+              (else (eq? (secd-type (car args)) 'sym)))))))
     (else #f))))
 
 )
