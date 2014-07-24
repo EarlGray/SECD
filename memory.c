@@ -849,7 +849,7 @@ cell_t *pop_stack(secd_t *secd) {
 cell_t *set_control(secd_t *secd, cell_t **opcons) {
     assert(is_cons(*opcons),
            "set_control: failed, not a cons at [%ld]\n", cell_index(secd, *opcons));
-    compile_ctrl(secd, opcons, SECD_NIL);
+    compile_ctrl(secd, opcons);
     assert_cell(*opcons, "set_control: failed to compile control path");
     assert(cell_type(*opcons) == CELL_CONS, "set_control: not a cons");
     assert(cell_type(get_car(*opcons)) == CELL_OP, "set_control: not an ATOM_OP");

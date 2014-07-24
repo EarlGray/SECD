@@ -29,14 +29,12 @@ static void tail_append_and_move(secd_t *secd, cell_t **lst, cell_t **tail, cell
         *tail = list_next(secd, *tail);
 }
 
-cell_t *compile_control_path(secd_t *secd, cell_t *control, cell_t **fvars) {
+cell_t *compile_control_path(secd_t *secd, cell_t *control) {
     assert_cell(control, "control path is invalid");
     cell_t *compiled = SECD_NIL;
-    cell_t *freevars = SECD_NIL;
 
     cell_t *cursor = control;
     cell_t *compcursor = compiled;
-    cell_t *fvcursor = freevars;
 
     while (not_nil(cursor)) {
         cell_t *opcode = list_head(cursor);
@@ -68,18 +66,11 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control, cell_t **fvars) {
         if (opcode_table[opind].args > 0) {
             switch (new_cmd->as.op) {
                 case SECD_SEL: {
-                    cell_t *newfv;
-                    cell_t *thenb = compile_control_path(secd, list_head(cursor),
-                                                         (fvars ? &newfv : NULL));
-                    if (fvars)
-                        tail_append_and_move(secd, &freevars, &fvcursor, newfv);
+                    cell_t *thenb = compile_control_path(secd, list_head(cursor));
                     tail_append(secd, &compcursor, new_cons(secd, thenb, SECD_NIL));
                     cursor = list_next(secd, cursor);
 
-                    cell_t *elseb = compile_control_path(secd, list_head(cursor),
-                                                         (fvars ? &newfv : NULL));
-                    if (fvars)
-                        tail_append_and_move(secd, &freevars, &fvcursor, newfv);
+                    cell_t *elseb = compile_control_path(secd, list_head(cursor));
                     tail_append(secd, &compcursor, new_cons(secd, elseb, SECD_NIL));
                     cursor = list_next(secd, cursor);
                 } break;
@@ -87,9 +78,6 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control, cell_t **fvars) {
               case SECD_LD:
                 assert(is_symbol(list_head(cursor)),
                        "compile_ctrl: not a symbol after LD");
-                if (fvars)
-                    tail_append_and_move(secd, &freevars, &fvcursor,
-                                new_cons(secd, list_head(cursor), SECD_NIL));
                 // fall through
 
               default:
@@ -99,8 +87,6 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control, cell_t **fvars) {
             }
         }
     }
-    if (fvars)
-        *fvars = freevars;
     return compiled;
 }
 
@@ -108,20 +94,20 @@ bool is_control_compiled(cell_t *control) {
     return cell_type(list_head(control)) == CELL_OP;
 }
 
-cell_t* compiled_ctrl(secd_t *secd, cell_t *ctrl, cell_t **fvars) {
+cell_t* compiled_ctrl(secd_t *secd, cell_t *ctrl) {
     if (is_control_compiled(ctrl))
         return SECD_NIL;
 
     ctrldebugf(" compiling control path\n");
-    cell_t *compiled = compile_control_path(secd, ctrl, fvars);
+    cell_t *compiled = compile_control_path(secd, ctrl);
     assert(compiled, "compiled_ctrl: NIL");
     assert_cell(compiled, "compiled_ctrl: failed");
 
     return compiled;
 }
 
-bool compile_ctrl(secd_t *secd, cell_t **ctrl, cell_t **fvars) {
-    cell_t *compiled = compiled_ctrl(secd, *ctrl, fvars);
+bool compile_ctrl(secd_t *secd, cell_t **ctrl) {
+    cell_t *compiled = compiled_ctrl(secd, *ctrl);
     if (is_nil(compiled))
         return false;
     drop_cell(secd, *ctrl);
@@ -397,11 +383,7 @@ cell_t *secd_ldf(secd_t *secd) {
     cell_t *func = pop_control(secd);
     assert_cell(func, "secd_ldf: failed to get the control path");
 
-    cell_t *fvars = SECD_NIL;
-    compile_ctrl(secd, &func->as.cons.cdr->as.cons.car, &fvars);
-
-    cell_t *fvcons = new_cons(secd, fvars, SECD_NIL);
-    func->as.cons.cdr->as.cons.cdr = share_cell(secd, fvcons);
+    compile_ctrl(secd, &func->as.cons.cdr->as.cons.car);
 
     cell_t *closure = new_cons(secd, func, secd->env);
     drop_cell(secd, func);

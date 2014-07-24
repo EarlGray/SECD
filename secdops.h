@@ -12,7 +12,7 @@ typedef struct {
 extern const opcode_t opcode_table[];
 extern size_t opcode_count(void);
 
-bool compile_ctrl(secd_t *secd, cell_t **ctrl, cell_t **fvars);
+bool compile_ctrl(secd_t *secd, cell_t **ctrl);
 
 index_t secdop_by_name(const char *name);
 
