@@ -2,14 +2,6 @@
 ;; Basic functional things
 ;;
 
-(define (reverse xs)
-  (letrec ((reverse-acc
-      (lambda (acc xs)
-        (if (null? xs) acc
-          (let ((hd (car xs)) (tl (cdr xs)))
-               (reverse-acc (cons hd acc) tl))))))
-    (reverse-acc '() xs)))
-
 (define (map f xs)
   (letrec ((map-tco
       (lambda (acc xs)
@@ -49,10 +41,6 @@
             acc
             (range-tco (cons n acc) (- n 1))))))
    (range-tco '() n)))
-
-(define (nth xs n)
-  (if (null? xs) 'Error:_out_of_range
-      (if (eq? n 0) (car xs) (nth (cdr xs) (- n 1)))))
 
 (define (last xs)
   (if (null? xs)

@@ -1,9 +1,9 @@
 (letrec
 ;; what:
 (
-(#t (eq? 1 1))
-(#f (eq? 1 2))
-(not (lambda (b) (if b #f #t)))
+;;
+;;  List routines
+;;
 
 (length (lambda (xs)
   (letrec
@@ -11,6 +11,26 @@
             (if (null? xs) acc
                 (len (cdr xs) (+ 1 acc))))))
     (len xs 0))))
+
+(list-ref (lambda (xs nth)
+  (cond
+    ((null? xs)  (raise 'err_out_of_bounds))
+    ((eq? nth 0) (car xs))
+    (else (list-ref (cdr xs) (- nth 1))))))
+
+(list-tail (lambda (lst nth)
+  (cond
+    ((null? xs)  (raise 'err_out_of_bounds))
+    ((eq? nth 0) (cdr xs)(
+    (else (list-tail (cdr xs) (- nth 1))))))))
+
+(reverse (lambda (xs)
+  (letrec ((reverse-acc
+      (lambda (acc xs)
+        (if (null? xs) acc
+          (let ((hd (car xs)) (tl (cdr xs)))
+               (reverse-acc (cons hd acc) tl))))))
+    (reverse-acc '() xs))))
 
 (unzip (lambda (ps)
     (letrec
@@ -24,6 +44,22 @@
                      (p2 (cadr pair)))
                  (unzipt rest (append z1 (list p1)) (append z2 (list p2)))))))))
       (unzipt ps '() '()))))
+
+(memq (lambda (obj lst)
+  (cond
+    ((null? lst)         #f)
+    ((eq? obj (car lst)) lst)
+    (else (memq obj (cdr lst))))))
+
+(assq (lambda (obj alist)
+  (cond
+    ((null? alist)          #f)
+    ((eq? (caar alist) obj) (car alist))
+    (else (assq obj (cdr alist))))))
+
+;;
+;;  Scheme to SECD compiler
+;;
 
 (compile-bindings
   (lambda (bs)
@@ -193,16 +229,35 @@
     ((symbol? s) (list 'LD s))
     (else (list 'LDC s)))))
 
-(secd-make-executable (lambda (ctrlpath maybe-env)
-  (let ((func (list '() (append ctrlpath '(RTN))))
-        (env (if (null? maybe-env) (interaction-environment) maybe-env)))
-    (cons func env))))
+(secd-compile-top (lambda (s)
+    (cond
+      ((not (pair? s))
+         (secd-compile s))
+      ((eq? 'define (car s))
+         (let ((what (cadr s))
+               (expr (cddr s)))
+           (cond
+             ((symbol? what)
+                (secd-compile (list 'secd-bind! `(quote ,what) (cons 'begin expr))))
+             ((pair? what)
+                (let ((name (car what))
+                      (args (cdr what)))
+                  (secd-compile
+                    (list 'secd-bind!
+                          `(quote ,name)
+                          (list 'lambda args (cons 'begin expr))))))
+             (else 'Error:_define_what?))))
+      (else (secd-compile s)))))
+
+(secd-from-scheme (lambda (s)
+    (secd-closure (secd-compile-top s) '() '())))
 
 (secd-closure (lambda (ctrlpath args maybe-env)
   (let ((func (list args (append ctrlpath '(RTN))))
         (env (if (null? maybe-env) (interaction-environment) maybe-env)))
     (cons func env))))
 
+;;  Macros
 (lookup-macro (lambda (name)
    (letrec
       ((lookup
@@ -226,64 +281,12 @@
         (secd-bind! '*macros* (cons (cons macroname macroclos)  *macros*))
         ''ok)))))
 
-(secd-compile-top (lambda (s)
-    (cond
-      ((not (pair? s))
-         (secd-compile s))
-      ((eq? 'define (car s))
-         (let ((what (cadr s))
-               (expr (cddr s)))
-           (cond
-             ((symbol? what)
-                (secd-compile (list 'secd-bind! `(quote ,what) (cons 'begin expr))))
-             ((pair? what)
-                (let ((name (car what))
-                      (args (cdr what)))
-                  (secd-compile
-                    (list 'secd-bind!
-                          `(quote ,name)
-                          (list 'lambda args (cons 'begin expr))))))
-             (else 'Error:_define_what?))))
-      (else (secd-compile s)))))
-
-(secd-from-scheme (lambda (s)
-    (secd-make-executable (secd-compile-top s) '())))
-
-
-(load (lambda (filename)
-  (letrec
-    ((loadsexp (lambda ()
-       (let ((sexpr (read)))
-         (if (eof-object? sexpr) 'ok
-           (begin
-             (eval sexpr (interaction-environment))
-             (loadsexp))))))
-     (*stdin* (open-input-file filename)))
-    (loadsexp))))
-
-(newline (lambda () (display "\n")))
-
-(repl (lambda ()
-  (begin
-    (display *prompt*)
-    (let ((inp (read)))
-      (if (eof-object? inp) (quit)
-        (let ((result (eval inp (interaction-environment))))
-         (begin
-          (display "   ")
-          (write result)
-          (repl))))))))
-
 ;; to be run on SECD only:
-(apply (lambda (command arglist) (secd-apply command arglist)))
+(#t (eq? 1 1))
+(#f (eq? 1 2))
+(not (lambda (b) (if b #f #t)))
 
-(caar   (lambda (x) (car (car x))))
-(cadr   (lambda (x) (car (cdr x))))
-(cadar  (lambda (x) (car (cdr (car x)))))
-(caddar (lambda (x) (car (cdr (cdr (car x))))))
-(cddr   (lambda (x) (cdr (cdr x))))
-(caddr  (lambda (x) (car (cdr (cdr x)))))
-(cdddr  (lambda (x) (cdr (cdr (cdr x)))))
+(apply (lambda (command arglist) (secd-apply command arglist)))
 
 (+ (lambda (x y) (+ x y)))  ; compiled to (LD x  LD y  ADD)
 (- (lambda (x y) (- x y)))
@@ -297,6 +300,15 @@
 
 (> (lambda (x y) (cond ((eq? x y) #f) (else (<= y x)))))
 (< (lambda (x y) (cond ((eq? x y) #f) (else (<= x y)))))
+
+(caar   (lambda (x) (car (car x))))
+(cadr   (lambda (x) (car (cdr x))))
+(cddr   (lambda (x) (cdr (cdr x))))
+
+(cadar  (lambda (x) (car (cdr (car x)))))
+(caddr  (lambda (x) (car (cdr (cdr x)))))
+(cdddr  (lambda (x) (cdr (cdr (cdr x)))))
+(caddar (lambda (x) (car (cdr (cdr (car x))))))
 
 (null?       (lambda (obj) (eq? obj '())))
 (pair?       (lambda (obj) (if (null? obj) #f (eq? (secd-type obj) 'cons))))
@@ -322,14 +334,35 @@
               (else (eq? (secd-type (car args)) 'sym)))))))
     (else #f))))
 
+(load (lambda (filename)
+  (letrec
+    ((loadsexp (lambda ()
+       (let ((sexpr (read)))
+         (if (eof-object? sexpr) 'ok
+           (begin
+             (eval sexpr (interaction-environment))
+             (loadsexp))))))
+     (*stdin* (open-input-file filename)))
+    (loadsexp))))
+
+(newline (lambda () (display "\n")))
+
+(repl (lambda ()
+  (begin
+    (display *prompt*)
+    (let ((inp (read)))
+      (if (eof-object? inp) (quit)
+        (let ((result (eval inp (interaction-environment))))
+         (begin
+          (display "   ")
+          (write result)
+          (repl))))))))
+
 )
 
 ;; <let> in
 (begin
-  (cond
-    ((defined? 'secd)
-      '())
-    (else
+  (cond ((not (defined? 'secd))
       (begin
         (display "This file must be run in SECDScheme\n")
         (quit))))
