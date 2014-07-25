@@ -1,7 +1,3 @@
-(define (caar lst) (car (car lst)))
-(define (cadr lst) (car (cdr lst)))
-(define (cddr lst) (cdr (cdr lst)))
-(define (caddr lst) (car (cddr lst)))
 (define (cdddr lst) (cdr (cddr lst)))
 
 (define (self-print-env env)
