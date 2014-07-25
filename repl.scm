@@ -283,6 +283,7 @@
 (caddar (lambda (x) (car (cdr (cdr (car x))))))
 (cddr   (lambda (x) (cdr (cdr x))))
 (caddr  (lambda (x) (car (cdr (cdr x)))))
+(cdddr  (lambda (x) (cdr (cdr (cdr x)))))
 
 (+ (lambda (x y) (+ x y)))  ; compiled to (LD x  LD y  ADD)
 (- (lambda (x y) (- x y)))

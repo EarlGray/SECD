@@ -37,7 +37,7 @@ void dbg_print_cell(secd_t *secd, const cell_t *c) {
         printf("FRAME(syms: [%ld], vals: [%ld])\n",
                cell_index(secd, get_car(c)), cell_index(secd, get_cdr(c)));
         break;
-      case CELL_INT:  printf("%d", c->as.num); break;
+      case CELL_INT:  printf("%d\n", c->as.num); break;
       case CELL_CHAR:
         if (isprint(c->as.num)) printf("#\\%c\n", (char)c->as.num);
         else printf("#x%x\n", c->as.num);
