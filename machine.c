@@ -31,6 +31,7 @@ secd_t * init_secd(secd_t *secd) {
     init_env(secd);
 
     secd->tick = 0;
+    secd->postop = SECD_NOPOST;
     return secd;
 }
 
