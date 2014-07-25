@@ -284,6 +284,16 @@
 (cddr   (lambda (x) (cdr (cdr x))))
 (caddr  (lambda (x) (car (cdr (cdr x)))))
 
+(+ (lambda (x y) (+ x y)))  ; compiled to (LD x  LD y  ADD)
+(- (lambda (x y) (- x y)))
+(* (lambda (x y) (* x y)))
+(/ (lambda (x y) (/ x y)))
+(remainder (lambda (x y) (remainder x y)))
+(<= (lambda (x y) (<= x y)))
+(car (lambda (pair) (car pair)))
+(cdr (lambda (pair) (cdr pair)))
+(cons (lambda (hd tl) (cons hd tl)))
+
 (> (lambda (x y) (cond ((eq? x y) #f) (else (<= y x)))))
 (< (lambda (x y) (cond ((eq? x y) #f) (else (<= x y)))))
 
