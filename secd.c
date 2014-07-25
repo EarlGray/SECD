@@ -35,14 +35,12 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    run_secd(&secd, inp);
+    cell_t *ret;
+    ret = run_secd(&secd, inp);
 
-    /* print the head of the stack */
-    if (not_nil(secd.stack)) {
-        envdebugf("Stack head:\n");
-        dbg_printc(&secd, get_car(secd.stack));
-    } else {
-        envdebugf("Stack is empty\n");
+    if (is_error(ret)) {
+        errorf("\nSECD fatal error:\n%s\n", errmsg(ret));
+        return 1;
     }
     return 0;
 }
