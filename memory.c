@@ -990,7 +990,7 @@ cell_t *secd_rest(secd_t *secd, cell_t *stream) {
 /*
  *   Machine-wide operations
  */
-void secd_owned_cell_for(cell_t *cell,
+void secd_owned_cell_for(secd_t *secd, cell_t *cell,
         cell_t **ref1, cell_t **ref2, cell_t **ref3)
 {
     *ref1 = *ref2 = *ref3 = SECD_NIL;
@@ -1014,7 +1014,7 @@ void secd_owned_cell_for(cell_t *cell,
           *ref1 = arr_meta(arr_mem(cell));
           break;
       case CELL_PORT:
-          secd_portcell_references(cell, ref1, ref2, ref3);
+          secd_portcell_references(secd, cell, ref1, ref2, ref3);
           break;
       case CELL_REF: *ref1 = cell->as.ref; break;
       default: break;
@@ -1031,7 +1031,7 @@ cell_t *secd_referers_for(secd_t *secd, cell_t *cell) {
     cell_t *ith;
     for (ith = secd->begin; ith < secd->fixedptr; ++ith) {
         cell_t *ref1, *ref2, *ref3;
-        secd_owned_cell_for(ith, &ref1, &ref2, &ref3);
+        secd_owned_cell_for(secd, ith, &ref1, &ref2, &ref3);
         if (ref1 == cell) result = prepend_index(secd, ith, result);
         if (ref2 == cell) result = prepend_index(secd, ith, result);
         if (ref3 == cell) result = prepend_index(secd, ith, result);
@@ -1047,7 +1047,7 @@ static void increment_nref_for_owned(secd_t *secd, cell_t *cell) {
 
     if (cell_type(cell) != CELL_ARRMETA) {
         cell_t *ref1, *ref2, *ref3;
-        secd_owned_cell_for(cell, &ref1, &ref2, &ref3);
+        secd_owned_cell_for(secd, cell, &ref1, &ref2, &ref3);
         if (not_nil(ref1)) increment_nref_for_owned(secd, ref1);
         if (not_nil(ref2)) increment_nref_for_owned(secd, ref2);
         if (not_nil(ref3)) increment_nref_for_owned(secd, ref3);

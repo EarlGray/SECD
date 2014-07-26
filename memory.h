@@ -91,7 +91,8 @@ inline static cell_t *assign_cell(secd_t *secd, cell_t **cell, cell_t *what) {
 }
 
 cell_t *secd_referers_for(secd_t *secd, cell_t *cell);
-void secd_owned_cell_for(cell_t *cell, cell_t **ref1, cell_t **ref2, cell_t **ref3);
+void secd_owned_cell_for(secd_t *secd, cell_t *cell, 
+        cell_t **ref1, cell_t **ref2, cell_t **ref3);
 
 /*
  *    Array routines

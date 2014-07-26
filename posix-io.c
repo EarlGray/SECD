@@ -58,6 +58,10 @@ cell_t *secd_fopen(secd_t *secd, const char *fname, const char *mode) {
             return c;
         return SECD_EOF;
 #endif
+#ifdef IO_POSIX_PORTREAD
+        FILE *f = port->as.port.as.file;
+        return fread(s, size, 1, f);;
+#endif
 
 /*
  * Port-printing
@@ -94,22 +98,5 @@ int secd_printf(secd_t *secd, cell_t *port, const char *format, ...) {
     va_end(ap);
 
     return ret;
-}
-
-void sexp_print_port(secd_t *secd, const cell_t *port) {
-    if (SECD_NIL == port->as.port.as.str) {
-        printf("#<closed>");
-        return;
-    }
-    bool in = port->as.port.input;
-    bool out = port->as.port.output;
-    printf("#<%s%s%s: ", (in ? "input" : ""), (out ? "output" : ""), (in && out ? "/" : ""));
-
-    if (port->as.port.file) {
-        printf("file %d", fileno(port->as.port.as.file));
-    } else {
-        printf("string %ld", cell_index(secd, port->as.port.as.str));
-    }
-    printf(">");
 }
 

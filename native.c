@@ -900,7 +900,7 @@ cell_t *secdf_pclose(secd_t *secd, cell_t *args) {
     cell_t *port = get_car(args);
     assert(cell_type(port) == CELL_PORT, "(port-close): a port expected");
 
-    secd_pclose(secd, port);
+    secd_port_close(secd, port);
     return port;
 }
 

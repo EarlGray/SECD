@@ -134,7 +134,7 @@ cell_t *serialize_cell(secd_t *secd, cell_t *cell) {
             opt = chain_index(secd, get_car(cell), cdrc);
         } break;
       case CELL_PORT:
-          opt = secd_portdisplay(secd, cell);
+          opt = secd_port_info(secd, cell);
           break;
       case CELL_SYM:
           opt = new_cons(secd, cell, SECD_NIL);

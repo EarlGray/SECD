@@ -139,7 +139,7 @@ void sexp_print(secd_t* secd, const cell_t *cell) {
         else printf("#\\x%x", numval(cell));
         break;
       case CELL_OP:     print_opcode(cell->as.op); break;
-      case CELL_FUNC:   printf("##func*0x%p", cell->as.ptr); break;
+      case CELL_FUNC:   printf("##func*%p", cell->as.ptr); break;
       case CELL_FRAME:  printf("##frame@%ld ", cell_index(secd, cell)); break;
       case CELL_KONT:   printf("##kont@%ld ", cell_index(secd, cell)); break;
       case CELL_CONS:   sexp_print_list(secd, cell); break; break;
@@ -148,7 +148,9 @@ void sexp_print(secd_t* secd, const cell_t *cell) {
       case CELL_SYM:    printf("%s", symname(cell)); break;
       case CELL_BYTES:  sexp_print_bytes(secd, cell); break;
       case CELL_ERROR:  printf("#!\"%s\"", errmsg(cell)); break;
-      case CELL_PORT:   sexp_print_port(secd, cell); break;
+      case CELL_PORT:
+        sexp_snprint_port(buf, buflen, secd, cell);
+        break;
       default: errorf("sexp_print: unknown cell type %d", (int)cell_type(cell));
     }
 }

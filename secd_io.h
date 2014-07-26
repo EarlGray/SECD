@@ -21,11 +21,13 @@ cell_t *secd_port_init(secd_t *secd, cell_t *port, const char *mode, cell_t *arg
 
 long secd_port_size(secd_t *secd, cell_t *port);
 
+size_t secd_port_read(secd_t *secd, cell_t *port, char *s, int size);
+
 int secd_port_close(secd_t *secd, cell_t *port);
 
-cell_t *secd_portdisplay(secd_t *secd, cell_t *port);
+cell_t *secd_port_info(secd_t *secd, cell_t *port);
 
-cell_t *secd_portcell_references(secd_t *secd, 
+cell_t *secd_portcell_references(secd_t *secd, cell_t *port,
                                  cell_t **ref1, cell_t **ref2, cell_t **ref3);
 
 int secd_getc(secd_t *secd, cell_t *port);
@@ -34,9 +36,9 @@ size_t secd_fread(secd_t *secd, cell_t *port, char *s, int size);
 int secd_printf(secd_t *secd, cell_t *port, const char *format, ...);
 int secd_vprintf(secd_t *secd, cell_t *port, const char *format, va_list ap);
 
-void sexp_print_port(secd_t *secd, const cell_t *port);
+int sexp_snprint_port(secd_t *secd, char *buf, size_t buflen, const cell_t *port);
 
-static inline bool is_closed(cell_t *port) {
+static inline bool is_closed(const cell_t *port) {
     return !port->as.port.input && !port->as.port.output;
 }
 
@@ -44,10 +46,32 @@ static inline bool is_closed(cell_t *port) {
 /*
  *  Port plugin system
  */
+typedef const char * (*secd_porttype_fun_t)(void);
+typedef cell_t * (*secd_portinit_fun_t) (secd_t *, cell_t *, const char *, cell_t *);
 typedef cell_t * (*secd_portdisplay_fun_t)(secd_t *, cell_t*);
+typedef cell_t * (*secd_portinfo_fun_t) (secd_t *, cell_t*);
+typedef long     (*secd_portsize_fun_t) (secd_t *, cell_t *);
+typedef int      (*secd_portgetc_fun_t) (secd_t *, cell_t *);
+typedef int      (*secd_portopen_fun_t) (secd_t *, cell_t *);
+typedef size_t   (*secd_portread_fun_t) (secd_t *, cell_t *, char *, size_t);
+typedef int      (*secd_portclose_fun_t) (secd_t *, cell_t *);
+typedef int     (*secd_portcellrefs_fun_t) (secd_t *, cell_t *,
+                                            cell_t **ref1, cell_t **ref2, cell_t **ref3);
 
 struct secd_port_ops {
+    secd_porttype_fun_t         porttype;
+
+    secd_portcellrefs_fun_t     pcell_refs;
+
     secd_portdisplay_fun_t      portdisplay;
+    secd_portsize_fun_t         portsize;
+
+    secd_portinit_fun_t         portinit;
+    secd_portopen_fun_t         portopen;
+    secd_portread_fun_t         portread;
+    secd_portclose_fun_t        portclose;
+
+    secd_portgetc_fun_t         portgetc;
     /* TODO */
 };
 
