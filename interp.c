@@ -530,13 +530,9 @@ cell_t *secd_rtn(secd_t *secd) {
     assert(is_nil(secd->stack), "secd_rtn: stack holds more than 1 value");
 
     cell_t *kont = pop_dump(secd);
-    //assert(cell_type(kont) == CELL_KONT, "secd_rtn: not a continuation on dump");
-    if (cell_type(kont) != CELL_KONT) {
-        return new_error(secd, "secd_rtn: not a cont");
-    }
+    assert(cell_type(kont) == CELL_KONT, "secd_rtn: not a continuation on dump");
 
     secd->stack = share_cell(secd, new_cons(secd, result, kont->as.kont.stack));
-    drop_cell(secd, result);
 
     assign_cell(secd, &secd->env, kont->as.kont.env);
     /* restoring I/O */
@@ -546,6 +542,7 @@ cell_t *secd_rtn(secd_t *secd) {
 
     secd->control = share_cell(secd, kont->as.kont.ctrl);
 
+    drop_cell(secd, result);
     drop_cell(secd, kont);
     return result;
 }

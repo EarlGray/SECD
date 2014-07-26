@@ -42,7 +42,7 @@ void dbg_print_cell(secd_t *secd, const cell_t *c) {
         if (isprint(c->as.num)) printf("#\\%c\n", (char)c->as.num);
         else printf("#x%x\n", c->as.num);
         break;
-      case CELL_OP:   print_opcode(c->as.op); break;
+      case CELL_OP:   print_opcode(c->as.op); printf("\n"); break;
       case CELL_FUNC: printf("*%p()\n", c->as.ptr); break;
       case CELL_KONT: printf("KONT[%ld, %ld, %ld]\n",
                              cell_index(secd, c->as.kont.stack),
@@ -139,7 +139,7 @@ void sexp_print(secd_t* secd, const cell_t *cell) {
         else printf("#\\x%x", numval(cell));
         break;
       case CELL_OP:     print_opcode(cell->as.op); break;
-      case CELL_FUNC:   printf("##func*0x%p", cell->as.ptr); break;
+      case CELL_FUNC:   printf("##func*%p", cell->as.ptr); break;
       case CELL_FRAME:  printf("##frame@%ld ", cell_index(secd, cell)); break;
       case CELL_KONT:   printf("##kont@%ld ", cell_index(secd, cell)); break;
       case CELL_CONS:   sexp_print_list(secd, cell); break; break;
