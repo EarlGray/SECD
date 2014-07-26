@@ -250,7 +250,8 @@ bool is_equal(secd_t *secd, const cell_t *a, const cell_t *b) {
       case CELL_ARRMETA: case CELL_ERROR:
       case CELL_FREE: case CELL_FRAME:
       case CELL_REF:  case CELL_PORT:
-           errorf("is_equal: comparing internal data");
+      case CELL_KONT:
+           errorf(";; error: comparing internal data in is_equal()\n");
     }
     return false;
 }
@@ -370,6 +371,7 @@ cell_t *secd_join(secd_t *secd) {
 
     cell_t *joinb = pop_dump(secd);
     assert_cell(joinb, "secd_join: pop_dump() failed");
+    assert(cell_type(get_car(joinb)) == CELL_OP, "secd_join: not a CELL_OP");
 
     secd->control = joinb; //share_cell(secd, joinb); drop_cell(secd, joinb);
     return secd->control;
@@ -493,14 +495,12 @@ cell_t *secd_ap(secd_t *secd) {
         assign_cell(secd, &secd->dump, new_dump);
         ctrldebugf("secd_ap: tailrec\n");
     } else {
-        push_dump(secd, secd->control);
-        push_dump(secd, secd->env);
-        push_dump(secd, secd->stack);
+        push_dump(secd, new_continuation(secd,
+                            secd->stack, secd->env, secd->control));
     }
 #else
-    push_dump(secd, secd->control);
-    push_dump(secd, secd->env);
-    push_dump(secd, secd->stack);
+    push_dump(secd, new_continuation(secd,
+                        secd->stack, secd->env, secd->control));
 #endif
 
     drop_cell(secd, secd->stack);
@@ -529,25 +529,24 @@ cell_t *secd_rtn(secd_t *secd) {
     cell_t *result = pop_stack(secd);
     assert(is_nil(secd->stack), "secd_rtn: stack holds more than 1 value");
 
-    cell_t *prevstack = pop_dump(secd);
-    cell_t *prevenv = pop_dump(secd);
-    cell_t *prevcontrol = pop_dump(secd);
+    cell_t *kont = pop_dump(secd);
+    //assert(cell_type(kont) == CELL_KONT, "secd_rtn: not a continuation on dump");
+    if (cell_type(kont) != CELL_KONT) {
+        return new_error(secd, "secd_rtn: not a cont");
+    }
 
-    secd->stack = share_cell(secd, new_cons(secd, result, prevstack));
-    drop_cell(secd, result); drop_cell(secd, prevstack);
+    secd->stack = share_cell(secd, new_cons(secd, result, kont->as.kont.stack));
+    drop_cell(secd, result);
 
-    drop_cell(secd, secd->env);
-    secd->env = prevenv;
-    // share_cell(secd, prevenv); drop_cell(secd, prevenv);
-
-    secd->control = prevcontrol;
-    // share_cell(secd, prevcontrol); drop_cell(secd, prevcontrol);
-
+    assign_cell(secd, &secd->env, kont->as.kont.env);
     /* restoring I/O */
-    cell_t *frame_io = get_car(prevenv);
+    cell_t *frame_io = get_car(secd->env);
     secd->input_port = get_car(frame_io->as.frame.io);
     secd->output_port = get_cdr(frame_io->as.frame.io);
 
+    secd->control = share_cell(secd, kont->as.kont.ctrl);
+
+    drop_cell(secd, kont);
     return result;
 }
 
@@ -574,29 +573,20 @@ cell_t *secd_rap(secd_t *secd) {
     cell_t *func = get_car(closure);
     cell_t *argnames = get_car(func);
 
-    push_dump(secd, secd->control);
-    push_dump(secd, get_cdr(secd->env));
-    push_dump(secd, secd->stack);
+    push_dump(secd, new_continuation(secd,
+                        secd->stack, get_cdr(secd->env), secd->control));
 
     cell_t *frame = setup_frame(secd, argnames, argvals, list_next(secd, newenv));
     assert_cell(frame, "secd_rap: setup_frame() failed");
 
-#if ENVDEBUG
-    printf("new frame: \n"); dbg_printc(secd, frame);
-    printf(" argnames: \n"); dbg_printc(secd, argnames);
-    printf(" argvals : \n"); dbg_printc(secd, argvals);
-#endif
     newenv->as.cons.car = share_cell(secd, frame);
 
     drop_cell(secd, secd->stack);
     secd->stack = SECD_NIL;
 
-    cell_t *oldenv = secd->env;
-    secd->env = share_cell(secd, newenv);
-
+    assign_cell(secd, &secd->env, newenv);
     set_control(secd, &func->as.cons.cdr->as.cons.car);
 
-    drop_cell(secd, oldenv);
     drop_cell(secd, closure); drop_cell(secd, argvals);
     return secd->truth_value;
 }
@@ -622,30 +612,6 @@ cell_t *secd_print(secd_t *secd) {
     printf("\n");
     return top;
 }
-
-const cell_t cons_func  = INIT_OP(SECD_CONS);
-const cell_t car_func   = INIT_OP(SECD_CAR);
-const cell_t cdr_func   = INIT_OP(SECD_CDR);
-const cell_t add_func   = INIT_OP(SECD_ADD);
-const cell_t sub_func   = INIT_OP(SECD_SUB);
-const cell_t mul_func   = INIT_OP(SECD_MUL);
-const cell_t div_func   = INIT_OP(SECD_DIV);
-const cell_t rem_func   = INIT_OP(SECD_REM);
-const cell_t leq_func   = INIT_OP(SECD_LEQ);
-const cell_t ldc_func   = INIT_OP(SECD_LDC);
-const cell_t ld_func    = INIT_OP(SECD_LD);
-const cell_t eq_func    = INIT_OP(SECD_EQ);
-const cell_t type_func  = INIT_OP(SECD_TYPE);
-const cell_t sel_func   = INIT_OP(SECD_SEL);
-const cell_t join_func  = INIT_OP(SECD_JOIN);
-const cell_t ldf_func   = INIT_OP(SECD_LDF);
-const cell_t ap_func    = INIT_OP(SECD_AP);
-const cell_t rtn_func   = INIT_OP(SECD_RTN);
-const cell_t dum_func   = INIT_OP(SECD_DUM);
-const cell_t rap_func   = INIT_OP(SECD_RAP);
-const cell_t read_func  = INIT_OP(SECD_READ);
-const cell_t print_func = INIT_OP(SECD_PRN);
-const cell_t stop_func  = INIT_OP(SECD_STOP);
 
 const opcode_t opcode_table[] = {
     // opcodes: for information, not to be called

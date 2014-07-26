@@ -91,6 +91,7 @@ cell_t * run_secd(secd_t *secd, cell_t *ctrl) {
  *  Serialization
  */
 const char * secd_type_names[] = {
+    [CELL_UNDEF] = "void",
     [CELL_CONS]  = "cons",
     [CELL_ARRAY] = "vect",
     [CELL_STR]   = "str",
@@ -104,6 +105,7 @@ const char * secd_type_names[] = {
     [CELL_CHAR]  = "char",
     [CELL_OP]    = "op",
     [CELL_FUNC]  = "func",
+    [CELL_KONT]  = "kont",
     [CELL_PORT]  = "port",
     [CELL_ERROR] = "err"
 };
@@ -172,6 +174,11 @@ cell_t *serialize_cell(secd_t *secd, cell_t *cell) {
             cell_t *ioc = chain_index(secd, cell->as.frame.io, SECD_NIL);
             cell_t *nextc = chain_index(secd, cell->as.frame.cons.cdr, ioc);
             opt = chain_index(secd, cell->as.frame.cons.car, nextc);
+        } break;
+      case CELL_KONT: {
+            cell_t *kctrl = chain_index(secd, cell->as.kont.ctrl, SECD_NIL);
+            cell_t *kenv  = chain_index(secd, cell->as.kont.env,  kctrl);
+            opt = chain_index(secd, cell->as.kont.stack, kenv);
         } break;
       case CELL_FREE: {
             cell_t *nextc = chain_index(secd, get_cdr(cell), SECD_NIL);

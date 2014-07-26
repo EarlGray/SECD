@@ -33,6 +33,7 @@ cell_t *new_const_clone(secd_t *secd, const cell_t *from);
 cell_t *new_clone(secd_t *secd, cell_t *from);
 
 cell_t *new_error(secd_t *secd, const char *fmt, ...);
+cell_t *new_continuation(secd_t *secd, cell_t *s, cell_t *e, cell_t *c);
 
 cell_t *init_with_copy(
         secd_t *secd,
@@ -143,7 +144,6 @@ arr_set(secd_t *secd, cell_t *arr, size_t index, const cell_t *val) {
 }
 
 cell_t *fill_array(secd_t *secd, cell_t *arr, cell_t *with);
-
 
 /*
  *    Global machine operations

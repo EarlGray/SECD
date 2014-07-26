@@ -94,6 +94,7 @@ enum cell_type {
     CELL_STR,   // shares a pointer to a UTF8 byte sequence
     CELL_BYTES, // shares a pointer to a raw byte sequence
     CELL_FRAME, // a environment frame, private; the same as CELL_CONS
+    CELL_KONT,  // continuation: (stack, env, ctrl)
     CELL_ARRMETA,   // array metadata, private; a double linked node like CELL_CONS
     CELL_FREE,  // free list node; a double linked node like CELL_CONS
 
@@ -127,6 +128,12 @@ struct symbol {
 struct frame {
     struct cons cons;    // must be first to cast to cons
     cell_t *io;     // cons of *stdin* and *stdout* for the frame
+};
+
+struct kont {
+    cell_t *stack;
+    cell_t *env;
+    cell_t *ctrl;
 };
 
 struct metacons {
@@ -183,10 +190,11 @@ struct cell {
         string_t str;           // CELL_STR
         array_t  arr;           // CELL_ARR, CELL_BYTES
         int      num;           // CELL_INT, CELL_CHAR
-        void    *ptr;           // CELL_FUNC
+        void     *ptr;          // CELL_FUNC
+        cell_t   *ref;          // CELL_REF
         opindex_t op;           // CELL_OP
-        cell_t *ref;            // CELL_REF
         struct metacons mcons;  // CELL_ARRMETA
+        struct kont     kont;   // CELL_KONT
     } as;
 };
 
@@ -211,14 +219,13 @@ struct secd {
 
     /* these lists reside between secd->begin and secd->fixedptr */
     cell_t *stack;      // list
-    cell_t *env;        // list
-    cell_t *control;    // list
-    cell_t *dump;       // list
+    cell_t *env;        // list of CELL_FRAME
+    cell_t *control;    // list of CELL_OP
+    cell_t *dump;       // list of CELL_KONT
 
     cell_t *free;       // double-linked list
     cell_t *global_env; // frame
-    cell_t *symstore;   // symbol storage info:
-                        //   ((hasharray . hashsize) . (buflist . currptr))
+    cell_t *symstore;   // symbol storage info array
 
     // all cells before this one are fixed-size cells
     cell_t *fixedptr;   // pointer
@@ -364,12 +371,8 @@ inline static cell_t *mcons_next(cell_t *mcons) {
         .len = sizeof(txt) } }
 
 /*
- * parser
+ * reader/parser
  */
-struct secd_stream {
-    int (*read)(void *);
-    void *state;
-};
 
 void dbg_print_cell(secd_t *secd, const cell_t *c);
 void dbg_printc(secd_t *secd, cell_t *c);

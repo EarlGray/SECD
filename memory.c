@@ -102,6 +102,11 @@ cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
       case CELL_PORT:
         secd_pclose(secd, c);
         break;
+      case CELL_KONT:
+        drop_cell(secd, c->as.kont.stack);
+        drop_cell(secd, c->as.kont.env);
+        drop_cell(secd, c->as.kont.ctrl);
+        break;
       case CELL_ARRMETA:
         if (c->as.mcons.cells) {
             size_t size = arrmeta_size(secd, c);
@@ -370,6 +375,15 @@ cell_t *new_frame(secd_t *secd, cell_t *syms, cell_t *vals) {
     cons->type = CELL_FRAME;
     /* don't forget to initialize as.frame.io later */
     return cons;
+}
+
+cell_t *new_continuation(secd_t *secd, cell_t *s, cell_t *e, cell_t *c) {
+    cell_t *k = pop_free(secd);
+    k->type = CELL_KONT;
+    k->as.kont.stack = share_cell(secd, s);
+    k->as.kont.env   = share_cell(secd, e);
+    k->as.kont.ctrl  = share_cell(secd, c);
+    return c;
 }
 
 cell_t *init_number(cell_t *c, int n) {
@@ -719,7 +733,13 @@ cell_t *init_with_copy(secd_t *secd,
         share_cell(secd, with->as.cons.car);
         share_cell(secd, with->as.cons.cdr);
         break;
+      case CELL_KONT:
+        share_cell(secd, with->as.kont.stack);
+        share_cell(secd, with->as.kont.env);
+        share_cell(secd, with->as.kont.ctrl);
+        break;
       case CELL_SYM:
+        share_cell(secd, with->as.sym.bvect);
         break;
       case CELL_REF:
         share_cell(secd, with->as.ref);
@@ -1022,6 +1042,11 @@ void secd_owned_cell_for(cell_t *cell,
       case CELL_FRAME:
           *ref1 = get_car(cell); *ref2 = get_cdr(cell);
           *ref3 = cell->as.frame.io;
+          break;
+      case CELL_KONT:
+          *ref1 = cell->as.kont.stack;
+          *ref2 = cell->as.kont.env;
+          *ref3 = cell->as.kont.ctrl;
           break;
       case CELL_STR:
           *ref1 = arr_meta((cell_t*)strmem(cell));
