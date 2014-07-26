@@ -383,7 +383,7 @@ cell_t *new_continuation(secd_t *secd, cell_t *s, cell_t *e, cell_t *c) {
     k->as.kont.stack = share_cell(secd, s);
     k->as.kont.env   = share_cell(secd, e);
     k->as.kont.ctrl  = share_cell(secd, c);
-    return c;
+    return k;
 }
 
 cell_t *init_number(cell_t *c, int n) {

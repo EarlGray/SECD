@@ -42,7 +42,7 @@ void dbg_print_cell(secd_t *secd, const cell_t *c) {
         if (isprint(c->as.num)) printf("#\\%c\n", (char)c->as.num);
         else printf("#x%x\n", c->as.num);
         break;
-      case CELL_OP:   print_opcode(c->as.op); break;
+      case CELL_OP:   print_opcode(c->as.op); printf("\n"); break;
       case CELL_FUNC: printf("*%p()\n", c->as.ptr); break;
       case CELL_KONT: printf("KONT[%ld, %ld, %ld]\n",
                              cell_index(secd, c->as.kont.stack),

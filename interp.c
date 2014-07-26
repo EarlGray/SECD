@@ -536,7 +536,6 @@ cell_t *secd_rtn(secd_t *secd) {
     }
 
     secd->stack = share_cell(secd, new_cons(secd, result, kont->as.kont.stack));
-    drop_cell(secd, result);
 
     assign_cell(secd, &secd->env, kont->as.kont.env);
     /* restoring I/O */
@@ -546,6 +545,7 @@ cell_t *secd_rtn(secd_t *secd) {
 
     secd->control = share_cell(secd, kont->as.kont.ctrl);
 
+    drop_cell(secd, result);
     drop_cell(secd, kont);
     return result;
 }
