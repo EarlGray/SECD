@@ -371,5 +371,13 @@
   (secd-bind! '*prompt* "\n;>> ")
   (secd-bind! '*macros*
     (list
-      (cons 'define-macro   secd-define-macro!)))
+      (cons 'define-macro   secd-define-macro!)
+      (cons 'ref
+        (lambda (val) (list 'make-vector 1 val)))
+      (cons 'define!
+        (lambda (sym val) (list 'secd-bind! `(quote ,sym) `(ref ,val))))
+      (cons 'set!
+        (lambda (sym val) (list 'vector-set! sym 0 val)))
+      (cons 'val
+        (lambda (sym) (list 'vector-ref sym 0)))))
   (repl)))
