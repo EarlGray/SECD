@@ -206,6 +206,8 @@
           ((null? tl) (display 'Error:_secd-apply_requires_args))
           ((null? (cdr tl)) (display 'Error:_secd-apply_requires_second_arg))
           (else (append (secd-compile (car (cdr tl))) (secd-compile (car tl)) '(AP)))))
+      ((eq? hd 'call/cc)
+        (append (secd-compile (car tl)) '(APCC)))
       ((eq? hd 'quit)
         '(STOP))
       (else

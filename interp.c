@@ -457,14 +457,31 @@ static cell_t *extract_argvals(secd_t *secd) {
     return argvals;
 }
 
-static cell_t *secd_ap_native(secd_t *secd, cell_t *clos, cell_t *args) {
+static cell_t *secd_ap_native(secd_t *secd, cell_t *clos, cell_t *argv) {
     secd_nativefunc_t native = (secd_nativefunc_t)clos->as.ptr;
-    cell_t *result = native(secd, args);
+    cell_t *result = native(secd, argv);
     assert_cellf(result, "secd_ap: a built-in routine failed: %s", errmsg(result));
     push_stack(secd, result);
 
-    drop_cell(secd, clos); drop_cell(secd, args);
+    drop_cell(secd, clos); drop_cell(secd, argv);
     return result;
+}
+
+static cell_t *
+secd_ap_cont(secd_t *secd, cell_t *kont, cell_t *dump, cell_t *argv)
+{
+    assert(not_nil(argv), "secd_ap: no arguments for continuation call");
+    cell_t *kontval = get_car(argv);
+
+    assign_cell(secd, &secd->stack, kont->as.kont.stack);
+    push_stack(secd, kontval);
+
+    assign_cell(secd, &secd->env,   kont->as.kont.env);
+    set_control(secd, &kont->as.kont.ctrl);
+
+    assign_cell(secd, &secd->dump, dump); /* whoa, yeah */
+
+    return secd->truth_value;
 }
 
 cell_t *secd_ap(secd_t *secd) {
@@ -482,6 +499,12 @@ cell_t *secd_ap(secd_t *secd) {
 
     assert(is_cons(closure), "secd_ap: closure is not a cons");
     cell_t *func = get_car(closure);
+
+    if (cell_type(func) == CELL_KONT) {
+        secd_ap_cont(secd, func, get_cdr(closure), argvals);
+        drop_cell(secd, closure); drop_cell(secd, argvals);
+        return secd->control;
+    }
     assert(is_cons(func), "secd_ap: not a cons at func definition");
 
     cell_t *newenv = get_cdr(closure);
@@ -588,6 +611,49 @@ cell_t *secd_rap(secd_t *secd) {
     return secd->truth_value;
 }
 
+cell_t *secd_apcc(secd_t *secd) {
+    ctrldebugf("APCC\n");
+
+    cell_t *closure = pop_stack(secd);
+    assert_cell(closure, "secd_apcc: pop_stack(closure) failed");
+    assert(is_cons(closure), "secd_apcc: closure is not a cons");
+
+    cell_t *func = get_car(closure);
+    assert(is_cons(func), "secd_apcc: not a cons at function in closure");
+
+    cell_t *newenv = get_cdr(closure);
+    assert(is_cons(newenv), "secd_apcc: not a cons at env in closure");
+    assert(not_nil(newenv), "secd_apcc: empty env");
+    assert(cell_type(list_head(newenv)) == CELL_FRAME,
+           "secd_apcc: not a frame in newenv");
+
+    cell_t *current_cont =
+        new_continuation(secd, secd->stack, secd->env, secd->control);
+
+    cell_t *args = get_car(func);
+    assert(is_cons(args), "secd_apcc: not a cons at args in closure");
+    assert(not_nil(args), "secd_apcc: zero args in closure");
+    assert(is_nil(list_next(secd, args)),
+           "secd_apcc: more than 1 argument in closure");
+    cell_t *argv = share_cell(secd,
+        new_cons(secd,
+                 new_cons(secd, current_cont, secd->dump),
+                 SECD_NIL));
+    cell_t *frame = setup_frame(secd, args, argv, newenv);
+
+    push_dump(secd, current_cont);
+
+    drop_cell(secd, secd->stack);
+    secd->stack = SECD_NIL;
+
+    assign_cell(secd, &secd->env, new_cons(secd, frame, newenv));
+
+    set_control(secd, &func->as.cons.cdr->as.cons.car);
+
+    drop_cell(secd, closure); drop_cell(secd, argv);
+    return secd->truth_value;
+}
+
 
 cell_t *secd_read(secd_t *secd) {
     ctrldebugf("READ\n");
@@ -615,6 +681,7 @@ const opcode_t opcode_table[] = {
     // keep symbols sorted properly!
     [SECD_ADD]  = { "ADD",     secd_add,  0, -1},
     [SECD_AP]   = { "AP",      secd_ap,   0, -1},
+    [SECD_APCC] = { "APCC",    secd_apcc, 0,  0},
     [SECD_CAR]  = { "CAR",     secd_car,  0,  0},
     [SECD_CDR]  = { "CDR",     secd_cdr,  0,  0},
     [SECD_CONS] = { "CONS",    secd_cons, 0, -1},

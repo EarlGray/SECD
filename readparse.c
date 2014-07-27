@@ -47,7 +47,7 @@ void dbg_print_cell(secd_t *secd, const cell_t *c) {
       case CELL_KONT: printf("KONT[%ld, %ld, %ld]\n",
                              cell_index(secd, c->as.kont.stack),
                              cell_index(secd, c->as.kont.env),
-                             cell_index(secd, c->as.kont.ctrl));
+                             cell_index(secd, c->as.kont.ctrl)); break;
       case CELL_ARRAY: printf("ARR[%ld]\n",
                                cell_index(secd, arr_val(c, 0))); break;
       case CELL_STR: printf("STR[%ld\n",
