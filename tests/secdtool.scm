@@ -26,11 +26,16 @@
 (define (takes-from-stack info) (cadr info))
 (define (puts-to-stack info)    (caddr info))
 
+(define (closure-func clos) (car clos))
+(define (secd-func-ctrl func) (cadr func))
+(define (secd-func-args func) (car func))
+(define (closure-ctrl clos) (secd-func-ctrl (closure-func clos)))
+
 (define (info-for op)
   (letrec ((search
              (lambda (info)
                (if (null? info)
-                   'err:_no_info_for 
+                   'err:_no_info_for
                    (if (eq? op (car (car info)))
                      (cdr (car info))
                      (search (cdr info)))))))
@@ -78,7 +83,7 @@
                 ((> 0 depth1) 'error:_stack_underflow)
                 ((eq? (car oplst) #.SEL)
                   (begin
-                    (define thendepth 
+                    (define thendepth
                               (secd-ctrl-fold iteration depth2 (cadr oplst)))
                     (define elsedepth
                               (secd-ctrl-fold iteration depth2 (caddr oplst)))
@@ -90,5 +95,41 @@
     (secd-ctrl-fold iteration 0 ctrl)))
 
 (define (valid-stack clos)
-    (eq? 1 (secd-stack-depth (cadar clos))))
+    (eq? 1 (secd-stack-depth (closure-ctrl clos))))
+
+(define (bound-variables func)
+  (let ((ht (make-hashtable)))
+    (begin   ;; using (hashtable-size as counter:
+      (for-each (lambda (arg) (hashtable-set! ht arg (hashtable-size ht))) (secd-func-args func))
+      ht)))
+
+;; takes a compiled function definition (func part of a closure)
+;; returns hashtable with FV set as keys
+(define (free-variables func)
+  (letrec
+    ((bv-ht (bound-variables func))
+     (save-freevar
+       (lambda (ht var) (hashtable-set! ht var (- 0 (hashtable-size ht)))))
+     (process-opcode
+       (lambda (fv-ht oplst info)
+         (begin
+           (cond
+             ((eq? (car oplst) #.LD)
+               ;; check the variable
+               (let ((var (cadr oplst)))
+                 (let ((mb-val (hashtable-mb-ref fv-ht var)))
+                   (if (null? mb-val)
+                     (if (not (hashtable-exists? bv-ht var)) (save-freevar fv-ht var) #f)
+                     #f))))
+             ((eq? (car oplst) #.LDF)
+               ;; descend into the lambda recursively
+               (let ((subfunc (cadr oplst)))
+                  (for-each
+                    (lambda (k)
+                       (if (hashtable-exists? bv-ht k)
+                           #f
+                           (if (hashtable-exists? fv-ht k) #f (save-freevar fv-ht k))))
+                    (hashtable-keys (free-variables subfunc))))))
+         fv-ht))))
+   (secd-ctrl-fold process-opcode (make-hashtable) (secd-func-ctrl func))))
 

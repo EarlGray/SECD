@@ -24,14 +24,6 @@
     ((eq? nth 0) (cdr xs)(
     (else (list-tail (cdr xs) (- nth 1))))))))
 
-(reverse (lambda (xs)
-  (letrec ((reverse-acc
-      (lambda (acc xs)
-        (if (null? xs) acc
-          (let ((hd (car xs)) (tl (cdr xs)))
-               (reverse-acc (cons hd acc) tl))))))
-    (reverse-acc '() xs))))
-
 (unzip (lambda (ps)
     (letrec
       ((unzipt
@@ -56,6 +48,32 @@
     ((null? alist)          #f)
     ((eq? (caar alist) obj) (car alist))
     (else (assq obj (cdr alist))))))
+
+(for-each (lambda (func lst)
+  (if (null? lst) '()
+      (begin (func (car lst)) (for-each func (cdr lst))))))
+
+(list-fold (lambda (func val lst)
+  (cond
+    ((null? lst) val)
+    (else (list-fold func (func (car lst) val) (cdr lst))))))
+
+(reverse (lambda (lst) (list-fold cons '() lst)))
+
+;(map (lambda (func lst) (list-fold (lambda (x v)
+
+(vector-map (lambda (func vect)
+  (let ((vectlen (vector-length vect)))
+    (letrec
+      ((result (make-vector vectlen))
+       (iter (lambda (index)
+          (if (<= vectlen index)
+              result
+              (begin
+                (vector-set! result index (func (vector-ref vect index)))
+                (iter (+ 1 index)))))))
+      (iter 0)))))
+
 
 ;;
 ;;  Scheme to SECD compiler
@@ -263,12 +281,12 @@
 (lookup-macro (lambda (name)
    (letrec
       ((lookup
-        (lambda (*macro-list*)
-          (if (null? *macro-list*) '()
-              (let ((hd (car *macro-list*)))
+        (lambda (macro-list)
+          (if (null? macro-list) '()
+              (let ((hd (car macro-list)))
                  (let ((macro-name (car hd)))
                    (if (eq? macro-name name) (cdr hd)
-                       (lookup (cdr *macro-list*)))))))))
+                       (lookup (cdr macro-list)))))))))
     (if (symbol? name)
         (lookup *macros*)
         '()))))
