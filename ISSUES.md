@@ -37,6 +37,7 @@ Defects Pending:
 | D5    | Crash on `(list->vector (read-file (open-input-file "repl.scm")))` (large lists?)
 | D6    | the Yin-Yang call/cc puzzle does not work as expected
 | D7    | secdtool:free-variables does not handle #.DUM - #.RAP correctly
+| D8    | crash on (secd 'gc)
 
 Defects Fixed:
 =============

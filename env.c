@@ -148,7 +148,7 @@ static bool name_eq(const char *sym, hash_t symh, cell_t *cursym,
 cell_t *lookup_env(secd_t *secd, const char *symbol, cell_t **symc) {
     cell_t *env = secd->env;
     assert(cell_type(env) == CELL_CONS,
-            "lookup_env: environment is not a list\n");
+            "lookup_env: environment is not a list");
 
     cell_t *res = lookup_fake_variables(secd, symbol);
     if (not_nil(res)) {
@@ -172,7 +172,8 @@ cell_t *lookup_env(secd_t *secd, const char *symbol, cell_t **symc) {
         while (not_nil(symlist)) {   // walk through symbols
             cell_t *curc = get_car(symlist);
             assert(is_symbol(curc),
-                   "lookup_env: variable at [%ld] is not a symbol\n", cell_index(secd, curc));
+                   "lookup_env: variable at [%ld] is not a symbol\n",
+                   cell_index(secd, curc));
 
             if (mod) {
                 if (name_eq(symbol, symh, curc, mod, modlen, open)) {
@@ -192,14 +193,14 @@ cell_t *lookup_env(secd_t *secd, const char *symbol, cell_t **symc) {
 
         env = list_next(secd, env);
     }
-    errorf("lookup_env: %s not found\n", symbol);
+    errorf(";; error in lookup_env(): %s not found\n", symbol);
     return new_error(secd, "lookup failed for: '%s'", symbol);
 }
 
 cell_t *lookup_symenv(secd_t *secd, const char *symbol) {
     cell_t *env = secd->env;
     assert(cell_type(env) == CELL_CONS,
-            "lookup_symbol: environment is not a list\n");
+            ";; error in lookup_symbol(): environment is not a list");
 
     cell_t *res = lookup_fake_variables(secd, symbol);
     if (not_nil(res))
@@ -212,7 +213,8 @@ cell_t *lookup_symenv(secd_t *secd, const char *symbol) {
         while (not_nil(symlist)) {   // walk through symbols
             cell_t *cur_sym = get_car(symlist);
             assert(is_symbol(cur_sym),
-                    "lookup_symbol: variable at [%ld] is not a symbol\n", cell_index(secd, cur_sym));
+                   ";; error in lookup_symbol(): variable at [%ld] is not a symbol",
+                   cell_index(secd, cur_sym));
 
             if (str_eq(symbol, symname(cur_sym))) {
                 return cur_sym;

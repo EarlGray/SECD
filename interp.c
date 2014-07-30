@@ -501,9 +501,10 @@ cell_t *secd_ap(secd_t *secd) {
     cell_t *func = get_car(closure);
 
     if (cell_type(func) == CELL_KONT) {
-        secd_ap_cont(secd, func, get_cdr(closure), argvals);
+        cell_t *ret =
+            secd_ap_cont(secd, func, get_cdr(closure), argvals);
         drop_cell(secd, closure); drop_cell(secd, argvals);
-        return secd->control;
+        return ret;
     }
     assert(is_cons(func), "secd_ap: not a cons at func definition");
 

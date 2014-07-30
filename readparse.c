@@ -477,7 +477,8 @@ static cell_t *read_bytevector(secd_parser_t *p) {
     cell_t *cur;
     size_t len = 0;
     while (lexnext(p) == TOK_NUM) {
-        assert((0 <= p->numtok) && (p->numtok < 256), "read_bytevector: out of range");
+        assert((0 <= p->numtok) && (p->numtok < 256),
+                "read_bytevector: out of range");
 
         cell_t *newc = new_cons(secd, new_number(secd, p->numtok), SECD_NIL);
         if (not_nil(tmplist)) {
@@ -533,7 +534,8 @@ static cell_t *read_token(secd_t *secd, secd_parser_t *p) {
         assert(formname, "No  special form for token=%d\n", tok);
         inp = sexp_read(secd, p);
         assert_cell(inp, "sexp_read: reading subexpression failed");
-        return new_cons(secd, new_symbol(secd, formname), new_cons(secd, inp, SECD_NIL));
+        return new_cons(secd, new_symbol(secd, formname),
+                              new_cons(secd, inp, SECD_NIL));
       }
 
       case '#':

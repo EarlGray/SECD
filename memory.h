@@ -35,11 +35,11 @@ cell_t *new_clone(secd_t *secd, cell_t *from);
 cell_t *new_error(secd_t *secd, const char *fmt, ...);
 cell_t *new_continuation(secd_t *secd, cell_t *s, cell_t *e, cell_t *c);
 
-cell_t *init_with_copy(
+cell_t *copy_value(
         secd_t *secd,
         cell_t *__restrict cell,
         const cell_t *__restrict with);
-cell_t *drop_dependencies(secd_t *secd, cell_t *c);
+cell_t *drop_value(secd_t *secd, cell_t *c);
 
 cell_t *free_cell(secd_t *, cell_t *c);
 
@@ -66,21 +66,22 @@ inline static cell_t *share_cell(secd_t __unused *secd, cell_t *c) {
     return c;
 }
 
-inline static cell_t *drop_cell(secd_t *secd, cell_t *c) {
+inline static int drop_cell(secd_t *secd, cell_t *c) {
     if (is_nil(c)) {
         memtracef("drop [NIL]\n");
-        return NULL;
+        return 1;
     }
     if (c->nref <= 0) {
-        errorf("%lu | drop_cell[%ld]: negative\n", secd->tick, cell_index(secd, c));
-        return new_error(secd, "drop_cell[%ld]: c->nref=%d",
-                cell_index(secd, c), c->nref);
+        errorf(";; %lu | error in drop_cell[%ld]: negative nref\n",
+                secd->tick, cell_index(secd, c));
+        return -1;
     }
 
     -- c->nref;
     memtracef("drop [%ld] %ld\n", cell_index(c), c->nref);
-    if (c->nref) return c;
-    return free_cell(secd, c);
+    if (c->nref) return 0;
+    free_cell(secd, c);
+    return 0;
 }
 
 inline static cell_t *assign_cell(secd_t *secd, cell_t **cell, cell_t *what) {
@@ -138,8 +139,8 @@ static inline cell_t *arr_ref(cell_t *arr, size_t index) {
 static inline cell_t *
 arr_set(secd_t *secd, cell_t *arr, size_t index, const cell_t *val) {
     cell_t *ref = arr_ref(arr, index);
-    drop_dependencies(secd, ref);
-    init_with_copy(secd, ref, val);
+    drop_value(secd, ref);
+    copy_value(secd, ref, val);
     return arr;
 }
 

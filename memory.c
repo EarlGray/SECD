@@ -15,21 +15,33 @@
 
 /* internal declarations */
 void free_array(secd_t *secd, cell_t *this);
-void push_free(secd_t *secd, cell_t *c);
+int push_free(secd_t *secd, cell_t *c);
 
 inline static cell_t *share_array(secd_t *secd, cell_t *mem) {
     share_cell(secd, arr_meta(mem));
     return mem;
 }
 
-inline static cell_t *drop_array(secd_t *secd, cell_t *mem) {
+inline static int drop_array(secd_t *secd, cell_t *mem) {
     cell_t *meta = arr_meta(mem);
     -- meta->nref;
     if (0 == meta->nref) {
-        drop_dependencies(secd, meta);
+        if (meta->as.mcons.cells) {
+            size_t size = arrmeta_size(secd, meta);
+            size_t i;
+
+            /* free the items */
+            for (i = 0; i < size; ++i) {
+                /* don't free uninitialized */
+                cell_t *ith = meta_mem(meta) + i;
+                if (cell_type(ith) != CELL_UNDEF)
+                    drop_value(secd, ith);
+            }
+        }
         free_array(secd, mem);
+        return 1;
     }
-    return SECD_NIL;
+    return 0;
 }
 
 /*
@@ -80,7 +92,7 @@ hash_t memhash(const char *key, size_t len) {
  */
 
 /* Deallocation */
-cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
+cell_t *drop_value(secd_t *secd, cell_t *c) {
     enum cell_type t = cell_type(c);
     switch (t) {
       case CELL_FRAME:
@@ -92,7 +104,9 @@ cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
             drop_cell(secd, get_cdr(c));
         }
         break;
-      case CELL_STR:
+      case CELL_STR: case CELL_BYTES:
+        drop_array(secd, (cell_t*)strmem(c));
+        break;
       case CELL_ARRAY:
         drop_array(secd, arr_mem(c));
         break;
@@ -107,32 +121,22 @@ cell_t *drop_dependencies(secd_t *secd, cell_t *c) {
         drop_cell(secd, c->as.kont.env);
         drop_cell(secd, c->as.kont.ctrl);
         break;
-      case CELL_ARRMETA:
-        if (c->as.mcons.cells) {
-            size_t size = arrmeta_size(secd, c);
-            size_t i;
-
-            /* free the items */
-            for (i = 0; i < size; ++i) {
-                /* don't free uninitialized */
-                cell_t *ith = meta_mem(c) + i;
-                if (cell_type(ith) != CELL_UNDEF)
-                    drop_dependencies(secd, ith);
-            }
-        }
-        break;
       case CELL_SYM:
-      case CELL_INT: case CELL_FUNC: case CELL_OP:
-      case CELL_ERROR: case CELL_UNDEF:
+        drop_cell(secd, c->as.sym.bvect);
+        break;
+      case CELL_INT: case CELL_CHAR: case CELL_FUNC:
+      case CELL_OP: case CELL_ERROR: case CELL_UNDEF:
         return c;
       default:
-        return new_error(secd, "drop_dependencies: unknown cell_type 0x%x", t);
+        errorf("drop_value: unknown cell type %d\n", t);
+        return SECD_NIL;
     }
     return c;
 }
 
 cell_t *free_cell(secd_t *secd, cell_t *c) {
-    push_free(secd, drop_dependencies(secd, c));
+    drop_value(secd, c);
+    push_free(secd, c);
     return SECD_NIL;
 }
 
@@ -164,11 +168,17 @@ cell_t *pop_free(secd_t *secd) {
     return cell;
 }
 
-void push_free(secd_t *secd, cell_t *c) {
-    assertv(c, "push_free(NULL)");
-    assertv(c->nref == 0,
+int push_free(secd_t *secd, cell_t *c) {
+    asserti(c, "push_free(NULL)");
+    /*assertv(c->nref == 0,
             "push_free: [%ld]->nref is %ld\n", cell_index(secd, c), (long)c->nref);
-    assertv(c < secd->fixedptr, "push_free: Trying to free array cell");
+            */
+    if (c->nref > 0) {
+        errorf("push_free: [%ld]->nref is %ld\n",
+                cell_index(secd, c), (long)c->nref);
+        return -1;
+    }
+    asserti(c < secd->fixedptr, "push_free: Trying to free array cell");
 
     if (c + 1 < secd->fixedptr) {
         /* just add the cell to the list secd->free */
@@ -212,6 +222,8 @@ void push_free(secd_t *secd, cell_t *c) {
 
         secd->fixedptr = c + 1;
     }
+
+    return 1;
 }
 
 /*
@@ -227,7 +239,9 @@ static inline void mark_free(cell_t *metacons, bool free) {
     metacons->as.mcons.free = free;
 }
 
-static cell_t *init_meta(secd_t __unused *secd, cell_t *cell, cell_t *prev, cell_t *next) {
+static cell_t *init_meta(secd_t __unused *secd,
+                         cell_t *cell, cell_t *prev, cell_t *next)
+{
     cell->type = CELL_ARRMETA;
     cell->nref = 0;
     cell->as.mcons.prev = prev;
@@ -283,7 +297,7 @@ cell_t *alloc_array(secd_t *secd, size_t size) {
 
 void free_array(secd_t *secd, cell_t *mem) {
     assertv(mem <= secd->arrlist, "free_array: tried to free arrlist");
-    assertv(secd->arrayptr < mem, "free_array: not an array");
+    assertv(secd->arrayptr <= mem, "free_array: not an array");
 
     cell_t *meta = arr_meta(mem);
     cell_t *prev = mcons_prev(meta);
@@ -297,6 +311,7 @@ void free_array(secd_t *secd, cell_t *mem) {
             cell_t *pprev = prev->as.mcons.prev;
             pprev->as.mcons.next = meta;
             meta->as.mcons.prev = pprev;
+            prev->type = CELL_UNDEF;
         }
 
         cell_t *next = mcons_next(meta);
@@ -305,8 +320,8 @@ void free_array(secd_t *secd, cell_t *mem) {
             cell_t *newprev = meta->as.mcons.prev;
             next->as.mcons.prev = newprev;
             newprev->as.mcons.next = next;
+            meta->type = CELL_UNDEF;
         }
-        mark_free(meta, true);
     } else {
         /* move arrayptr into the array area */
         prev->as.mcons.next = SECD_NIL;
@@ -318,6 +333,7 @@ void free_array(secd_t *secd, cell_t *mem) {
             pprev->as.mcons.next = SECD_NIL;
             secd->arrayptr = pprev;
         }
+        meta->type = CELL_UNDEF;
     }
     memdebugf("FREE ARR[%ld]", cell_index(secd, meta));
 }
@@ -359,10 +375,9 @@ init_symptr(secd_t __unused *secd, cell_t *cell, const char *str) {
     if (cell_type(slice) != CELL_BYTES) {
         slice = symstore_add(secd, str);
     }
-    cell->as.sym.bvect = slice;
+    cell->as.sym.bvect = share_cell(secd, slice);
     cell->as.sym.data = slice->as.str.data + slice->as.str.offset;
 
-    free_cell(secd, slice);
     return cell;
 }
 
@@ -556,7 +571,7 @@ symstore_ref(secd_t *secd, int index) {
 static inline cell_t *
 symstore_get(secd_t *secd, int index) {
     cell_t *c = pop_free(secd);
-    return init_with_copy(secd, c, arr_val(secd->symstore, index));
+    return copy_value(secd, c, arr_val(secd->symstore, index));
 }
 
 cell_t *symstore_lookup(secd_t *secd, const char *str)
@@ -575,8 +590,11 @@ cell_t *symstore_lookup(secd_t *secd, const char *str)
     while (not_nil(entry)) {
         cell_t *slice = list_head(entry);
         const char *hashstr = slice->as.str.data + slice->as.str.offset;
-        if (!strcmp(hashstr, str))
-            return new_clone(secd, slice);
+        hash_t entry_hash = ((hash_t*)hashstr)[-1];
+
+        if (entry_hash == hash)
+            if (str_eq(hashstr, str))
+                return slice;
 
         entry = list_next(secd, entry);
     }
@@ -592,8 +610,8 @@ void symstorage_ht_insert(secd_t *secd, cell_t *hasharr, hash_t hash, cell_t *va
         cell_t *oldchain = new_clone(secd, hashchain);
         cell_t *newchain = new_cons(secd, val, oldchain);
 
-        drop_dependencies(secd, hashchain);
-        init_with_copy(secd, hashchain, newchain);
+        drop_value(secd, hashchain);
+        copy_value(secd, hashchain, newchain);
     } else {
         init_cons(secd, hashchain, val, SECD_NIL);
     }
@@ -602,9 +620,10 @@ void symstorage_ht_insert(secd_t *secd, cell_t *hasharr, hash_t hash, cell_t *va
 void symstorage_ht_rebalance(secd_t *secd) {
     cell_t *oldarr = share_cell(secd, symstore_get(secd, SYMSTORE_HASHARR));
     size_t hashcap = arr_size(secd, oldarr);
+    size_t newhashcap = 2 * hashcap;
 
     //errorf(";; symstorage_ht_rebalance to %lu\n", 2 * hashcap);
-    cell_t *newarr = share_cell(secd, new_array(secd, 2 * hashcap));
+    cell_t *newarr = share_cell(secd, new_array(secd, newhashcap));
 
     size_t i;
     for (i = 0; i < hashcap; ++i) {
@@ -698,15 +717,15 @@ void init_symstorage(secd_t *secd) {
 
     /* hashsize */
     cell_t *hashsize = share_cell(secd, new_number(secd, 0));
-    init_with_copy(secd, arr_ref(secd->symstore, SYMSTORE_HASHSZ), hashsize);
+    copy_value(secd, arr_ref(secd->symstore, SYMSTORE_HASHSZ), hashsize);
 
     /* hasharray */
     int inithashcap = 2;    /* initial table capacity */
     cell_t *hasharray = share_cell(secd, new_array(secd, inithashcap));
-    init_with_copy(secd, arr_ref(secd->symstore, SYMSTORE_HASHARR), hasharray);
+    copy_value(secd, arr_ref(secd->symstore, SYMSTORE_HASHARR), hasharray);
 
     /* buflist */
-    init_with_copy(secd, arr_ref(secd->symstore, SYMSTORE_BUFLIST), SECD_NIL);
+    copy_value(secd, arr_ref(secd->symstore, SYMSTORE_BUFLIST), SECD_NIL);
 
     drop_cell(secd, hashsize);
     drop_cell(secd, hasharray);
@@ -715,7 +734,7 @@ void init_symstorage(secd_t *secd) {
 /*
  *      Copy constructors
  */
-cell_t *init_with_copy(secd_t *secd,
+cell_t *copy_value(secd_t *secd,
                        cell_t *__restrict cell,
                        const cell_t *__restrict with)
 {
@@ -725,9 +744,12 @@ cell_t *init_with_copy(secd_t *secd,
         return cell;
     }
 
+    /* copy memory */
     *cell = *with;
 
-    cell->nref = 0;
+    /* a bit of a hack: assign array items nref=1 by default */
+    cell->nref = (cell < secd->arrayptr ? 0 : 1);
+
     switch (cell_type(with)) {
       case CELL_CONS: case CELL_FRAME:
         share_cell(secd, with->as.cons.car);
@@ -758,7 +780,7 @@ cell_t *init_with_copy(secd_t *secd,
       case CELL_ERROR: case CELL_UNDEF:
         break;
       case CELL_ARRMETA: case CELL_FREE:
-        errorf("init_with_copy: CELL_ARRMETA/CELL_FREE\n");
+        errorf("copy_value: CELL_ARRMETA/CELL_FREE\n");
         return new_error(secd, "trying to initialize with CELL_ARRMETA/CELL_FREE");
     }
     return cell;
@@ -768,14 +790,14 @@ cell_t *new_const_clone(secd_t *secd, const cell_t *from) {
     if (is_nil(from)) return NULL;
 
     cell_t *clone = pop_free(secd);
-    return init_with_copy(secd, clone, from);
+    return copy_value(secd, clone, from);
 }
 
 cell_t *new_clone(secd_t *secd, cell_t *from) {
     cell_t *clone = pop_free(secd);
     assert_cell(clone, "new_clone: allocation failed");
 
-    return init_with_copy(secd, clone, from);
+    return copy_value(secd, clone, from);
 }
 
 /*
@@ -911,7 +933,7 @@ cell_t *fill_array(secd_t *secd, cell_t *arr, cell_t *with) {
     size_t i;
 
     for (i = 0; i < len; ++i)
-        init_with_copy(secd, data + i, with);
+        copy_value(secd, data + i, with);
 
     return arr;
 }
@@ -923,8 +945,7 @@ cell_t *list_to_vector(secd_t *secd, cell_t *lst) {
     assert_cell(arr, "vector_from_list: allocation failed");
 
     for (i = 0; i < len; ++i) {
-        if (is_nil(lst)) break;
-        init_with_copy(secd, arr_ref(arr, i), get_car(lst));
+        copy_value(secd, arr_ref(arr, i), get_car(lst));
         lst = list_next(secd, lst);
     }
     return arr;
@@ -983,10 +1004,12 @@ cell_t *secd_first(secd_t *secd, cell_t *stream) {
             } break;
         case CELL_BYTES:
             if ((size_t)stream->as.str.offset < mem_size(stream))
-                return new_number(secd, (int) strval(stream)[ stream->as.str.offset ]);
+                return new_number(secd,
+                                 (int) strval(stream)[ stream->as.str.offset ]);
             break;
         default:
-            return new_error(secd, "first: %s is not iterable", secd_type_sym(secd, stream));
+            return new_error(secd, "first: %s is not iterable",
+                                   secd_type_sym(secd, stream));
     }
     /* End-of-stream */
     return SECD_NIL;
@@ -1023,7 +1046,8 @@ cell_t *secd_rest(secd_t *secd, cell_t *stream) {
             }
             break;
         default:
-            return new_error(secd, "rest: %s is not iterable", secd_type_sym(secd, stream));
+            return new_error(secd, "rest: %s is not iterable",
+                                   secd_type_sym(secd, stream));
     }
     return SECD_NIL;
 }
@@ -1036,29 +1060,39 @@ void secd_owned_cell_for(cell_t *cell,
 {
     *ref1 = *ref2 = *ref3 = SECD_NIL;
     switch (cell_type(cell)) {
+      case CELL_FRAME:
+          *ref3 = cell->as.frame.io;
+          /* FALLTHRU */
       case CELL_CONS:
           *ref1 = get_car(cell); *ref2 = get_cdr(cell);
-          break;
-      case CELL_FRAME:
-          *ref1 = get_car(cell); *ref2 = get_cdr(cell);
-          *ref3 = cell->as.frame.io;
           break;
       case CELL_KONT:
           *ref1 = cell->as.kont.stack;
           *ref2 = cell->as.kont.env;
           *ref3 = cell->as.kont.ctrl;
           break;
-      case CELL_STR:
+      case CELL_STR: case CELL_BYTES:
           *ref1 = arr_meta((cell_t*)strmem(cell));
           break;
-      case CELL_ARRAY: case CELL_BYTES:
+      case CELL_ARRAY:
           *ref1 = arr_meta(arr_mem(cell));
           break;
       case CELL_PORT:
           if (!cell->as.port.file)
               *ref1 = cell->as.port.as.str;
           break;
-      case CELL_REF: *ref1 = cell->as.ref; break;
+      case CELL_REF:
+          *ref1 = cell->as.ref;
+          break;
+      case CELL_SYM:
+          *ref1 = cell->as.sym.bvect;
+          break;
+      case CELL_ERROR: /* TODO */
+      /* getting owned cells is legal, no cells */
+      case CELL_INT: case CELL_CHAR: case CELL_OP:
+      case CELL_FUNC: case CELL_UNDEF:
+          break;
+      case CELL_FREE:
       default: break;
     }
 }
@@ -1084,23 +1118,23 @@ cell_t *secd_referers_for(secd_t *secd, cell_t *cell) {
 static void increment_nref_for_owned(secd_t *secd, cell_t *cell) {
     if (is_nil(cell)) return;
 
+    if (cell->nref > 0) return; /* already visited */
     ++cell->nref;
-    if (cell->nref > 1) return;
 
-    if (cell_type(cell) != CELL_ARRMETA) {
+    cell_t *meta = cell - 1;
+    if (cell_type(meta) == CELL_ARRMETA) {
+        if (meta->as.mcons.cells) {
+            size_t i;
+            size_t len = arrmeta_size(secd, meta);
+            for (i = 0; i < len; ++i)
+                increment_nref_for_owned(secd, cell + i);
+        }
+    } else {
         cell_t *ref1, *ref2, *ref3;
         secd_owned_cell_for(cell, &ref1, &ref2, &ref3);
         if (not_nil(ref1)) increment_nref_for_owned(secd, ref1);
         if (not_nil(ref2)) increment_nref_for_owned(secd, ref2);
         if (not_nil(ref3)) increment_nref_for_owned(secd, ref3);
-        return;
-    }
-
-    if (cell->as.mcons.cells) {
-        size_t i;
-        size_t len = arrmeta_size(secd, cell);
-        for (i = 0; i < len; ++i)
-            increment_nref_for_owned(secd, meta_mem(cell) + i);
     }
 }
 
@@ -1119,7 +1153,7 @@ void secd_mark_and_sweep_gc(secd_t *secd) {
             size_t i;
             size_t len = arrmeta_size(secd, meta);
             for (i = 0; i < len; ++i)
-                meta_mem(meta)[i].nref = 0;
+                meta_mem(meta)[i].nref = 1;
         }
         meta = mcons_next(meta);
     }
@@ -1161,7 +1195,6 @@ void secd_mark_and_sweep_gc(secd_t *secd) {
         if (prevmeta != secd->arrlist)
             pprev = mcons_prev(prevmeta);
 
-        drop_dependencies(secd, meta);
         /* here prevmeta may disappear: */
         free_array(secd, meta_mem(meta));
 
