@@ -5,13 +5,6 @@
 ;;  List routines
 ;;
 
-(length (lambda (xs)
-  (letrec
-    ((len (lambda (xs acc)
-            (if (null? xs) acc
-                (len (cdr xs) (+ 1 acc))))))
-    (len xs 0))))
-
 (list-ref (lambda (xs nth)
   (cond
     ((null? xs)  (raise 'err_out_of_bounds))
@@ -49,18 +42,15 @@
     ((eq? (caar alist) obj) (car alist))
     (else (assq obj (cdr alist))))))
 
-(for-each (lambda (func lst)
-  (if (null? lst) '()
-      (begin (func (car lst)) (for-each func (cdr lst))))))
-
 (list-fold (lambda (func val lst)
   (cond
     ((null? lst) val)
     (else (list-fold func (func (car lst) val) (cdr lst))))))
 
+(length (lambda (lst) (list-fold (lambda (x v) (+ 1 v)) 0 lst)))
 (reverse (lambda (lst) (list-fold cons '() lst)))
-
-;(map (lambda (func lst) (list-fold (lambda (x v)
+(for-each (lambda (func lst) (list-fold (lambda (x _) (func x)) #f lst)))
+(map (lambda (func lst) (reverse (list-fold (lambda (x v) (cons (func x) v)) '() lst))))
 
 (vector-map (lambda (func vect)
   (let ((vectlen (vector-length vect)))

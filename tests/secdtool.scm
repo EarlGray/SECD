@@ -106,30 +106,35 @@
 ;; takes a compiled function definition (func part of a closure)
 ;; returns hashtable with FV set as keys
 (define (free-variables func)
-  (letrec
-    ((bv-ht (bound-variables func))
-     (save-freevar
-       (lambda (ht var) (hashtable-set! ht var (- 0 (hashtable-size ht)))))
-     (process-opcode
-       (lambda (fv-ht oplst info)
-         (begin
-           (cond
-             ((eq? (car oplst) #.LD)
-               ;; check the variable
-               (let ((var (cadr oplst)))
-                 (let ((mb-val (hashtable-mb-ref fv-ht var)))
-                   (if (null? mb-val)
-                     (if (not (hashtable-exists? bv-ht var)) (save-freevar fv-ht var) #f)
-                     #f))))
-             ((eq? (car oplst) #.LDF)
-               ;; descend into the lambda recursively
-               (let ((subfunc (cadr oplst)))
-                  (for-each
-                    (lambda (k)
-                       (if (hashtable-exists? bv-ht k)
-                           #f
-                           (if (hashtable-exists? fv-ht k) #f (save-freevar fv-ht k))))
-                    (hashtable-keys (free-variables subfunc))))))
-         fv-ht))))
-   (secd-ctrl-fold process-opcode (make-hashtable) (secd-func-ctrl func))))
+  (let ((bv-ht (bound-variables func)))
+    (letrec
+      ((save-freevar
+         (lambda (ht var) (hashtable-set! ht var (- 0 (hashtable-size ht)))))
+       (process-opcode
+         (lambda (fv-ht oplst info)
+           (begin
+             (cond
+               ((eq? (car oplst) #.LD)
+                 ;; check the variable
+                 (let ((var (cadr oplst)))
+                   (let ((mb-val (hashtable-mb-ref fv-ht var)))
+                     (if (null? mb-val)
+                       (if (not (hashtable-exists? bv-ht var)) (save-freevar fv-ht var) #f)
+                       #f))))
+               ((eq? (car oplst) #.SEL)
+                 (begin
+                   (secd-ctrl-fold process-opcode fv-ht (cadr oplst))
+                   (secd-ctrl-fold process-opcode fv-ht (caddr oplst))))
+               ;((eq? (car oplst) #.DUM)  ;; TODO: rap-bindings might be used before RAP
+               ((eq? (car oplst) #.LDF)
+                 ;; descend into the lambda recursively
+                 (let ((subfunc (cadr oplst)))
+                    (for-each
+                      (lambda (k)
+                         (if (hashtable-exists? bv-ht k)
+                             #f
+                             (if (hashtable-exists? fv-ht k) #f (save-freevar fv-ht k))))
+                      (hashtable-keys (free-variables subfunc))))))
+           fv-ht))))
+     (secd-ctrl-fold process-opcode (make-hashtable) (secd-func-ctrl func)))))
 
