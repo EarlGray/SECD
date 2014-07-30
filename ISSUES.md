@@ -8,8 +8,7 @@ Tasks Pending:
 | T9    | Scheme language testing framework + tests
 | T10   | static check for stack correctness
 | T11   | static check for TCO during function compilation
-| T12   | fast environment lookup: self-bal. tree? 
-            static analysis for free variables? -> LDV index
+| T12   | fast environment lookup: self-bal. tree? Static analysis for free variables? -> LDV index
 | T13   | inline `let` lambdas
 | T14   | static analysis: rewrite simple tail-call iterations into loops
 | F3    | FEATURE: non-blocking I/O
@@ -36,6 +35,8 @@ Defects Pending:
 | Defect| Description
 |-------|--------------------
 | D5    | Crash on `(list->vector (read-file (open-input-file "repl.scm")))` (large lists?)
+| D6    | the Yin-Yang call/cc puzzle does not work as expected
+| D7    | secdtool:free-variables does not handle #.DUM - #.RAP correctly
 
 Defects Fixed:
 =============
