@@ -234,7 +234,7 @@ bool is_equal(secd_t *secd, const cell_t *a, const cell_t *b) {
       case CELL_CONS:  return list_eq(secd, a, b);
       case CELL_ARRAY: return array_eq(secd, a, b);
       case CELL_STR:   return !strcmp(strval(a), strval(b));
-      case CELL_SYM:   return (str_eq(symname(a), symname(b)));
+      case CELL_SYM:   return a->as.sym.data == b->as.sym.data;
       case CELL_INT: case CELL_CHAR:
                        return (a->as.num == b->as.num);
       case CELL_OP:    return (a->as.op == b->as.op);

@@ -130,8 +130,12 @@ static bool name_eq(const char *sym, hash_t symh, cell_t *cursym,
         const char *modname, size_t modlen, bool open)
 {
     const char *cur = symname(cursym);
-    if (open && (symh == symhash(cursym)) && str_eq(cur, sym))
-        return true;
+    if (open && (symh == symhash(cursym))) {
+        if (symname(cursym) == sym)
+           return true;
+        if (str_eq(cur, sym))
+            return true;
+    }
     if (sym[modlen] != ':')
         return false;
     if (!strncmp(sym, modname, modlen - 1)) {
