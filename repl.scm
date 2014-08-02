@@ -320,6 +320,8 @@
 (cdddr  (lambda (x) (cdr (cdr (cdr x)))))
 (caddar (lambda (x) (car (cdr (cdr (car x))))))
 
+(vector (lambda args (list->vector args)))
+
 (null?       (lambda (obj) (eq? obj '())))
 (pair?       (lambda (obj) (if (null? obj) #f (eq? (secd-type obj) 'cons))))
 (number?     (lambda (obj) (eq? (secd-type obj) 'int)))
