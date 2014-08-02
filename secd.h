@@ -189,7 +189,7 @@ struct cell {
         port_t   port;          // CELL_PORT
         error_t  err;           // CELL_ERR
         string_t str;           // CELL_STR
-        array_t  arr;           // CELL_ARR, CELL_BYTES
+        array_t  arr;           // CELL_ARRAY, CELL_BYTES
         int      num;           // CELL_INT, CELL_CHAR
         void     *ptr;          // CELL_FUNC
         cell_t   *ref;          // CELL_REF
@@ -283,9 +283,17 @@ inline static long cell_index(secd_t *secd, const cell_t *cons) {
 }
 
 inline static const char * symname(const cell_t *c) {
+    if (cell_type(c) != CELL_SYM) {
+        errorf("symname: not a symbol");
+        return NULL;
+    }
     return c->as.sym.data;
 }
 inline static hash_t symhash(const cell_t *c) {
+    if (cell_type(c) != CELL_SYM) {
+        errorf("symhash: not a symbol");
+        return 0;
+    }
     return ((hash_t *)c->as.sym.data)[-1];
 }
 
@@ -297,9 +305,17 @@ inline static int numval(const cell_t *c) {
     return c->as.num;
 }
 inline static const char *strval(const cell_t *c) {
+    switch (cell_type(c)) {
+      case CELL_STR: case CELL_BYTES: break;
+      default: errorf("strmem: not a byte vector\n"); return NULL;
+    }
     return c->as.str.data;
 }
 inline static char *strmem(cell_t *c) {
+    switch (cell_type(c)) {
+      case CELL_STR: case CELL_BYTES: break;
+      default: errorf("strmem: not a byte vector\n"); return NULL;
+    }
     return c->as.str.data;
 }
 

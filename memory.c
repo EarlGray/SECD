@@ -692,7 +692,7 @@ cell_t *symstore_add(secd_t *secd, const char *str) {
     hash_t hash = strhash(str);
     off_t symoffset = bufptr + sizeof(hash_t);
 
-    char *bytes = (void *)arr_mem(bufbvect);
+    char *bytes = (void *)strmem(bufbvect);
     *(hash_t *)(bytes + bufptr) = hash;
     strcpy(bytes + symoffset, str);
 
@@ -1118,16 +1118,16 @@ cell_t *secd_referers_for(secd_t *secd, cell_t *cell) {
 static void increment_nref_for_owned(secd_t *secd, cell_t *cell) {
     if (is_nil(cell)) return;
 
-    if (cell->nref > 0) return; /* already visited */
     ++cell->nref;
+    if (cell->nref > 1) return; /* already visited */
 
-    cell_t *meta = cell - 1;
-    if (cell_type(meta) == CELL_ARRMETA) {
+    if (cell_type(cell) == CELL_ARRMETA) {
+        cell_t *meta = cell;
         if (meta->as.mcons.cells) {
             size_t i;
             size_t len = arrmeta_size(secd, meta);
             for (i = 0; i < len; ++i)
-                increment_nref_for_owned(secd, cell + i);
+                increment_nref_for_owned(secd, meta_mem(meta) + i);
         }
     } else {
         cell_t *ref1, *ref2, *ref3;
@@ -1153,7 +1153,7 @@ void secd_mark_and_sweep_gc(secd_t *secd) {
             size_t i;
             size_t len = arrmeta_size(secd, meta);
             for (i = 0; i < len; ++i)
-                meta_mem(meta)[i].nref = 1;
+                meta_mem(meta)[i].nref = 0;
         }
         meta = mcons_next(meta);
     }
@@ -1174,8 +1174,8 @@ void secd_mark_and_sweep_gc(secd_t *secd) {
     for (cell = secd->begin; cell < secd->fixedptr; ++cell) {
         if (cell->nref == 0) {
             if (cell_type(cell) != CELL_FREE) {
-                memdebugf(";; m&s: cell %ld collected\n",
-                        cell_index(secd, cell));
+                memtracef(";; m&s: cell %ld collected\n",
+                          cell_index(secd, cell));
             }
 
             push_free(secd, cell);
