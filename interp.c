@@ -65,7 +65,7 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control) {
 
         if (opcode_table[opind].args > 0) {
             switch (new_cmd->as.op) {
-                case SECD_SEL: {
+              case SECD_SEL: {
                     cell_t *thenb = compile_control_path(secd, list_head(cursor));
                     tail_append(secd, &compcursor, new_cons(secd, thenb, SECD_NIL));
                     cursor = list_next(secd, cursor);
@@ -73,6 +73,18 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control) {
                     cell_t *elseb = compile_control_path(secd, list_head(cursor));
                     tail_append(secd, &compcursor, new_cons(secd, elseb, SECD_NIL));
                     cursor = list_next(secd, cursor);
+                } break;
+
+              case SECD_LDF: {
+                    cell_t *func = list_head(cursor);
+                    cursor = list_next(secd, cursor);
+
+                    cell_t *args = get_car(func);
+                    cell_t *body = get_car(get_cdr(func));
+                    cell_t *other = get_cdr(get_cdr(func));
+                    cell_t *compiled = compile_control_path(secd, body);
+                    cell_t *newfunc = new_cons(secd, args, new_cons(secd, compiled, other));
+                    tail_append(secd, &compcursor, new_cons(secd, newfunc, SECD_NIL));
                 } break;
 
               case SECD_LD:
