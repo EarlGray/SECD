@@ -93,13 +93,17 @@
   (lambda (conds)
     (if (null? conds)
         '(LDC ())
-        (let ((this-cond (car (car conds)))
-              (this-expr (cadr (car conds))))
-          (if (eq? this-cond 'else)
-              (secd-compile this-expr)
-              (append (secd-compile this-cond) '(SEL)
-                      (list (append (secd-compile this-expr) '(JOIN)))
-                      (list (append (compile-cond (cdr conds)) '(JOIN)))))))))
+        (let ((clause-cond (car (car conds)))
+              (clause-body (cdr (car conds))))
+          (let ((compiled-body
+                  (if (eq? (car clause-body) '=>)
+                      (secd-compile (cadr clause-body))
+                      (secd-compile (cons 'begin clause-body)))))
+            (if (eq? clause-cond 'else)
+                compiled-body
+                (append (secd-compile clause-cond) '(SEL)
+                        (list (append compiled-body '(JOIN)))
+                        (list (append (compile-cond (cdr conds)) '(JOIN))))))))))
 
 (compile-quasiquote
   (lambda (lst)
@@ -375,9 +379,8 @@
 ;; <let> in
 (begin
   (cond ((not (defined? 'secd))
-      (begin
-        (display "This file must be run in SECDScheme\n")
-        (quit))))
+          (display "This file must be run in SECDScheme\n")
+          (quit)))
   (secd-bind! '*prompt* "\n;>> ")
   (secd-bind! '*macros*
     (list

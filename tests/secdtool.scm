@@ -164,7 +164,7 @@
                ((eq? (car oplst) #.RAP)
                  (let ((dr-vars (vector-ref dumrap 0))
                        (dr-bv (bound-variables (vector-ref dumrap 1))))
-                   (display ";; free-variables: RAP\n")
+                   ;(display ";; free-variables: RAP\n")
                    (vector-set! dumrap 0 #f)
                    (for-each
                      (lambda (k)
