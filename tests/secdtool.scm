@@ -70,7 +70,7 @@
 ;        ((eq? (secd-type (car ctrl)) 'op)
 ;          (let ((info (info-for (car ctrl))))
 ;            (secd-ctrl-compile (list-tail ctrl (car info))
-;
+
 ;; this function does not descend into SEL branches
 (define (secd-ctrl-fold func val ctrl)
   (if (null? ctrl)
@@ -141,7 +141,7 @@
        (process-opcode
          (lambda (fv-ht oplst info)
            (begin
-             (display ";; process-opcode: ") (display oplst) (newline)
+             ;(display ";; process-opcode: ") (display oplst) (newline)
              (cond
                ((eq? (car oplst) #.LD)
                  (save-freevar fv-ht (cadr oplst)))
@@ -157,18 +157,19 @@
                     (for-each
                       (lambda (k) (save-freevar fv-ht k))
                       (hashtable-keys (free-variables subfunc)))))
-               ;((eq? (car oplst) #.DUM)
-               ;  (display ";; free-variables: DUM\n")
-               ;  (vector-set! dumrap 0 (make-hashtable)))
-               ;((eq? (car oplst) #.RAP)
-               ;  (let ((dr-vars (vector-ref dumrap 0))
-               ;        (dr-bv (bound-variables (vector-ref dumrap 1))))
-               ;    (display ";; free-variables: RAP\n")
-               ;    (vector-set! dumrap 0 #f)
-               ;    (for-each
-               ;      (lambda (k)
-               ;        (if (hashtable-exists? dr-bv k) #f (save-freevar fv-ht k)))
-               ;      (hashtable-keys dr-vars)))))
+               ((eq? (car oplst) #.DUM)
+                 (begin
+                   ;(display ";; free-variables: DUM\n")
+                   (vector-set! dumrap 0 (make-hashtable))))
+               ((eq? (car oplst) #.RAP)
+                 (let ((dr-vars (vector-ref dumrap 0))
+                       (dr-bv (bound-variables (vector-ref dumrap 1))))
+                   (display ";; free-variables: RAP\n")
+                   (vector-set! dumrap 0 #f)
+                   (for-each
+                     (lambda (k)
+                       (if (hashtable-exists? dr-bv k) #f (save-freevar fv-ht k)))
+                     (hashtable-keys dr-vars))))
                )
            fv-ht))))
      (secd-ctrl-fold process-opcode (make-hashtable) (secd-func-ctrl func)))))
