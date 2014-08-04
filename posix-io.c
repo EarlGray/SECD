@@ -125,7 +125,7 @@ size_t secd_fread(secd_t __unused *secd, cell_t *port, char *s, int size) {
 /*
  * Port-printing
  */
-int secd_vprintf(secd_t __unused *secd, cell_t *port, const char *format, va_list ap) {
+int secd_vpprintf(secd_t __unused *secd, cell_t *port, const char *format, va_list ap) {
     io_assert(cell_type(port) == CELL_PORT, "vpprintf: not a port\n");
     io_assert(is_output(port), "vpprintf: not an output port\n");
     io_assert(!is_closed(port), "secd_getc: port is closed\n");
@@ -149,30 +149,41 @@ int secd_vprintf(secd_t __unused *secd, cell_t *port, const char *format, va_lis
     return ret;
 }
 
-int secd_printf(secd_t *secd, cell_t *port, const char *format, ...) {
+int secd_printf(secd_t *secd, const char *format, ...) {
     va_list ap;
 
     va_start(ap, format);
-    int ret = secd_vprintf(secd, port, format, ap);
+    int ret = secd_vpprintf(secd, secd->output_port, format, ap);
     va_end(ap);
 
     return ret;
 }
 
-void sexp_print_port(secd_t *secd, const cell_t *port) {
+int secd_pprintf(secd_t *secd, cell_t *port, const char *format, ...) {
+    va_list ap;
+
+    va_start(ap, format);
+    int ret = secd_vpprintf(secd, port, format, ap);
+    va_end(ap);
+
+    return ret;
+}
+
+void sexp_pprint_port(secd_t *secd, cell_t *p, const cell_t *port) {
     if (SECD_NIL == port->as.port.as.str) {
-        printf("#<closed>");
+        secd_pprintf(secd, p, "#<closed>");
         return;
     }
     bool in = port->as.port.input;
     bool out = port->as.port.output;
-    printf("#<%s%s%s: ", (in ? "input" : ""), (out ? "output" : ""), (in && out ? "/" : ""));
+    secd_pprintf(secd, p, "#<%s%s%s: ", (in ? "input" : ""), 
+            (out ? "output" : ""), (in && out ? "/" : ""));
 
     if (port->as.port.file) {
-        printf("file %d", fileno(port->as.port.as.file));
+        secd_pprintf(secd, p, "file %d", fileno(port->as.port.as.file));
     } else {
-        printf("string %ld", cell_index(secd, port->as.port.as.str));
+        secd_pprintf(secd, p, "string %ld", cell_index(secd, port->as.port.as.str));
     }
-    printf(">");
+    secd_pprintf(secd, p, ">");
 }
 

@@ -309,11 +309,11 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
     cell_t *arg1 = list_head(args);
     if (is_symbol(arg1)) {
         if (str_eq(symname(arg1), "mem")) {
-            printf(";;  size = %zd\n", secd->end - secd->begin);
-            printf(";;  fixedptr = %zd\n", secd->fixedptr - secd->begin);
-            printf(";;  arrayptr = %zd (%zd)\n",
-                    secd->arrayptr - secd->begin, secd->arrayptr - secd->end);
-            printf(";;  Fixed cells: %zd free\n", secd->stat.free_cells);
+            secd_printf(secd, ";;  size = %zd\n", secd->end - secd->begin);
+            secd_printf(secd, ";;  fixedptr = %zd\n", secd->fixedptr - secd->begin);
+            secd_printf(secd, ";;  arrayptr = %zd (%zd)\n",
+                         secd->arrayptr - secd->begin, secd->arrayptr - secd->end);
+            secd_printf(secd, ";;  Fixed cells: %zd free\n", secd->stat.free_cells);
             return secd_mem_info(secd);
         } else if (str_eq(symname(arg1), "env")) {
             print_env(secd);
@@ -336,13 +336,13 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
                 goto help;
             cell_t *numc = get_car(list_next(secd, args));
             if (! is_number(numc)) {
-                printf(";; cell number must be int\n");
+                secd_printf(secd, ";; cell number must be int\n");
                 return SECD_NIL;
             }
             int num = numval(numc);
             cell_t *c = secd->begin + num;
             if (c >= secd->end) {
-                printf(";; cell number is out of SECD heap\n");
+                secd_printf(secd, ";; cell number is out of SECD heap\n");
                 return SECD_NIL;
             }
             return serialize_cell(secd, c);
@@ -359,18 +359,23 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
         } else if (str_eq(symname(arg1), "gc")) {
             secd->postop = SECDPOST_GC;
         } else if (str_eq(symname(arg1), "tick")) {
-            printf(";; tick = %lu\n", secd->tick);
+            secd_printf(secd, ";; tick = %lu\n", secd->tick);
             return new_number(secd, secd->tick);
         } else if (str_eq(symname(arg1), "state")) {
-            printf(";; stack = %ld\n", cell_index(secd, secd->stack));
-            printf(";; env   = %ld\n", cell_index(secd, secd->env));
-            printf(";; ctrl  = %ld\n", cell_index(secd, secd->control));
-            printf(";; dump  = %ld\n\n", cell_index(secd, secd->dump));
-            printf(";; %s = %ld\n",   SECD_TRUE,  cell_index(secd, secd->truth_value));
-            printf(";; %s = %ld\n\n", SECD_FALSE, cell_index(secd, secd->false_value));
-            printf(";; *stdin*  = %ld\n", cell_index(secd, secd->input_port));
-            printf(";; *stdout* = %ld\n", cell_index(secd, secd->output_port));
-            printf(";; *stddbg* = %ld\n\n", cell_index(secd, secd->debug_port));
+            secd_printf(secd, ";; stack = %ld\n", cell_index(secd, secd->stack));
+            secd_printf(secd, ";; env   = %ld\n", cell_index(secd, secd->env));
+            secd_printf(secd, ";; ctrl  = %ld\n", cell_index(secd, secd->control));
+            secd_printf(secd, ";; dump  = %ld\n\n", cell_index(secd, secd->dump));
+            secd_printf(secd, ";; %s = %ld\n", 
+                    SECD_TRUE,  cell_index(secd, secd->truth_value));
+            secd_printf(secd, ";; %s = %ld\n\n",
+                    SECD_FALSE, cell_index(secd, secd->false_value));
+            secd_printf(secd, ";; *stdin*  = %ld\n",
+                    cell_index(secd, secd->input_port));
+            secd_printf(secd, ";; *stdout* = %ld\n",
+                    cell_index(secd, secd->output_port));
+            secd_printf(secd, ";; *stddbg* = %ld\n\n",
+                    cell_index(secd, secd->debug_port));
         } else {
             goto help;
         }

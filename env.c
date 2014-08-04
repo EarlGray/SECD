@@ -16,9 +16,9 @@ static hash_t modulehash;
 void print_env(secd_t *secd) {
     cell_t *env = secd->env;
     int i = 0;
-    printf(";;Environment:\n");
+    secd_printf(secd, ";;Environment:\n");
     while (not_nil(env)) {
-        printf(";;  Frame #%d:\n", i++);
+        secd_printf(secd, ";;  Frame #%d:\n", i++);
         cell_t *frame = get_car(env);
         cell_t *symlist = get_car(frame);
         cell_t *vallist = get_cdr(frame);
@@ -30,7 +30,7 @@ void print_env(secd_t *secd) {
                 errorf("print_env: not a symbol at *%p in symlist\n", sym);
                 dbg_printc(secd, sym);
             }
-            printf(";;    %s\t=>\t", symname(sym));
+            secd_printf(secd, ";;    %s\t=>\t", symname(sym));
             dbg_print_cell(secd, val);
 
             symlist = list_next(secd, symlist);

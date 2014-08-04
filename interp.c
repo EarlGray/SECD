@@ -42,7 +42,7 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control) {
 
         if (!is_symbol(opcode)) {
             errorf("compile_control: not a symbol in control path\n");
-            sexp_print(secd, opcode); printf("\n");
+            sexp_print(secd, opcode); secd_printf(secd, "\n");
             return new_error(secd, "compile_control_path: symbol expected");
         }
 
@@ -685,7 +685,7 @@ cell_t *secd_print(secd_t *secd) {
     assert_cell(top, "secd_print: no stack");
 
     sexp_print(secd, top);
-    printf("\n");
+    secd_printf(secd, "\n");
     return top;
 }
 

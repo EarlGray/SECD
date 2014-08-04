@@ -10,17 +10,17 @@
 #include <limits.h>
 #include <ctype.h>
 
-void print_opcode(opindex_t op) {
+void sexp_print_opcode(secd_t *secd, cell_t *port, opindex_t op) {
     if (op < SECD_LAST) {
-        printf("#.%s ", opcode_table[op].name);
+        secd_pprintf(secd, port, "#.%s ", opcode_table[op].name);
         return;
     }
-    printf("#.[%d] ", op);
+    secd_pprintf(secd, port, "#.[%d] ", op);
 }
 
 void dbg_print_cell(secd_t *secd, const cell_t *c) {
     if (is_nil(c)) {
-         printf("NIL\n");
+         secd_printf(secd, "NIL\n");
          return;
     }
     char buf[128];
@@ -42,7 +42,10 @@ void dbg_print_cell(secd_t *secd, const cell_t *c) {
         if (isprint(c->as.num)) printf("#\\%c\n", (char)c->as.num);
         else printf("#x%x\n", c->as.num);
         break;
-      case CELL_OP:   print_opcode(c->as.op); printf("\n"); break;
+      case CELL_OP:
+        sexp_print_opcode(secd, secd->output_port, c->as.op);
+        printf("\n");
+        break;
       case CELL_FUNC: printf("*%p()\n", c->as.ptr); break;
       case CELL_KONT: printf("KONT[%ld, %ld, %ld]\n",
                              cell_index(secd, c->as.kont.stack),
@@ -52,10 +55,12 @@ void dbg_print_cell(secd_t *secd, const cell_t *c) {
                                cell_index(secd, arr_val(c, 0))); break;
       case CELL_STR: printf("STR[%ld\n",
                              cell_index(secd, (cell_t*)strval(c))); break;
-      case CELL_SYM: printf("SYM[%08x]='%s'\n", symhash(c), symname(c)); break;
+      case CELL_SYM: printf("SYM[%08x]='%s'\n",
+                             symhash(c), symname(c)); break;
       case CELL_BYTES: printf("BVECT[%ld]\n",
                                cell_index(secd, (cell_t*)strval(c))); break;
-      case CELL_REF: printf("REF[%ld]\n", cell_index(secd, c->as.ref)); break;
+      case CELL_REF: printf("REF[%ld]\n",
+                             cell_index(secd, c->as.ref)); break;
       case CELL_ERROR: printf("ERR[%s]\n", errmsg(c)); break;
       case CELL_ARRMETA: printf("META[%ld, %ld]\n",
                                  cell_index(secd, mcons_prev((cell_t*)c)),
@@ -88,78 +93,87 @@ void dbg_printc(secd_t *secd, cell_t *c) {
         dbg_print_cell(secd, c);
 }
 
-void sexp_print_array(secd_t *secd, const cell_t *cell) {
+void sexp_print_array(secd_t *secd, cell_t *p, const cell_t *cell) {
     const cell_t *arr = arr_val(cell, 0);
     const size_t len = arr_size(secd, cell);
     size_t i;
 
-    printf("#(");
+    secd_pprintf(secd, p, "#(");
     for (i = cell->as.arr.offset; i < len; ++i) {
-        sexp_print(secd, arr + i);
-        printf(" ");
+        sexp_pprint(secd, p, arr + i);
+        secd_pprintf(secd, p, " ");
     }
-    printf(")");
+    secd_pprintf(secd, p, ")");
 }
 
-void sexp_print_bytes(secd_t __unused *secd, const cell_t *cell) {
+void sexp_print_bytes(secd_t __unused *secd, cell_t *p, const cell_t *cell) {
     const unsigned char *arr = (const unsigned char *)strval(cell);
     const size_t len = mem_size(cell);
     size_t i;
 
-    printf("#u8(");
+    secd_pprintf(secd, p, "#u8(");
     for (i = 0; i < len; ++i) {
-        printf("#x%02x ", (int)arr[i]);
+        secd_pprintf(secd, p, "#x%02x ", (int)arr[i]);
     }
-    printf(")");
+    secd_pprintf(secd, p, ")");
 }
 
-static void sexp_print_list(secd_t *secd, const cell_t *cell) {
-    printf("(");
+static void sexp_print_list(secd_t *secd, cell_t *port, const cell_t *cell) {
+    secd_pprintf(secd, port, "(");
     const cell_t *iter = cell;
     while (not_nil(iter)) {
-        if (iter != cell) printf(" ");
+        if (iter != cell) secd_pprintf(secd, port, " ");
         if (cell_type(iter) != CELL_CONS) {
-            printf(". "); sexp_print(secd, iter); break;
+            secd_pprintf(secd, port, ". ");
+            sexp_pprint(secd, port, iter); break;
         }
 
         cell_t *head = get_car(iter);
-        sexp_print(secd, head);
+        sexp_pprint(secd, port, head);
         iter = list_next(secd, iter);
     }
-    printf(") ");
+    secd_pprintf(secd, port, ") ");
 }
 
 /* machine printing, (write) */
-void sexp_print(secd_t* secd, const cell_t *cell) {
+void sexp_pprint(secd_t* secd, cell_t *port, const cell_t *cell) {
     switch (cell_type(cell)) {
-      case CELL_UNDEF:  printf("#?"); break;
-      case CELL_INT:    printf("%d", cell->as.num); break;
+      case CELL_UNDEF:  secd_pprintf(secd, port, "#?"); break;
+      case CELL_INT:    secd_pprintf(secd, port, "%d", cell->as.num); break;
       case CELL_CHAR:
-        if (isprint(cell->as.num)) printf("#\\%c", (char)cell->as.num);
-        else printf("#\\x%x", numval(cell));
+        if (isprint(cell->as.num))
+            secd_pprintf(secd, port, "#\\%c", (char)cell->as.num);
+        else
+            secd_pprintf(secd, port, "#\\x%x", numval(cell));
         break;
-      case CELL_OP:     print_opcode(cell->as.op); break;
-      case CELL_FUNC:   printf("##func*%p", cell->as.ptr); break;
-      case CELL_FRAME:  printf("##frame@%ld ", cell_index(secd, cell)); break;
-      case CELL_KONT:   printf("##kont@%ld ", cell_index(secd, cell)); break;
-      case CELL_CONS:   sexp_print_list(secd, cell); break; break;
-      case CELL_ARRAY:  sexp_print_array(secd, cell); break;
-      case CELL_STR:    printf("\"%s\"", strval(cell) + cell->as.str.offset); break;
-      case CELL_SYM:    printf("%s", symname(cell)); break;
-      case CELL_BYTES:  sexp_print_bytes(secd, cell); break;
-      case CELL_ERROR:  printf("#!\"%s\"", errmsg(cell)); break;
-      case CELL_PORT:   sexp_print_port(secd, cell); break;
+      case CELL_OP:     sexp_print_opcode(secd, port, cell->as.op); break;
+      case CELL_FUNC:   secd_pprintf(secd, port, "##func*%p", cell->as.ptr); break;
+      case CELL_FRAME:  secd_pprintf(secd, port,
+                                "##frame@%ld ", cell_index(secd, cell)); break;
+      case CELL_KONT:   secd_pprintf(secd, port,
+                                "##kont@%ld ", cell_index(secd, cell)); break;
+      case CELL_CONS:   sexp_print_list(secd, port, cell); break; break;
+      case CELL_ARRAY:  sexp_print_array(secd, port, cell); break;
+      case CELL_STR:    secd_pprintf(secd, port, "\"%s\"", strval(cell) + cell->as.str.offset); break;
+      case CELL_SYM:    secd_pprintf(secd, port, "%s", symname(cell)); break;
+      case CELL_BYTES:  sexp_print_bytes(secd, port, cell); break;
+      case CELL_ERROR:  secd_pprintf(secd, port, "#!\"%s\"", errmsg(cell)); break;
+      case CELL_PORT:   sexp_pprint_port(secd, port, cell); break;
       default: errorf("sexp_print: unknown cell type %d", (int)cell_type(cell));
     }
+}
+
+void sexp_print(secd_t *secd, const cell_t *cell) {
+    sexp_pprint(secd, secd->output_port, cell);
 }
 
 /* human-readable, (display) */
 void sexp_display(secd_t *secd, cell_t *port, cell_t *cell) {
     switch (cell_type(cell)) {
       case CELL_STR:
-        secd_printf(secd, port, "%s", strval(cell));
+        secd_pprintf(secd, port, "%s", strval(cell));
         break;
-      default: sexp_print(secd, cell);
+      default: sexp_pprint(secd, port, cell);
     }
 }
 

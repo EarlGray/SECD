@@ -18,10 +18,12 @@ int secd_pclose(secd_t *secd, cell_t *port);
 int secd_getc(secd_t *secd, cell_t *port);
 size_t secd_fread(secd_t *secd, cell_t *port, char *s, int size);
 
-int secd_printf(secd_t *secd, cell_t *port, const char *format, ...);
-int secd_vprintf(secd_t *secd, cell_t *port, const char *format, va_list ap);
+int secd_printf(secd_t *secd, const char *format, ...);
+int secd_pprintf(secd_t *secd, cell_t *port, const char *format, ...);
+int secd_vpprintf(secd_t *secd, cell_t *port, const char *format, va_list ap);
 
 void sexp_print_port(secd_t *secd, const cell_t *port);
+void sexp_pprint_port(secd_t *secd, cell_t *p, const cell_t *port);
 
 static inline bool is_closed(cell_t *port) {
     return !port->as.port.input && !port->as.port.output;
