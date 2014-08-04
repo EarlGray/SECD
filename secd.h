@@ -202,7 +202,8 @@ struct cell {
 
 typedef enum {
     SECD_NOPOST = 0,
-    SECDPOST_GC
+    SECDPOST_GC,
+    SECDPOST_MACHINE_DUMP
 } secdpostop_t;
 
 typedef struct secd_stat {

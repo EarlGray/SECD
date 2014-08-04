@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
+int secd_dump_state(secd_t *secd, const char *fname);
+
 /*
  * SECD machine
  */
@@ -78,10 +80,14 @@ cell_t * run_secd(secd_t *secd, cell_t *ctrl) {
         switch (secd->postop) {
           case SECDPOST_GC:
               secd_mark_and_sweep_gc(secd);
-              secd->postop = SECD_NOPOST;
               break;
-          default: break;
+          case SECDPOST_MACHINE_DUMP:
+              secd_dump_state(secd, "secdstate.dump");
+              break;
+          case SECD_NOPOST:
+              break;
         }
+        secd->postop = SECD_NOPOST;
 
         ++secd->tick;
     }
@@ -97,6 +103,7 @@ const char * secd_type_names[] = {
     [CELL_STR]   = "str",
     [CELL_BYTES] = "bvect",
     [CELL_FRAME] = "frame",
+    [CELL_KONT]  = "kont",
     [CELL_ARRMETA] = "meta",
     [CELL_FREE]  = "free",
     [CELL_REF]   = "ref",
@@ -105,7 +112,6 @@ const char * secd_type_names[] = {
     [CELL_CHAR]  = "char",
     [CELL_OP]    = "op",
     [CELL_FUNC]  = "func",
-    [CELL_KONT]  = "kont",
     [CELL_PORT]  = "port",
     [CELL_ERROR] = "err"
 };
@@ -115,7 +121,7 @@ cell_t *secd_type_sym(secd_t *secd, const cell_t *cell) {
     enum cell_type t = cell_type(cell);
     assert(t <= CELL_ERROR, "secd_type_sym: type is invalid");
     type = secd_type_names[t];
-    assert(t, "secd_type_names: unkonwn type of %d", t);
+    assert(type, "secd_type_names: unknown type of %d", t);
     return new_symbol(secd, type);
 }
 
@@ -158,16 +164,10 @@ cell_t *serialize_cell(secd_t *secd, cell_t *cell) {
         opt = new_cons(secd, new_number(secd, (long)cell->as.ptr), SECD_NIL);
         break;
       case CELL_ARRMETA: {
-            cell_t *arr;
-            if (cell->as.mcons.cells)
-                arr = new_array_for(secd, meta_mem(cell));
-            else {
-                arr = new_strref(secd, meta_mem(cell), sizeof(cell_t) * arrmeta_size(secd, cell));
-                arr->type = CELL_BYTES;
-            }
-
-            cell_t *arrc = new_cons(secd, arr, SECD_NIL);
-            cell_t *nextc = chain_index(secd, mcons_next(cell), arrc);
+            cell_t *typec = chain_sym(secd,
+                                      (cell->as.mcons.cells ? "cell" : "byte"),
+                                      SECD_NIL);
+            cell_t *nextc = chain_index(secd, mcons_next(cell), typec);
             opt = chain_index(secd, mcons_prev(cell), nextc);
         } break;
       case CELL_FRAME: {
@@ -187,9 +187,12 @@ cell_t *serialize_cell(secd_t *secd, cell_t *cell) {
       case CELL_REF: opt = chain_index(secd, cell->as.ref, SECD_NIL); break;
       case CELL_ERROR: opt = chain_string(secd, errmsg(cell), SECD_NIL); break;
       case CELL_UNDEF: opt = SECD_NIL; break;
-      case CELL_ARRAY: opt = chain_index(secd, arr_val(cell, -1), SECD_NIL); break;
-      case CELL_STR: opt = chain_index(secd, arr_meta((cell_t *)strmem(cell)), SECD_NIL); break;
-      default: return SECD_NIL;
+      case CELL_ARRAY:
+        opt = chain_index(secd, arr_val(cell, -1), SECD_NIL);
+        break;
+      case CELL_STR: case CELL_BYTES:
+        opt = chain_index(secd, arr_meta((cell_t *)strmem(cell)), SECD_NIL);
+        break;
     }
     opt = new_cons(secd, secd_type_sym(secd, cell), opt);
     cell_t *refc = new_cons(secd, new_number(secd, cell->nref), opt);
@@ -204,6 +207,50 @@ cell_t *secd_mem_info(secd_t *secd) {
     cell_t *freec =
         new_cons(secd, new_number(secd, secd->stat.free_cells), fxdptr);
     return new_cons(secd, new_number(secd, secd->end - secd->begin), freec);
+}
+
+int secd_dump_state(secd_t *secd, const char *fname) {
+    cell_t *p = secd_fopen(secd, fname, "w");
+    secd_pprintf(secd, p,
+            ";; secd->fixedptr = %ld\n", cell_index(secd, secd->fixedptr));
+    secd_pprintf(secd, p,
+            ";; secd->arrayptr = %ld\n", cell_index(secd, secd->arrayptr));
+    secd_pprintf(secd, p,
+            ";; secd->end      = %ld\n", cell_index(secd, secd->end));
+    secd_pprintf(secd, p, ";; secd->input_port = %ld, secd->output_port = %ld\n",
+            cell_index(secd, secd->input_port), cell_index(secd, secd->output_port));
+    secd_pprintf(secd, p, ";; SECD = (%ld, %ld, %ld, %ld)\n",
+            cell_index(secd, secd->stack), cell_index(secd, secd->env),
+            cell_index(secd, secd->control), cell_index(secd, secd->dump));
+    secd_pprintf(secd, p, ";; secd->free = %ld (%ld free)\n",
+            cell_index(secd, secd->free), secd->stat.free_cells);
+    /* dump fixed heap */
+    long i;
+    long n_fixed = secd->fixedptr - secd->begin;
+    secd_pprintf(secd, p, "\n;; SECD persistent heap:\n");
+    for (i = 0; i < n_fixed; ++i) {
+        cell_t *cell_info = serialize_cell(secd, secd->begin + i);
+        sexp_pprint(secd, p, cell_info);
+        secd_pprintf(secd, p, "\n");
+        free_cell(secd, cell_info);
+    }
+
+    secd_pprintf(secd, p, "\n;; SECD array heap:\n");
+    cell_t *mcons = secd->arrlist;
+    while (mcons_next(mcons)) {
+        cell_t *cell_info = serialize_cell(secd, mcons);
+        sexp_pprint(secd, p, cell_info);
+        if (!mcons->as.mcons.free)
+            secd_pdump_array(secd, p, mcons);
+        secd_pprintf(secd, p, "\n");
+        free_cell(secd, cell_info);
+
+        mcons = mcons_next(mcons);
+    }
+
+    secd_pclose(secd, p);
+    free_cell(secd, p);
+    return 0;
 }
 
 

@@ -25,6 +25,8 @@ int secd_vpprintf(secd_t *secd, cell_t *port, const char *format, va_list ap);
 void sexp_print_port(secd_t *secd, const cell_t *port);
 void sexp_pprint_port(secd_t *secd, cell_t *p, const cell_t *port);
 
+int secd_pdump_array(secd_t *secd, cell_t *p, cell_t *mcons);
+
 static inline bool is_closed(cell_t *port) {
     return !port->as.port.input && !port->as.port.output;
 }

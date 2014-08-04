@@ -106,14 +106,13 @@ void sexp_print_array(secd_t *secd, cell_t *p, const cell_t *cell) {
     secd_pprintf(secd, p, ")");
 }
 
-void sexp_print_bytes(secd_t __unused *secd, cell_t *p, const cell_t *cell) {
-    const unsigned char *arr = (const unsigned char *)strval(cell);
-    const size_t len = mem_size(cell);
+void sexp_print_bytes(secd_t __unused *secd, cell_t *p, const char *arr, size_t len) {
     size_t i;
+    const unsigned char *arru = (unsigned char *)arr;
 
     secd_pprintf(secd, p, "#u8(");
     for (i = 0; i < len; ++i) {
-        secd_pprintf(secd, p, "#x%02x ", (int)arr[i]);
+        secd_pprintf(secd, p, "#x%02x ", (unsigned)arru[i]);
     }
     secd_pprintf(secd, p, ")");
 }
@@ -134,6 +133,26 @@ static void sexp_print_list(secd_t *secd, cell_t *port, const cell_t *cell) {
     }
     secd_pprintf(secd, port, ") ");
 }
+
+int secd_pdump_array(secd_t *secd, cell_t *p, cell_t *mcons) {
+    if (mcons->as.mcons.cells) {
+        secd_pprintf(secd, p, " #(");
+        cell_t *mem = meta_mem(mcons);
+        size_t len = arrmeta_size(secd, mcons);
+        size_t i;
+        for (i = 0; i < len; ++i) {
+            cell_t *item_info = serialize_cell(secd, mem + i);
+            sexp_pprint(secd, p, item_info);
+            free_cell(secd, item_info);
+        }
+        secd_pprintf(secd, p, ")");
+    } else {
+        sexp_print_bytes(secd, p, (char *)(mcons + 1),
+                                   sizeof(cell_t) * arrmeta_size(secd, mcons));
+    }
+    return 0;
+}
+
 
 /* machine printing, (write) */
 void sexp_pprint(secd_t* secd, cell_t *port, const cell_t *cell) {
@@ -156,7 +175,7 @@ void sexp_pprint(secd_t* secd, cell_t *port, const cell_t *cell) {
       case CELL_ARRAY:  sexp_print_array(secd, port, cell); break;
       case CELL_STR:    secd_pprintf(secd, port, "\"%s\"", strval(cell) + cell->as.str.offset); break;
       case CELL_SYM:    secd_pprintf(secd, port, "%s", symname(cell)); break;
-      case CELL_BYTES:  sexp_print_bytes(secd, port, cell); break;
+      case CELL_BYTES:  sexp_print_bytes(secd, port, strval(cell), mem_size(cell)); break;
       case CELL_ERROR:  secd_pprintf(secd, port, "#!\"%s\"", errmsg(cell)); break;
       case CELL_PORT:   sexp_pprint_port(secd, port, cell); break;
       default: errorf("sexp_print: unknown cell type %d", (int)cell_type(cell));

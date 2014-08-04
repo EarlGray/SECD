@@ -114,7 +114,8 @@ cell_t *drop_value(secd_t *secd, cell_t *c) {
         drop_cell(secd, c->as.ref);
         break;
       case CELL_PORT:
-        secd_pclose(secd, c);
+        if (!is_closed(c))
+            secd_pclose(secd, c);
         break;
       case CELL_KONT:
         drop_cell(secd, c->as.kont.stack);

@@ -318,11 +318,18 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
         } else if (str_eq(symname(arg1), "env")) {
             print_env(secd);
         } else if (str_eq(symname(arg1), "dump")) {
+            secd->postop = SECDPOST_MACHINE_DUMP;
+            secd_printf(secd, ";; Dump of the machine written to secdstate.dump\n");
+        } else if (str_eq(symname(arg1), "viewdump")) {
             cell_t *dlist = SECD_NIL;
             cell_t *lstcur = SECD_NIL;
             cell_t *dmpcur;
-            for (dmpcur = secd->dump; not_nil(dmpcur); dmpcur = list_next(secd, dmpcur)) {
-                cell_t *cns = new_cons(secd, new_number(secd, cell_index(secd, dmpcur)), SECD_NIL);
+            for (dmpcur = secd->dump;
+                 not_nil(dmpcur);
+                 dmpcur = list_next(secd, dmpcur))
+            {
+                cell_t *cns = new_cons(secd,
+                        new_number(secd, cell_index(secd, dmpcur)), SECD_NIL);
                 if (not_nil(dlist)) {
                     lstcur->as.cons.cdr = share_cell(secd, cns);
                     lstcur = cns;
@@ -345,7 +352,10 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
                 secd_printf(secd, ";; cell number is out of SECD heap\n");
                 return SECD_NIL;
             }
-            return serialize_cell(secd, c);
+            cell_t *ret = serialize_cell(secd, c);
+            if (cell_type(c) == CELL_ARRMETA)
+                secd_pdump_array(secd, secd->output_port, c);
+            return ret;
         } else if (str_eq(symname(arg1), "where")) {
             if (is_nil(list_next(secd, args)))
                 goto help;
@@ -383,7 +393,7 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
     return new_symbol(secd, "ok");
 help:
     errorf(";; Options are 'env, 'mem, 'heap,\n");
-    errorf(";;    'tick, 'dump, 'state, 'gc, \n");
+    errorf(";;    'tick, 'dump, 'state, 'viewdump, 'gc, \n");
     errorf(";;    'where <smth>, 'cell <num>, 'owner <num>\n");
     errorf(";; Use them like (secd 'env) or (secd 'cell 12)\n");
     errorf(";; If you're here first time, explore (secd 'env)\n");
