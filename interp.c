@@ -653,6 +653,7 @@ cell_t *secd_apcc(secd_t *secd) {
                  new_cons(secd, current_cont, secd->dump),
                  SECD_NIL));
     cell_t *frame = setup_frame(secd, args, argv, newenv);
+    assert_cell(frame, "secd_apcc: setup_frame() failed");
 
     push_dump(secd, current_cont);
 

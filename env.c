@@ -227,71 +227,106 @@ cell_t *lookup_symenv(secd_t *secd, const char *symbol) {
     return SECD_NIL;
 }
 
-static cell_t *new_frame_io(secd_t *secd, cell_t *frame, cell_t *prevenv) {
-    /* check if there are *stdin* or *stdout* in new frame */
-    cell_t *frame_io = SECD_NIL;
+static cell_t *
+check_io_args(secd_t *secd, cell_t *sym, cell_t *val, cell_t **args_io) {
+    /* check for overriden *stdin* or *stdout* */
+    hash_t symh = symhash(sym);
+    if ((symh == stdinhash)
+        && str_eq(symname(sym), SECD_FAKEVAR_STDIN))
+    {
+        assert(cell_type(val) == CELL_PORT, "*stdin* must bind a port");
+        if (is_nil(*args_io))
+            *args_io = new_cons(secd, val, SECD_NIL);
+        else
+            (*args_io)->as.cons.car = share_cell(secd, val);
+    } else
+    if ((symh == stdouthash)
+        && str_eq(symname(sym), SECD_FAKEVAR_STDOUT))
+    {
+        assert(cell_type(val) == CELL_PORT, "*stdout* must bind a port");
+        if (is_nil(*args_io))
+            *args_io = new_cons(secd, SECD_NIL, val);
+        else
+            (*args_io)->as.cons.cdr = share_cell(secd, val);
+    }
+    return SECD_NIL;
+}
+
+/* check arity;
+ * possibly rewrite dot-lists into regular arguments;
+ * look for overriden *stdin*|*stdout* */
+static cell_t *
+walk_through_arguments(secd_t *secd, cell_t *frame, cell_t **args_io) {
     cell_t *symlist = get_car(frame);
     cell_t *vallist = get_cdr(frame);
 
+    size_t valcount = 0;
+
     if (is_symbol(symlist)) {
+        /* ((lambda args <body>) arg1 arg2 ...)
+         *  => (lambda (args='(arg1 arg2 ...)) <body>)*/
         frame->as.cons.car = share_cell(secd, new_cons(secd, symlist, SECD_NIL));
         frame->as.cons.cdr = share_cell(secd, new_cons(secd, vallist, SECD_NIL));
         drop_cell(secd, symlist); drop_cell(secd, vallist);
-    } else
+        return SECD_NIL;
+    }
+
     while (not_nil(symlist)) {
-        cell_t *sym = get_car(symlist);
-        hash_t symh = symhash(sym);
-        if ((symh == stdinhash)
-            && str_eq(symname(sym), SECD_FAKEVAR_STDIN))
-        {
-            cell_t *val = get_car(vallist);
-            assert(cell_type(val) == CELL_PORT, "*stdin* must bind a port");
-            if (is_nil(frame_io))
-                frame_io = new_cons(secd, val, SECD_NIL);
-            else
-                frame_io->as.cons.car = share_cell(secd, val);
-        } else
-        if ((symh == stdouthash)
-            && str_eq(symname(sym), SECD_FAKEVAR_STDOUT))
-        {
-            cell_t *val = get_car(vallist);
-            assert(cell_type(val) == CELL_PORT, "*stdout* must bind a port");
-            if (is_nil(frame_io))
-                frame_io = new_cons(secd, SECD_NIL, val);
-            else
-                frame_io->as.cons.cdr = share_cell(secd, val);
+        if (is_nil(vallist)) {
+            errorf(";; arity mismatch: %zd argument(s) is not enough\n", valcount);
+            return new_error(secd,
+                    "arity mismatch: %zd argument(s) is not enough", valcount);
         }
+
+        cell_t *sym = get_car(symlist);
+
+        check_io_args(secd, sym, get_car(vallist), args_io);
 
         cell_t *nextsyms = list_next(secd, symlist);
         cell_t *nextvals = list_next(secd, vallist);
 
         /* dot-lists of arguments? */
         if (is_symbol(nextsyms)) {
-            symlist->as.cons.cdr = share_cell(secd, new_cons(secd, nextsyms, SECD_NIL));
-            vallist->as.cons.cdr = share_cell(secd, new_cons(secd, nextvals, SECD_NIL));
+            symlist->as.cons.cdr =
+                share_cell(secd, new_cons(secd, nextsyms, SECD_NIL));
+            vallist->as.cons.cdr =
+                share_cell(secd, new_cons(secd, nextvals, SECD_NIL));
             drop_cell(secd, nextsyms); drop_cell(secd, nextvals);
             break;
         }
 
+        ++valcount;
+
         symlist = nextsyms;
         vallist = nextvals;
     }
-    cell_t *prev_io = get_car(prevenv)->as.frame.io;
-    if (is_nil(frame_io))
-        return prev_io;
 
-    if (is_nil(get_car(frame_io)))
-        frame_io->as.cons.car = share_cell(secd, get_car(prev_io));
-    if (is_nil(get_cdr(frame_io)))
-        frame_io->as.cons.cdr = share_cell(secd, get_cdr(prev_io));
-    return frame_io;
+    return SECD_NIL;
+}
+
+/* use *args_io to override *stdin* | *stdout* if not NIL */
+static cell_t *new_frame_io(secd_t *secd, cell_t *args_io, cell_t *prevenv) {
+    cell_t *prev_io = get_car(prevenv)->as.frame.io;
+    if (is_nil(args_io))
+        return prev_io; /* share previous i/o */
+
+    if (is_nil(get_car(args_io)))
+        args_io->as.cons.car = share_cell(secd, get_car(prev_io));
+    if (is_nil(get_cdr(args_io)))
+        args_io->as.cons.cdr = share_cell(secd, get_cdr(prev_io));
+    return args_io; /* set a new i/o */
 }
 
 cell_t *setup_frame(secd_t *secd, cell_t *argnames, cell_t *argvals, cell_t *env) {
+    cell_t *args_io = SECD_NIL;
+
     /* setup the new frame */
     cell_t *frame = new_frame(secd, argnames, argvals);
 
-    cell_t *new_io = new_frame_io(secd, frame, env);
+    cell_t *ret = walk_through_arguments(secd, frame, &args_io);
+    assert_cell(ret, "setup_frame: argument check failed");
+
+    cell_t *new_io = new_frame_io(secd, args_io, env);
     assert_cell(new_io, "setup_frame: failed to set new frame I/O\n");
 
     frame->as.frame.io = share_cell(secd, new_io);
