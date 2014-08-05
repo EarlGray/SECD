@@ -11,6 +11,10 @@ Tasks Pending:
 | T12   | fast environment lookup: self-bal. tree? Static analysis for free variables? -> LDV index
 | T13   | inline `let` lambdas
 | T14   | static analysis: rewrite simple tail-call iterations into loops
+| T15   | exception handling
+| T16   | change #.OP syntax to be compatible with other interpreters; eliminate compile_control_path() ?
+| T17   | arity checks for function calls
+| T18   | define-macro with dot-args: (define-macro (macro . args) ...)
 | F3    | FEATURE: non-blocking I/O
 | F4    | FEATURE: green threads + mailboxes + messaging
 | F5    | FEATURE: small FFI, native modules as .so
@@ -36,8 +40,6 @@ Defects Pending:
 |-------|--------------------
 | D5    | Crash on `(list->vector (read-file (open-input-file "repl.scm")))` (large lists?)
 | D6    | the Yin-Yang call/cc puzzle does not work as expected
-| D7    | secdtool:free-variables does not handle #.DUM - #.RAP correctly
-| D8    | crash on (secd 'gc)
 
 Defects Fixed:
 =============
@@ -47,3 +49,5 @@ Defects Fixed:
 | D1    |  `(eq? "str" "str")` not handled
 | D2    | Crash on reading `#()`
 | D4    | Crash on freeing result of `(make-vector 2 'any)` -- part of T1
+| D7    | secdtool:free-variables does not handle #.DUM - #.RAP correctly
+| D8    | crash on (secd 'gc)
