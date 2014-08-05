@@ -72,6 +72,7 @@
 ;            (secd-ctrl-compile (list-tail ctrl (car info))
 
 ;; this function does not descend into SEL branches
+;; `func` is invoked as: (func val oplst opinfo)
 (define (secd-ctrl-fold func val ctrl)
   (if (null? ctrl)
       val
@@ -119,8 +120,10 @@
 
 (define (bound-variables func)
   (let ((ht (make-hashtable)))
-    (begin   ;; using (hashtable-size as counter:
-      (for-each (lambda (arg) (hashtable-set! ht arg (hashtable-size ht))) (secd-func-args func))
+    (begin   ;; using (hashtable-size) as counter:
+      (for-each
+        (lambda (arg) (hashtable-set! ht arg (hashtable-size ht)))
+        (secd-func-args func))
       ht)))
 
 ;; takes a compiled function definition (func part of a closure)

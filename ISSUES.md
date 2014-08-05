@@ -6,15 +6,15 @@ Tasks Pending:
 | T7    | audit for refcounting correctness
 | T8    | Scheme parser in Scheme
 | T9    | Scheme language testing framework + tests
-| T10   | static check for stack correctness
 | T11   | static check for TCO during function compilation
 | T12   | fast environment lookup: self-bal. tree? Static analysis for free variables? -> LDV index
-| T13   | inline `let` lambdas
+| T13   | inline `let` lambdas: ST opcode
 | T14   | static analysis: rewrite simple tail-call iterations into loops
-| T15   | exception handling
-| T16   | change #.OP syntax to be compatible with other interpreters; eliminate compile_control_path() ?
-| T17   | arity checks for function calls
-| T18   | define-macro with dot-args: (define-macro (macro . args) ...)
+| T15   | exception handling; dynamic environment?
+| T16   | change #.OP syntax to be compatible with other interpreters; eliminate compile_control_path() ? Scheme enum type?
+| T18   | or/and macros
+| T19   | `letrec*`, `let*`; analyses for dependencies in large `letrec*`s
+| T20   | numbers: floating point, libgmp?
 | F3    | FEATURE: non-blocking I/O
 | F4    | FEATURE: green threads + mailboxes + messaging
 | F5    | FEATURE: small FFI, native modules as .so
@@ -31,6 +31,8 @@ Tasks Done:
 | T5    | refactor out `atom_type`
 | T7    | polymorohic CAR/CDR; use arrays for `ATOM_OP`
 | T8    | `open-input-port`, `port?`, `read`, `read-u8`, `read-string`
+| T10   | static check for stack correctness: tests/secdtool.scm:valid-stack
+| T17   | arity checks for function calls
 | F1    | FEATURE: fast symbol lookup
 | F2    | FEATURE: alternative garbade collection - (secd 'gc), mark & sweep
 
