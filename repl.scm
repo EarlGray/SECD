@@ -13,9 +13,9 @@
 
 (list-tail (lambda (lst nth)
   (cond
-    ((null? xs)  (raise 'err_out_of_bounds))
-    ((eq? nth 0) (cdr xs)(
-    (else (list-tail (cdr xs) (- nth 1))))))))
+    ((eq? nth 0) lst)
+    ((null? lst)  (raise 'err_out_of_bounds))
+    (else (list-tail (cdr lst) (- nth 1))))))
 
 (unzip (lambda (ps)
     (letrec
@@ -379,8 +379,9 @@
 ;; <let> in
 (begin
   (cond ((not (defined? 'secd))
-          (display "This file must be run in SECDScheme\n")
-          (quit)))
+         (begin
+           (display "This file must be run in SECDScheme\n")
+           (quit))))
   (secd-bind! '*prompt* "\n;>> ")
   (secd-bind! '*macros*
     (list
