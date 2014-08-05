@@ -387,12 +387,12 @@
   (secd-bind! '*macros*
     (list
       (cons 'define-macro   secd-define-macro!)
-      (cons 'ref
+      (cons 'box
         (lambda (val) (list 'make-vector 1 val)))
       (cons 'define!
         (lambda (sym val) (list 'secd-bind! `(quote ,sym) `(ref ,val))))
-      (cons 'set!
+      (cons 'box-set!
         (lambda (sym val) (list 'vector-set! sym 0 val)))
-      (cons 'val
+      (cons 'box-ref
         (lambda (sym) (list 'vector-ref sym 0)))))
   (repl)))
