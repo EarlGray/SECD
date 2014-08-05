@@ -17,17 +17,18 @@
     ((null? lst)  (raise 'err_out_of_bounds))
     (else (list-tail (cdr lst) (- nth 1))))))
 
+;; (unzip '((one 1) (two 2) (three 3))) => ((one two three) (1 2 3))
 (unzip (lambda (ps)
     (letrec
       ((unzipt
          (lambda (pairs z1 z2)
            (if (null? pairs)
-             (list z1 z2)
+             (list (reverse z1) (reverse z2))
              (let ((pair (car pairs))
                    (rest (cdr pairs)))
                (let ((p1 (car pair))
                      (p2 (cadr pair)))
-                 (unzipt rest (append z1 (list p1)) (append z2 (list p2)))))))))
+                 (unzipt rest (cons p1 z1) (cons p2 z2))))))))
       (unzipt ps '() '()))))
 
 (memq (lambda (obj lst)
