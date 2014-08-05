@@ -29,7 +29,8 @@
 
 (define (self-lookup-env env sym)
   (if (null? env)
-    '()
+    ;; access to the Scheme env:
+    (if (defined? sym) (eval sym (interaction-environment)) '())
     (let ((frame (let ((f (car env)))
                    (if (vector? f)  (vector-ref f 0) f)))
           (envrest (cdr env)))

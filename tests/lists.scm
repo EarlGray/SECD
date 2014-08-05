@@ -2,25 +2,8 @@
 ;; Basic functional things
 ;;
 
-(define (map f xs)
-  (letrec ((map-tco
-      (lambda (acc xs)
-        (if (null? xs)
-          acc
-          (let ((hd (car xs)) (tl (cdr xs)))
-            (map-tco (cons (f hd) acc) tl))))))
-    (reverse (map-tco '() xs))))
-
 (define (filter p xs)
-  (letrec ((filt-tco
-      (lambda (acc xs)
-        (if (null? xs)
-          acc
-          (let ((hd (car xs)) (tl (cdr xs)))
-            (if (p hd)
-                (filt-tco (cons hd acc) tl)
-                (filt-tco acc tl)))))))
-    (reverse (filt-tco '() xs))))
+  (reverse (list-fold (lambda (x lst) (if (p x) (cons x lst) lst)) '() xs)))
 
 (define (foldr f s xs)
   (if (null? xs)
@@ -31,8 +14,10 @@
       s
       (foldl f (f s (car xs)) (cdr xs))))
 
-(define (even x) (eq? (remainder x 2) 0))
-(define (odd x)  (eq? (remainder x 2) 1))
+(define (fold f s . lsts)
+  (if (any null? lsts)
+      s
+      (apply fold (cons f (cons (apply f (cons s (map car lsts))) (map cdr lsts))))))
 
 (define (range n)
   (letrec ((range-tco
@@ -52,6 +37,42 @@
     ((null? xs) '())
     ((eq? n 0)  '())
     (else (cons (car xs) (take (- n 1) (cdr xs))))))
+
+(define (partition pred xs)
+  (let ((res (list-fold
+    (lambda (x lst)
+      (let ((rights (car lst)) (wrongs (cdr lst)))
+        (if (pred x) (cons (cons x rights) wrongs) (cons rights (cons x wrongs)))))
+    '(() . ()) xs)))
+    (list (reverse (car res)) (reverse (cdr res)))))
+
+(define (remove pred lst)
+  (reverse (list-fold (lambda (x res) (if (pred x) res (cons x res))) '() lst)))
+
+(define (any pred lst)
+  (call/cc (lambda (return)
+    (for-each (lambda (x) (if (pred x) (return #t) #f)) lst))))
+
+(define (every pred lst)
+  (call/cc (lambda (return)
+    (for-each (lambda (x) (if (pred x) #t (return #f))) lst))))
+
+(define (take-while pred lst)
+  (call/cc (lambda (return)
+    (reverse (list-fold
+                (lambda (x xs) (if (pred x) (cons x xs) (return (reverse xs))))
+                '() lst)))))
+
+(define (drop-while pred lst)
+  (call/cc (lambda (return)
+    (list-fold (lambda (x xs) (if (pred x) (cdr xs) (return xs))) lst lst)))) 
+
+(define (zip . lsts)
+  (if (any null? lsts) '()
+      (cons (map car lsts) (apply zip (map cdr lsts)))))
+
+(define (even x) (eq? (remainder x 2) 0))
+(define (odd x)  (eq? (remainder x 2) 1))
 
 (define (product xs) (foldr (lambda (x y) (* x y)) 1 xs))
 (define (sum xs)     (foldr (lambda (x y) (+ x y)) 0 xs))

@@ -12,7 +12,6 @@ Tasks Pending:
 | T14   | static analysis: rewrite simple tail-call iterations into loops
 | T15   | exception handling; dynamic environment?
 | T16   | change #.OP syntax to be compatible with other interpreters; eliminate compile_control_path() ? Scheme enum type?
-| T18   | or/and macros
 | T19   | `letrec*`, `let*`; analyses for dependencies in large `letrec*`s
 | T20   | numbers: floating point, libgmp?
 | F3    | FEATURE: non-blocking I/O
@@ -29,10 +28,11 @@ Tasks Done:
 | T3    | bytevectors, `utf8->string`
 | T4    | reader: dot-lists
 | T5    | refactor out `atom_type`
-| T7    | polymorohic CAR/CDR; use arrays for `ATOM_OP`
+| T7    | polymorhic CAR/CDR; use arrays for `ATOM_OP`
 | T8    | `open-input-port`, `port?`, `read`, `read-u8`, `read-string`
 | T10   | static check for stack correctness: tests/secdtool.scm:valid-stack
 | T17   | arity checks for function calls
+| T18   | or/and macros
 | F1    | FEATURE: fast symbol lookup
 | F2    | FEATURE: alternative garbade collection - (secd 'gc), mark & sweep
 

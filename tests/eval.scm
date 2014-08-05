@@ -5,7 +5,7 @@
          (if (eof-object? input)
              (display 'bye)
              (begin
-               ((make-closure input))
+               ((secd-closure (secd-compile input) '() '()))
                (display 'done)
                (repl)))))))
 ) (repl))
