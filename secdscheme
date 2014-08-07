@@ -14,7 +14,9 @@ die () {
 interp () {
     # is there compiled REPL code?
     [ -r "$REPL" ] || $SECDVM $COMPILER <$REPLSRC >$REPL
-    exec `which rlwrap` $SECDVM $REPL
+    RLWRAP="`which rlwrap`"
+    [ "$RLWRAP" ] && RLWRAP="$RLWRAP -r -q \"\\\"\" "
+    exec $RLWRAP $SECDVM $REPL
 }
 
 compile () {
