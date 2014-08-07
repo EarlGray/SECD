@@ -1,0 +1,5 @@
+*.o
+.depend
+repl.secd
+sedc
+tags
