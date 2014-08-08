@@ -35,8 +35,7 @@ cell_t *secd_set_dbg(secd_t *secd, cell_t *dbgport) {
 
 cell_t *secd_fopen(secd_t *secd, const char *fname, const char *mode) {
     FILE *f = fopen(fname, mode);
-    if (!f)
-        return new_error(secd, "secd_fopen('%s'): %s\n", fname, strerror(errno));
+    assert(f, "secd_fopen('%s'): %s\n", fname, strerror(errno));
 
     cell_t *cmdport = new_fileport(secd, f, mode);
     assert_cellf(cmdport, "secd_fopen: failed to create port for '%s'\n", fname);

@@ -39,7 +39,6 @@ int main(int argc, char *argv[]) {
     ret = run_secd(&secd, inp);
 
     if (is_error(ret)) {
-        errorf("\nSECD fatal error:\n%s\n", errmsg(ret));
         return 1;
     }
     return 0;

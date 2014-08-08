@@ -364,16 +364,25 @@
 
 (newline (lambda () (display "\n")))
 
+(*secd-exception-handlers*
+  (cons (lambda (e) (begin
+          (display "** EXCEPTION **\n")
+          (display e)
+          (display "\n*************\n");
+          (repl))) '()))
+
 (repl (lambda ()
   (begin
     (display *prompt*)
-    (let ((inp (read)))
-      (if (eof-object? inp) (quit)
-        (let ((result (eval inp (interaction-environment))))
-         (begin
-          (display "   ")
-          (write result)
-          (repl))))))))
+    (let
+      ((inp (read)))
+     (if (eof-object? inp)
+         (quit)
+         (let ((result (eval inp (interaction-environment))))
+           (begin
+             (display "   ")
+             (write result)
+             (repl))))))))
 
 )
 

@@ -193,8 +193,8 @@ cell_t *lookup_env(secd_t *secd, const char *symbol, cell_t **symc) {
 
         env = list_next(secd, env);
     }
-    errorf(";; error in lookup_env(): %s not found\n", symbol);
-    return new_error(secd, "lookup failed for: '%s'", symbol);
+    //errorf(";; error in lookup_env(): %s not found\n", symbol);
+    return new_error(secd, SECD_NIL, "Lookup failed for: '%s'", symbol);
 }
 
 cell_t *lookup_symenv(secd_t *secd, const char *symbol) {
@@ -274,7 +274,7 @@ walk_through_arguments(secd_t *secd, cell_t *frame, cell_t **args_io) {
     while (not_nil(symlist)) {
         if (is_nil(vallist)) {
             errorf(";; arity mismatch: %zd argument(s) is not enough\n", valcount);
-            return new_error(secd,
+            return new_error(secd, SECD_NIL,
                     "arity mismatch: %zd argument(s) is not enough", valcount);
         }
 

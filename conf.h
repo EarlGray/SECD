@@ -9,7 +9,6 @@
 #define TYPE_BITS  8
 #define NREF_BITS  (8 * sizeof(size_t) - TYPE_BITS)
 
-#define EOF_OBJ     "#<eof>"
 #define DONT_FREE_THIS  (1ul << (8 * sizeof(size_t) - TYPE_BITS - 2))
 
 #if CASESENSITIVE

@@ -37,6 +37,10 @@ secd_t * init_secd(secd_t *secd) {
     return secd;
 }
 
+static bool handle_exception(secd_t *secd, cell_t *exc) {
+    return !is_error(secd_raise(secd, exc));
+}
+
 cell_t * run_secd(secd_t *secd, cell_t *ctrl) {
     cell_t *op;
 
@@ -65,9 +69,13 @@ cell_t * run_secd(secd_t *secd, cell_t *ctrl) {
 
         cell_t *ret = callee(secd);
         if (is_error(ret)) {
-            errorf("run: %s failed at\n", opcode_table[ opind ].name);
-            print_env(secd);
-            return ret;
+            if (!handle_exception(secd, ret)) {
+                errorf("****************\n");
+                print_env(secd);
+                errorf("****************\n");
+                errorf("FATAL EXCEPTION: %s failed\n", opcode_table[ opind ].name);
+                return ret;
+            }
         }
         drop_cell(secd, op);
 
@@ -252,12 +260,4 @@ int secd_dump_state(secd_t *secd, const char *fname) {
     free_cell(secd, p);
     return 0;
 }
-
-
-/*
- * Errors
- */
-cell_t secd_out_of_memory   = INIT_ERROR("Out of memory error");
-cell_t secd_failure         = INIT_ERROR("General error");
-cell_t secd_nil_failure     = INIT_ERROR("SECD_NIL error");
 

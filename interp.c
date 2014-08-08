@@ -43,7 +43,7 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control) {
         if (!is_symbol(opcode)) {
             errorf("compile_control: not a symbol in control path\n");
             sexp_print(secd, opcode); secd_printf(secd, "\n");
-            return new_error(secd, "compile_control_path: symbol expected");
+            return new_error(secd, SECD_NIL, "compile_control_path: symbol expected");
         }
 
         index_t opind = secdop_by_name( symname(opcode) );
@@ -67,10 +67,12 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control) {
             switch (new_cmd->as.op) {
               case SECD_SEL: {
                     cell_t *thenb = compile_control_path(secd, list_head(cursor));
+                    assert_cell(thenb, "compile_control_path: failed at thenb");
                     tail_append(secd, &compcursor, new_cons(secd, thenb, SECD_NIL));
                     cursor = list_next(secd, cursor);
 
                     cell_t *elseb = compile_control_path(secd, list_head(cursor));
+                    assert_cell(thenb, "compile_control_path: failed at elseb");
                     tail_append(secd, &compcursor, new_cons(secd, elseb, SECD_NIL));
                     cursor = list_next(secd, cursor);
                 } break;
@@ -83,6 +85,7 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control) {
                     cell_t *body = get_car(get_cdr(func));
                     cell_t *other = get_cdr(get_cdr(func));
                     cell_t *compiled = compile_control_path(secd, body);
+                    assert_cell(compiled, "compile_control_path: failed at LDF");
                     cell_t *newfunc = new_cons(secd, args, new_cons(secd, compiled, other));
                     tail_append(secd, &compcursor, new_cons(secd, newfunc, SECD_NIL));
                 } break;
@@ -118,13 +121,13 @@ cell_t* compiled_ctrl(secd_t *secd, cell_t *ctrl) {
     return compiled;
 }
 
-bool compile_ctrl(secd_t *secd, cell_t **ctrl) {
+cell_t * compile_ctrl(secd_t *secd, cell_t **ctrl) {
     cell_t *compiled = compiled_ctrl(secd, *ctrl);
     if (is_nil(compiled))
-        return false;
-    drop_cell(secd, *ctrl);
-    *ctrl = share_cell(secd, compiled);
-    return true;
+        return SECD_NIL;
+    assert_cell(compiled, "compile_ctrl: failed");
+
+    return assign_cell(secd, ctrl, compiled);
 }
 
 
@@ -185,10 +188,14 @@ cell_t *secd_ld(secd_t *secd) {
     assert(is_symbol(arg), "secd_ld: not a symbol [%ld]", cell_index(secd, arg));
 
     const char *sym = symname(arg);
-    cell_t *val = lookup_env(secd, sym, SECD_NIL);
+
+    cell_t *symc = SECD_NIL;
+    cell_t *val = lookup_env(secd, sym, &symc);
+    assert(symc, "lookup failed for %s", sym);
+
     drop_cell(secd, arg);
-    assert_cellf(val, "lookup failed for %s", sym);
-    return push_stack(secd, val);
+    push_stack(secd, val);
+    return SECD_NIL;
 }
 
 bool list_eq(secd_t *secd, const cell_t *xs, const cell_t *ys) {
@@ -288,7 +295,8 @@ cell_t *secd_eq(secd_t *secd) {
 
     cell_t *val = to_bool(secd, is_equal(secd, a, b));
     drop_cell(secd, a); drop_cell(secd, b);
-    return push_stack(secd, val);
+    push_stack(secd, val);
+    return SECD_NIL;
 }
 
 static cell_t *arithm_op(secd_t *secd, int op(int, int)) {
@@ -302,7 +310,8 @@ static cell_t *arithm_op(secd_t *secd, int op(int, int)) {
 
     int res = op(numval(a), numval(b));
     drop_cell(secd, a); drop_cell(secd, b);
-    return push_stack(secd, new_number(secd, res));
+    push_stack(secd, new_number(secd, res));
+    return SECD_NIL;
 }
 
 inline static int iplus(int x, int y) {
@@ -355,7 +364,8 @@ cell_t *secd_leq(secd_t *secd) {
 
     cell_t *result = to_bool(secd, numval(opnd1) <= numval(opnd2));
     drop_cell(secd, opnd1); drop_cell(secd, opnd2);
-    return push_stack(secd, result);
+    push_stack(secd, result);
+    return SECD_NIL;
 }
 
 cell_t *secd_sel(secd_t *secd) {
@@ -375,7 +385,7 @@ cell_t *secd_sel(secd_t *secd) {
     secd->control = share_cell(secd, cond ? thenb : elseb);
 
     drop_cell(secd, thenb); drop_cell(secd, elseb); drop_cell(secd, joinb);
-    return secd->control;
+    return SECD_NIL;
 }
 
 cell_t *secd_join(secd_t *secd) {
@@ -386,7 +396,7 @@ cell_t *secd_join(secd_t *secd) {
     assert(cell_type(get_car(joinb)) == CELL_OP, "secd_join: not a CELL_OP");
 
     secd->control = joinb; //share_cell(secd, joinb); drop_cell(secd, joinb);
-    return secd->control;
+    return SECD_NIL;
 }
 
 
@@ -397,11 +407,13 @@ cell_t *secd_ldf(secd_t *secd) {
     cell_t *func = pop_control(secd);
     assert_cell(func, "secd_ldf: failed to get the control path");
 
-    compile_ctrl(secd, &func->as.cons.cdr->as.cons.car);
+    cell_t *ret = compile_ctrl(secd, &func->as.cons.cdr->as.cons.car);
+    assert_cell(ret, "secd_ldf: failed to compile ctrl");
 
     cell_t *closure = new_cons(secd, func, secd->env);
     drop_cell(secd, func);
-    return push_stack(secd, closure);
+    push_stack(secd, closure);
+    return SECD_NIL;
 }
 
 #if TAILRECURSION
@@ -476,7 +488,7 @@ static cell_t *secd_ap_native(secd_t *secd, cell_t *clos, cell_t *argv) {
     push_stack(secd, result);
 
     drop_cell(secd, clos); drop_cell(secd, argv);
-    return result;
+    return SECD_NIL;
 }
 
 static cell_t *
@@ -493,7 +505,7 @@ secd_ap_cont(secd_t *secd, cell_t *kont, cell_t *dump, cell_t *argv)
 
     assign_cell(secd, &secd->dump, dump); /* whoa, yeah */
 
-    return secd->truth_value;
+    return SECD_NIL;
 }
 
 cell_t *secd_ap(secd_t *secd) {
@@ -520,11 +532,18 @@ cell_t *secd_ap(secd_t *secd) {
     }
     assert(is_cons(func), "secd_ap: not a cons at func definition");
 
+    /* unpack closure */
     cell_t *newenv = get_cdr(closure);
     assert(is_cons(newenv), "secd_ap: not a cons at env in closure");
     assert(not_nil(newenv), "secd_ap: nil env");
-    assert(cell_type(list_head(newenv)) == CELL_FRAME, "secd_ap: env holds not a frame\n");
+    assert(cell_type(list_head(newenv)) == CELL_FRAME,
+            "secd_ap: env holds not a frame\n");
 
+    cell_t *argnames = get_car(func);
+    cell_t *frame = setup_frame(secd, argnames, argvals, newenv);
+    assert_cell(frame, "secd_ap: setup_frame() failed");
+
+    /* prepare dump */
 #if TAILRECURSION
     cell_t *new_dump = new_dump_if_tailrec(secd, secd->control, secd->dump);
     if (new_dump) {
@@ -538,22 +557,13 @@ cell_t *secd_ap(secd_t *secd) {
     push_dump(secd, new_continuation(secd,
                         secd->stack, secd->env, secd->control));
 #endif
-
-    drop_cell(secd, secd->stack);
-    secd->stack = SECD_NIL;
-
-    cell_t *argnames = get_car(func);
-    cell_t *frame = setup_frame(secd, argnames, argvals, newenv);
-    assert_cell(frame, "secd_ap: setup_frame() failed");
-
-    memdebugf("secd_ap: dropping env[%ld]\n", cell_index(secd, secd->env));
+    assign_cell(secd, &secd->stack, SECD_NIL);
     assign_cell(secd, &secd->env, new_cons(secd, frame, newenv));
-    if (ENVDEBUG) print_env(secd);
-
     set_control(secd, &func->as.cons.cdr->as.cons.car);
 
+    if (ENVDEBUG) print_env(secd);
     drop_cell(secd, closure); drop_cell(secd, argvals);
-    return secd->truth_value;
+    return SECD_NIL;
 }
 
 cell_t *secd_rtn(secd_t *secd) {
@@ -688,6 +698,34 @@ cell_t *secd_print(secd_t *secd) {
     sexp_print(secd, top);
     secd_printf(secd, "\n");
     return top;
+}
+
+cell_t *secd_raise(secd_t *secd, cell_t *exc) {
+    cell_t *symc = NULL;
+    cell_t *exchandlers = lookup_env(secd, SECD_EXC_HANDLERS, &symc);
+    assert(symc, "raise: no exception handlers");
+    assert(not_nil(exchandlers), "raise: no handlers");
+
+    assert(is_cons(exchandlers), "raise: not a cons");
+    cell_t *handler = get_car(exchandlers);
+
+    cell_t *func = get_car(handler);
+    cell_t *eargs = get_car(func);
+    cell_t *ectrl = get_car(get_cdr(func));
+    assert(cell_type(get_car(ectrl)) == CELL_OP, "raise: exchandler is not a closure");
+
+    cell_t *eargv = new_cons(secd, exc, SECD_NIL);
+
+    cell_t *frame = setup_frame(secd, eargs, eargv, secd->env);
+    assert_cell(frame, "raise: setup_frame() failed");
+
+    /* set new SECD state */
+    assign_cell(secd, &secd->stack, SECD_NIL);
+    assign_cell(secd, &secd->env, new_cons(secd, frame, secd->env));
+    set_control(secd, &ectrl);
+    assign_cell(secd, &secd->dump, SECD_NIL);
+
+    return SECD_NIL;
 }
 
 const opcode_t opcode_table[] = {

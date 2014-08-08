@@ -157,7 +157,7 @@ cell_t *pop_free(secd_t *secd) {
                "pop_free: free=NIL when nfree=%zd\n", secd->stat.free_cells);
         /* move fixedptr */
         if (secd->fixedptr >= secd->arrayptr)
-            return &secd_out_of_memory;
+            return SECD_NIL; /* Out of memory */
 
         cell = secd->fixedptr;
         ++ secd->fixedptr;
@@ -279,7 +279,7 @@ cell_t *alloc_array(secd_t *secd, size_t size) {
 
     /* no chunks of sufficient size found, move secd->arrayptr */
     if (secd->arrayptr - secd->fixedptr <= (int)size)
-        return &secd_out_of_memory;
+        return SECD_NIL; /* Out of memory */
 
     /* create new metadata cons at arrayptr - size - 1 */
     cell_t *oldmeta = secd->arrayptr;
@@ -525,7 +525,7 @@ static cell_t *init_port_mode(secd_t *secd, cell_t *cell, const char *mode) {
     // otherwise fail:
     drop_cell(secd, cell);
     errorf("new_fileport: failed to parse mode\n");
-    return new_error(secd, "new_port: failed to parse mode");
+    return new_error(secd, SECD_NIL, "new_port: failed to parse mode");
 }
 
 cell_t *new_strport(secd_t *secd, cell_t *str, const char *mode) {
@@ -782,7 +782,8 @@ cell_t *copy_value(secd_t *secd,
         break;
       case CELL_ARRMETA: case CELL_FREE:
         errorf("copy_value: CELL_ARRMETA/CELL_FREE\n");
-        return new_error(secd, "trying to initialize with CELL_ARRMETA/CELL_FREE");
+        return new_error(secd, SECD_NIL,
+                "trying to initialize with CELL_ARRMETA/CELL_FREE");
     }
     return cell;
 }
@@ -804,35 +805,38 @@ cell_t *new_clone(secd_t *secd, cell_t *from) {
 /*
  *    Error constructors
  */
-static cell_t *init_error(cell_t *cell, const char *buf) {
+static cell_t *init_error(secd_t *secd, cell_t *cell, cell_t *info, const char *buf) {
     cell->type = CELL_ERROR;
-    cell->as.err.len = strlen(buf);
-    cell->as.err.msg = strdup(buf); /* TODO */
+    cell->as.err.msg = share_cell(secd, new_string(secd, buf));
+    cell->as.err.info = share_cell(secd, info);
+    cell->as.err.kont = new_continuation(secd, secd->stack, secd->env, secd->control);
     return cell;
 }
 
-cell_t *new_errorv(secd_t *secd, const char *fmt, va_list va) {
-#define MAX_ERROR_SIZE  512
+cell_t *new_errorv(secd_t *secd, cell_t *info, const char *fmt, va_list va) {
+#define MAX_ERROR_SIZE  1024
     char buf[MAX_ERROR_SIZE];
     vsnprintf(buf, MAX_ERROR_SIZE, fmt, va);
-    return init_error(pop_free(secd), buf);
+    return init_error(secd, pop_free(secd), info, buf);
 }
 
-cell_t *new_error(secd_t *secd, const char *fmt, ...) {
+cell_t *new_error(secd_t *secd, cell_t *info, const char *fmt, ...) {
     va_list va;
     va_start(va, fmt);
-    cell_t *cell = new_errorv(secd, fmt, va);
+    cell_t *cell = new_errorv(secd, info, fmt, va);
     va_end(va);
     return cell;
 }
 
 cell_t *new_error_with(
-        secd_t *secd, __unused cell_t *preverr, const char *fmt, ...)
+        secd_t *secd, cell_t *preverr, const char *fmt, ...)
 {
     va_list va;
     va_start(va, fmt);
-    cell_t *err = new_errorv(secd, fmt, va);
+    cell_t *err = new_errorv(secd, SECD_NIL, fmt, va);
     va_end(va);
+
+    assign_cell(secd, &err->as.err.info, new_cons(secd, preverr, err->as.err.info));
     return err;
 }
 
@@ -984,7 +988,7 @@ cell_t *vector_to_list(secd_t *secd, cell_t *vct, int start, int end) {
 cell_t *fifo_pop(secd_t *secd, cell_t **fifo) {
     switch (cell_type(*fifo)) {
       case CELL_CONS: return list_pop(secd, fifo);
-      default: return new_error(secd, "fifo_pop: not poppable");
+      default: return new_error(secd, SECD_NIL, "fifo_pop: not poppable");
     }
 }
 
@@ -1009,7 +1013,7 @@ cell_t *secd_first(secd_t *secd, cell_t *stream) {
                                  (int) strval(stream)[ stream->as.str.offset ]);
             break;
         default:
-            return new_error(secd, "first: %s is not iterable",
+            return new_error(secd, SECD_NIL, "first: %s is not iterable",
                                    secd_type_sym(secd, stream));
     }
     /* End-of-stream */
@@ -1047,7 +1051,7 @@ cell_t *secd_rest(secd_t *secd, cell_t *stream) {
             }
             break;
         default:
-            return new_error(secd, "rest: %s is not iterable",
+            return new_error(secd, SECD_NIL, "rest: %s is not iterable",
                                    secd_type_sym(secd, stream));
     }
     return SECD_NIL;

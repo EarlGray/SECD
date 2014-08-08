@@ -540,7 +540,7 @@ static cell_t *read_bytevector(secd_parser_t *p) {
 
 static cell_t *read_token(secd_t *secd, secd_parser_t *p) {
     int tok;
-    cell_t *inp = &secd_nil_failure;
+    cell_t *inp = NULL;
     switch (tok = p->token) {
       case '(':
         ++p->nested;
@@ -606,7 +606,8 @@ static cell_t *read_token(secd_t *secd, secd_parser_t *p) {
 error_exit:
     if (inp) free_cell(secd, inp);
     errorf("read_token: failed\n");
-    return new_error(secd, "read_token: failed on token %1$d '%1$c'", p->token);
+    return new_error(secd, SECD_NIL,
+            "read_token: failed on token %1$d '%1$c'", p->token);
 }
 
 cell_t *read_list(secd_t *secd, secd_parser_t *p) {
@@ -683,7 +684,7 @@ cell_t *read_list(secd_t *secd, secd_parser_t *p) {
 error_exit:
     free_cell(secd, head);
     errorf("read_list: TOK_ERR, %s\n", parse_err);
-    return new_error(secd, parse_err);
+    return new_error(secd, SECD_NIL, parse_err);
 }
 
 cell_t *sexp_read(secd_t *secd, secd_parser_t *p) {

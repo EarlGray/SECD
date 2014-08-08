@@ -561,8 +561,7 @@ cell_t *secdf_strref(secd_t *secd, cell_t *args) {
 
     assert(is_number(numc), "secdf_strref: a number expected");
     const char *nthptr = utf8nth(strmem(str), numval(numc));
-    if (!*nthptr)
-        return new_error(secd, "secdf_strref: index out of range");
+    assert(*nthptr, "secdf_strref: index out of range");
 
     unichar_t c = utf8get(nthptr, NULL);
     return new_char(secd, c);
@@ -594,9 +593,9 @@ static cell_t *string_to_list(secd_t *secd, const char *cstr) {
         codepoint = utf8get(cstr, &cnxt);
 
         if (cnxt == NULL) {
-            errorf("secdf_str2lst: utf8 decoding failed\n");
             free_cell(secd, res);
-            return new_error(secd, "utf8 decoding failed");
+            errorf("secdf_str2lst: utf8 decoding failed\n");
+            return new_error(secd, SECD_NIL, "str->lst: utf8 decoding failed");
         }
         cstr = cnxt;
 
@@ -622,7 +621,7 @@ static cell_t *list_to_string(secd_t *secd, cell_t *lst) {
         cell_t *num = get_car(lst);
         if (cell_type(num) != CELL_CHAR) {
             free_cell(secd, str);
-            return new_error(secd, "list_to_string: a number expected");
+            return new_error(secd, SECD_NIL, "list_to_string: a number expected");
         }
 
         mem = utf8cpy(mem, numval(num));
@@ -802,7 +801,7 @@ cell_t *secdf_display(secd_t *secd, cell_t *args) {
     }
 
     sexp_display(secd, port, what);
-    return what;
+    return SECD_NIL;
 }
 
 /* (open-input-file) */
@@ -848,7 +847,7 @@ cell_t *secdf_readstring(secd_t *secd, cell_t *args) {
     char *mem = strmem(res);
     if (secd_fread(secd, port, mem, size) > 0)
         return res;
-    return new_error(secd, "(read-string): failed to get data");
+    return new_error(secd, SECD_NIL, "(read-string): failed to get data");
 }
 
 cell_t *secdf_readchar(secd_t *secd, cell_t *args) {
@@ -871,7 +870,7 @@ cell_t *secdf_readchar(secd_t *secd, cell_t *args) {
     int nbytes = utf8seqlen(b, &c);
     if (nbytes == 0) {
         errorf("(read-char): not a UTF-8 sequence head\n");
-        return new_error(secd, "(read-char): not a UTF-8 sequence head");
+        return new_error(secd, SECD_NIL, "(read-char): not a UTF-8 sequence head");
     }
     while (--nbytes > 0) {
         b = secd_getc(secd, port);
@@ -879,7 +878,7 @@ cell_t *secdf_readchar(secd_t *secd, cell_t *args) {
             return new_symbol(secd, EOF_OBJ);
         if ((0xC0 & b) != 0x80) {
             errorf("(read-char): not a UTF-8 sequence at 0x%x\n", b);
-            return new_error(secd, "(read-char): not a UTF-8 sequence");
+            return new_error(secd, SECD_NIL, "(read-char): not a UTF-8 sequence");
         }
         c = (c << 6) | (0x3F & b);
     }
@@ -942,6 +941,23 @@ cell_t *secdf_pclose(secd_t *secd, cell_t *args) {
 }
 
 
+cell_t *secdf_raise(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "(raise): no argument");
+
+    cell_t *info = get_car(args);
+    cell_t *err = new_error(secd, info, "raised");
+
+    return secd_raise(secd, err);
+}
+
+cell_t *secdf_raisec(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "(raise-continuable): no arguments");
+
+    /* TODO */
+    return SECD_NIL;
+}
+
+
 /*
  *    Native function mapping table
  */
@@ -952,6 +968,9 @@ const cell_t debug_func = INIT_FUNC(secdf_ctl);
 const cell_t getenv_fun = INIT_FUNC(secdf_getenv);
 const cell_t bind_func  = INIT_FUNC(secdf_bind);
 const cell_t hash_func  = INIT_FUNC(secdf_hash);
+
+const cell_t raise_fun  = INIT_FUNC(secdf_raise);
+const cell_t raisec_fun = INIT_FUNC(secdf_raisec);
 /* list functions */
 const cell_t list_func  = INIT_FUNC(secdf_list);
 const cell_t appnd_func = INIT_FUNC(secdf_append);
@@ -993,11 +1012,6 @@ const cell_t pclose_fun = INIT_FUNC(secdf_pclose);
 
 const native_binding_t
 native_functions[] = {
-    // predefined errors
-    { "error:out_of_memory",&secd_out_of_memory },
-    { "error:nil",          &secd_nil_failure   },
-    { "error:generic",      &secd_failure       },
-
     { "string-length",  &strlen_fun },
     { "string-ref",     &strref_fun },
     { "symbol->string", &symstr_fun },
@@ -1034,6 +1048,9 @@ native_functions[] = {
     //{ "read-line",          &readln_fun },
     { "secd-port-info",     &pinfo_fun  },
     { "close-port",         &pclose_fun },
+
+    { "raise",              &raise_fun },
+    { "raise-continuable",  &raisec_fun },
 
     // misc native functions
     { "list",           &list_func  },

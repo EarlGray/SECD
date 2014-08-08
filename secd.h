@@ -23,7 +23,7 @@
 #define assert(cond, ...)  \
     if (!(cond)) {         \
         errorf(__VA_ARGS__); errorf("\n");     \
-        return new_error(secd, __VA_ARGS__);   }
+        return new_error(secd, SECD_NIL, __VA_ARGS__);   }
 
 #define assert_cell(cond, msg)  assert_cellf((cond), "%s", msg)
 
@@ -155,8 +155,9 @@ struct port {
 };
 
 struct error {
-    size_t len;
-    const char *msg; // owns
+    cell_t *info;   // owned object
+    cell_t *msg;    // owned string
+    cell_t *kont;   // owned cont. or NIL
 };
 
 struct string {
@@ -174,8 +175,8 @@ extern cell_t secd_out_of_memory;
 extern cell_t secd_failure;
 extern cell_t secd_nil_failure;
 
-cell_t *new_error(secd_t *, const char *fmt, ...);
-cell_t *new_errorv(secd_t *secd, const char *fmt, va_list va);
+cell_t *new_error(secd_t *, cell_t *info, const char *fmt, ...);
+cell_t *new_errorv(secd_t *secd, cell_t *info, const char *fmt, va_list va);
 cell_t *new_error_with(secd_t *secd, cell_t *preverr, const char *fmt, ...);
 
 struct cell {
@@ -298,10 +299,6 @@ inline static hash_t symhash(const cell_t *c) {
     return ((hash_t *)c->as.sym.data)[-1];
 }
 
-inline static const char * errmsg(const cell_t *err) {
-    return err->as.err.msg;
-}
-
 inline static int numval(const cell_t *c) {
     return c->as.num;
 }
@@ -318,6 +315,10 @@ inline static char *strmem(cell_t *c) {
       default: errorf("strmem: not a byte vector\n"); return NULL;
     }
     return c->as.str.data;
+}
+
+inline static const char * errmsg(const cell_t *err) {
+    return strval(err->as.err.msg);
 }
 
 void dbg_print_cell(secd_t *secd, const cell_t *c);
@@ -419,6 +420,8 @@ cell_t *secd_mem_info(secd_t *secd);
 /* control path */
 bool is_control_compiled(cell_t *control);
 cell_t *compile_control_path(secd_t *secd, cell_t *control);
+
+cell_t *secd_raise(secd_t *secd, cell_t *exc);
 
 /*
  * utilities

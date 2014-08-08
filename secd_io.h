@@ -4,6 +4,8 @@
 #include "secd.h"
 
 #define SECD_EOF    (-1)
+#define EOF_OBJ     "#<eof>"
+#define SECD_EXC_HANDLERS  "*secd-exception-handlers*"
 
 cell_t *secd_stdin(secd_t *secd);
 cell_t *secd_stdout(secd_t *secd);
