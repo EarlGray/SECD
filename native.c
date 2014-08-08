@@ -909,6 +909,28 @@ cell_t *secdf_eofp(secd_t *secd, cell_t *args) {
     return to_bool(secd, str_eq(symname(arg1), EOF_OBJ));
 }
 
+cell_t *secdf_pinfo(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "(port-info): no arguments)");
+
+    cell_t *port = get_car(args);
+    assert(cell_type(port) == CELL_PORT, "(port-info): not a port");
+
+    cell_t *inp = new_cons(secd, new_symbol(secd, "in"),
+                                 to_bool(secd, port->as.port.input));
+    cell_t *outp = new_cons(secd, new_symbol(secd, "out"),
+                                  to_bool(secd, port->as.port.output));
+    cell_t *binp = new_cons(secd, new_symbol(secd, "txt"),
+                                    secd->truth_value);
+    cell_t *filep = new_cons(secd, new_symbol(secd, "file"),
+                                   to_bool(secd, port->as.port.file));
+    cell_t *info =
+        new_cons(secd, inp,
+          new_cons(secd, outp,
+             new_cons(secd, binp,
+                 new_cons(secd, filep, SECD_NIL))));
+    return info;
+}
+
 cell_t *secdf_pclose(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "(port-close): no arguments");
 
@@ -965,6 +987,8 @@ const cell_t siopen_fun = INIT_FUNC(secdf_siopen);
 const cell_t fgetc_fun  = INIT_FUNC(secdf_readchar);
 const cell_t fread_fun  = INIT_FUNC(secdf_readstring);
 const cell_t freadb_fun = INIT_FUNC(secdf_readu8);
+//const cell_t readln_fun = INIT_FUNC(secdf_readln);
+const cell_t pinfo_fun  = INIT_FUNC(secdf_pinfo);
 const cell_t pclose_fun = INIT_FUNC(secdf_pclose);
 
 const native_binding_t
@@ -1007,7 +1031,9 @@ native_functions[] = {
     { "read-char",          &fgetc_fun  },
     { "read-u8",            &freadb_fun },
     { "read-string",        &fread_fun  },
-    { "port-close",         &pclose_fun },
+    //{ "read-line",          &readln_fun },
+    { "secd-port-info",     &pinfo_fun  },
+    { "close-port",         &pclose_fun },
 
     // misc native functions
     { "list",           &list_func  },
