@@ -10,10 +10,10 @@ Tasks Pending:
 | T12   | fast environment lookup: self-bal. tree? Static analysis for free variables? -> LDV index
 | T13   | inline `let` lambdas: ST opcode
 | T14   | static analysis: rewrite simple tail-call iterations into loops
-| T15   | exception handling; dynamic environment?
 | T16   | change #.OP syntax to be compatible with other interpreters; eliminate compile_control_path() ? Scheme enum type?
 | T19   | `letrec*`, `let*`; analyses for dependencies in large `letrec*`s
 | T20   | numbers: floating point, libgmp?
+| T21   | `eval` does not use the supplied environment
 | F3    | FEATURE: non-blocking I/O
 | F4    | FEATURE: green threads + mailboxes + messaging
 | F5    | FEATURE: small FFI, native modules as .so
@@ -31,6 +31,7 @@ Tasks Done:
 | T7    | polymorhic CAR/CDR; use arrays for `ATOM_OP`
 | T8    | `open-input-port`, `port?`, `read`, `read-u8`, `read-string`
 | T10   | static check for stack correctness: tests/secdtool.scm:valid-stack
+| T15   | exception handling; dynamic environment?
 | T17   | arity checks for function calls
 | T18   | or/and macros
 | F1    | FEATURE: fast symbol lookup

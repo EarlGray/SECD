@@ -371,6 +371,12 @@
           (display "\n*************\n");
           (repl))) '()))
 
+(with-exception-handler
+  (lambda (handler thunk)
+    (let ((*secd-exception-handlers*
+            (cons handler *secd-exception-handlers*)))
+      (thunk))))
+
 (repl (lambda ()
   (begin
     (display *prompt*)
