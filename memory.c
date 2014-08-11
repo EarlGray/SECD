@@ -736,8 +736,8 @@ void init_symstorage(secd_t *secd) {
  *      Copy constructors
  */
 cell_t *copy_value(secd_t *secd,
-                       cell_t *__restrict cell,
-                       const cell_t *__restrict with)
+                   cell_t *__restrict cell,
+                   const cell_t *__restrict with)
 {
     if (with == SECD_NIL) {
         cell->type = CELL_REF;

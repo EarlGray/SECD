@@ -294,8 +294,9 @@ cell_t *secd_eq(secd_t *secd) {
     assert_cell(b, "secd_eq: pop_stack(b) failed");
 
     cell_t *val = to_bool(secd, is_equal(secd, a, b));
-    drop_cell(secd, a); drop_cell(secd, b);
     push_stack(secd, val);
+
+    drop_cell(secd, a); drop_cell(secd, b);
     return SECD_NIL;
 }
 
@@ -309,8 +310,9 @@ static cell_t *arithm_op(secd_t *secd, int op(int, int)) {
     assert(is_number(b), "secd_arithm: b is not int");
 
     int res = op(numval(a), numval(b));
-    drop_cell(secd, a); drop_cell(secd, b);
     push_stack(secd, new_number(secd, res));
+
+    drop_cell(secd, a); drop_cell(secd, b);
     return SECD_NIL;
 }
 
@@ -363,8 +365,9 @@ cell_t *secd_leq(secd_t *secd) {
             "secd_leq: int/char expected as opnd2");
 
     cell_t *result = to_bool(secd, numval(opnd1) <= numval(opnd2));
-    drop_cell(secd, opnd1); drop_cell(secd, opnd2);
     push_stack(secd, result);
+
+    drop_cell(secd, opnd1); drop_cell(secd, opnd2);
     return SECD_NIL;
 }
 

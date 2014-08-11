@@ -371,6 +371,12 @@
           (display "\n*************\n");
           (repl))) '()))
 
+(with-exception-handler
+  (lambda (handler thunk)
+    (let ((*secd-exception-handlers*
+            (cons handler *secd-exception-handlers*)))
+      (thunk))))
+
 (repl (lambda ()
   (begin
     (display *prompt*)
@@ -399,7 +405,7 @@
       (cons 'box
         (lambda (val) (list 'make-vector 1 val)))
       (cons 'define!
-        (lambda (sym val) (list 'secd-bind! `(quote ,sym) `(ref ,val))))
+        (lambda (sym val) (list 'secd-bind! `(quote ,sym) `(box ,val))))
       (cons 'box-set!
         (lambda (sym val) (list 'vector-set! sym 0 val)))
       (cons 'box-ref
