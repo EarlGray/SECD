@@ -198,6 +198,38 @@ cell_t *secd_ld(secd_t *secd) {
     return SECD_NIL;
 }
 
+cell_t *secd_ldv(secd_t *secd) {
+    ctrldebugf("LDV\n");
+
+    cell_t *arg = pop_control(secd);
+    assert_cell(arg, "secd_ldv: stack empty");
+    assert(is_number(arg), "secd_ldv: not a number [%ld]", cell_index(secd, arg));
+
+    int var = numval(arg);
+    cell_t *ret = SECD_NIL;
+    cell_t *val = lookup_env_by_varnum(secd, var, &ret);
+    assert(ret, "lookup failed for #%d", var);
+
+    push_stack(secd, val);
+    return SECD_NIL;
+}
+
+cell_t *secd_stv(secd_t *secd) {
+    ctrldebugf("STV\n");
+    
+    cell_t *arg = pop_control(secd);
+    assert_cell(arg, "secd_stv: stack empty");
+    assert(is_number(arg), "secd_stv: not a number [%ld]", cell_index(secd, arg));
+
+    int var = numval(arg);
+    cell_t *val = pop_stack(secd);
+
+    set_env_by_varnum(secd, var, val);
+
+    drop_cell(secd, val);
+    return SECD_NIL;
+}
+
 bool list_eq(secd_t *secd, const cell_t *xs, const cell_t *ys) {
     asserti(is_cons(xs), "list_eq: [%ld] is not a cons", cell_index(secd, xs));
 
@@ -401,7 +433,6 @@ cell_t *secd_join(secd_t *secd) {
     secd->control = joinb; //share_cell(secd, joinb); drop_cell(secd, joinb);
     return SECD_NIL;
 }
-
 
 
 cell_t *secd_ldf(secd_t *secd) {
@@ -747,6 +778,7 @@ const opcode_t opcode_table[] = {
     [SECD_LD]   = { "LD",      secd_ld,   1,  1},
     [SECD_LDC]  = { "LDC",     secd_ldc,  1,  1},
     [SECD_LDF]  = { "LDF",     secd_ldf,  1,  1},
+    [SECD_LDV]  = { "LDV",     secd_ldv,  1,  1},
     [SECD_LEQ]  = { "LEQ",     secd_leq,  0, -1},
     [SECD_MUL]  = { "MUL",     secd_mul,  0, -1},
     [SECD_PRN]  = { "PRINT",   secd_print,0,  0},
@@ -756,6 +788,7 @@ const opcode_t opcode_table[] = {
     [SECD_RTN]  = { "RTN",     secd_rtn,  0,  0},
     [SECD_SEL]  = { "SEL",     secd_sel,  2, -1},
     [SECD_STOP] = { "STOP",    SECD_NIL,  0,  0},
+    [SECD_STV]  = { "STV",     secd_stv,  1, -1},
     [SECD_SUB]  = { "SUB",     secd_sub,  0, -1},
     [SECD_TYPE] = { "TYPE",    secd_type, 0,  0},
 

@@ -72,6 +72,7 @@ typedef enum {
     SECD_LD,
     SECD_LDC,
     SECD_LDF,
+    SECD_LDV,
     SECD_LEQ,
     SECD_MUL,
     SECD_PRN,
@@ -81,6 +82,7 @@ typedef enum {
     SECD_RTN,
     SECD_SEL,
     SECD_STOP,
+    SECD_STV,
     SECD_SUB,
     SECD_TYPE,
     SECD_LAST, // not an operation

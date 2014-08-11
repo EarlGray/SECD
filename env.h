@@ -23,5 +23,7 @@ cell_t *secd_insert_in_frame(secd_t *secd, cell_t *frame, cell_t *sym, cell_t *v
 
 cell_t *lookup_env(secd_t *secd, const char *symbol, cell_t **symc);
 cell_t *lookup_symenv(secd_t *secd, const char *symbol);
+cell_t *lookup_env_by_varnum(secd_t *secd, int var, cell_t **curc);
+cell_t *set_env_by_varnum(secd_t *secd, int var, cell_t *val);
 
 #endif //__SECD_ENV_H__

@@ -227,6 +227,52 @@ cell_t *lookup_symenv(secd_t *secd, const char *symbol) {
     return SECD_NIL;
 }
 
+cell_t *lookup_env_by_varnum(secd_t *secd, int var, cell_t **curc) {
+    cell_t *frame = get_car(secd->env);
+    cell_t *vallist = frame->as.frame.cons.cdr;
+
+    int i = 0;
+    while (not_nil(vallist)) {
+        if (i == var) {
+            if (curc) *curc = vallist;
+            return get_car(vallist);
+        }
+
+        vallist = list_next(secd, vallist);
+        ++i;
+    }
+    return new_error(secd, SECD_NIL, "Lookup failed for var #%d", var);
+}
+
+cell_t *set_env_by_varnum(secd_t *secd, int var, cell_t *val) {
+    cell_t *frame = get_car(secd->env);
+    cell_t *vallist = frame->as.frame.cons.cdr;
+
+    int i = 0;
+    if (is_nil(vallist)) {
+        vallist = new_cons(secd, SECD_NIL, SECD_NIL);
+        frame->as.frame.cons.cdr = share_cell(secd, vallist);
+    }
+    while (not_nil(vallist->as.cons.cdr)) {
+        if (i == var) {
+            drop_cell(secd, vallist->as.cons.car);
+            vallist->as.cons.car = share_cell(secd, val);
+            return val;
+        }
+
+        vallist = list_next(secd, vallist);
+        ++i;
+    }
+
+    while (i < var) {
+        vallist->as.cons.cdr = share_cell(secd,
+                                new_cons(secd, SECD_NIL, SECD_NIL));
+        vallist = list_next(secd, vallist);
+        ++i;
+    }
+    return assign_cell(secd, &vallist->as.cons.car, val);
+}
+
 static cell_t *
 check_io_args(secd_t *secd, cell_t *sym, cell_t *val, cell_t **args_io) {
     /* check for overriden *stdin* or *stdout* */
