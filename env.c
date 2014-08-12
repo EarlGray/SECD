@@ -7,7 +7,7 @@
 
 static hash_t stdinhash;
 static hash_t stdouthash;
-static hash_t modulehash;
+static hash_t stddbghash;
 
 /*
  *  Environment
@@ -24,6 +24,11 @@ void print_env(secd_t *secd) {
         cell_t *vallist = get_cdr(frame);
 
         while (not_nil(symlist)) {
+            if (is_symbol(symlist)) {
+                secd_printf(secd, ";;  . %s\t=>\t", symname(symlist));
+                dbg_print_cell(secd, vallist);
+                break;
+            }
             cell_t *sym = get_car(symlist);
             cell_t *val = get_car(vallist);
             if (!is_symbol(sym)) {
@@ -42,8 +47,7 @@ void print_env(secd_t *secd) {
 }
 
 cell_t *make_native_frame(secd_t *secd,
-                          const native_binding_t *binding,
-                          const char *framename)
+                          const native_binding_t *binding)
 {
     int i;
     cell_t *symlist = SECD_NIL;
@@ -58,9 +62,6 @@ cell_t *make_native_frame(secd_t *secd,
         vallist = new_cons(secd, val, vallist);
     }
 
-    symlist = new_cons(secd, new_symbol(secd, SECD_FAKEVAR_MODULE), symlist);
-    vallist = new_cons(secd, new_symbol(secd, framename), vallist);
-
     return new_frame(secd, symlist, vallist);
 }
 
@@ -68,10 +69,10 @@ void init_env(secd_t *secd) {
     /* initialize global values */
     stdinhash = strhash(SECD_FAKEVAR_STDIN);
     stdouthash = strhash(SECD_FAKEVAR_STDOUT);
-    modulehash = strhash(SECD_FAKEVAR_MODULE);
+    stddbghash = strhash(SECD_FAKEVAR_STDDBG);
 
     /* initialize the first frame */
-    cell_t *frame = make_native_frame(secd, native_functions, ":secd");
+    cell_t *frame = make_native_frame(secd, native_functions);
 
     cell_t *frame_io = new_cons(secd, secd->input_port, secd->output_port);
     frame->as.frame.io = share_cell(secd, frame_io);
@@ -89,60 +90,9 @@ static cell_t *lookup_fake_variables(secd_t *secd, const char *sym) {
         return secd->input_port;
     if ((symh == stdouthash) && str_eq(sym, SECD_FAKEVAR_STDOUT))
         return secd->output_port;
-    if ((symh == modulehash) && str_eq(sym, SECD_FAKEVAR_STDDBG))
+    if ((symh == stddbghash) && str_eq(sym, SECD_FAKEVAR_STDDBG))
         return secd->debug_port;
     return SECD_NIL;
-}
-
-static const char *module_name_for_frame(secd_t *secd, cell_t *frame, bool *open) {
-    if (cell_type(frame) != CELL_FRAME) {
-        errorf("module_name_for_frame: not a frame\n");
-        return NULL;
-    }
-    cell_t *symlist = get_car(frame);
-    cell_t *vallist = get_cdr(frame);
-    while (not_nil(symlist)) {
-        cell_t *sym = list_head(symlist);
-        if ((symhash(sym) == modulehash)
-            && str_eq(SECD_FAKEVAR_MODULE, symname(sym)))
-        {
-            cell_t *mod = list_head(vallist);
-            if (!is_symbol(mod)) {
-                errorf("Module name is not a symbol");
-                return NULL;
-            }
-            const char *symstr = symname(mod);
-            if (symstr[0] == ':') {
-                *open = true;
-                return symstr + 1;
-            } else {
-                *open = false;
-                return symstr;
-            }
-        }
-        symlist = list_next(secd, symlist);
-        vallist = list_next(secd, vallist);
-    }
-    return NULL;
-}
-
-static bool name_eq(const char *sym, hash_t symh, cell_t *cursym,
-        const char *modname, size_t modlen, bool open)
-{
-    const char *cur = symname(cursym);
-    if (open && (symh == symhash(cursym))) {
-        if (symname(cursym) == sym)
-           return true;
-        if (str_eq(cur, sym))
-            return true;
-    }
-    if (sym[modlen] != ':')
-        return false;
-    if (!strncmp(sym, modname, modlen - 1)) {
-        if (str_eq(sym + modlen + 1, cur))
-            return true;
-    }
-    return false;
 }
 
 cell_t *lookup_env(secd_t *secd, const char *symbol, cell_t **symc) {
@@ -151,40 +101,40 @@ cell_t *lookup_env(secd_t *secd, const char *symbol, cell_t **symc) {
             "lookup_env: environment is not a list");
 
     cell_t *res = lookup_fake_variables(secd, symbol);
-    if (not_nil(res)) {
+    if (not_nil(res))
         return res;
-    }
+
     hash_t symh = strhash(symbol);
 
     while (not_nil(env)) {       // walk through frames
         cell_t *frame = get_car(env);
         if (is_nil(frame)) {
+            /* skip omega-frame */
             env = list_next(secd, env);
             continue;
         }
-        bool open = true;
-        const char *mod = module_name_for_frame(secd, frame, &open);
-        size_t modlen = (mod ? strlen(mod) : 0);
 
         cell_t *symlist = get_car(frame);
         cell_t *vallist = get_cdr(frame);
 
         while (not_nil(symlist)) {   // walk through symbols
+            if (is_symbol(symlist)) {
+                if (symh == symhash(symlist) && str_eq(symbol, symname(symlist))) {
+                    if (symc != NULL) *symc = symlist;
+                    return vallist;
+                }
+                env = list_next(secd, env);
+                break;
+            }
+
             cell_t *curc = get_car(symlist);
             assert(is_symbol(curc),
                    "lookup_env: variable at [%ld] is not a symbol\n",
                    cell_index(secd, curc));
 
-            if (mod) {
-                if (name_eq(symbol, symh, curc, mod, modlen, open)) {
-                    if (symc != NULL) *symc = curc;
-                    return get_car(vallist);
-                }
-            } else {
-                if (symh == symhash(curc) && str_eq(symbol, symname(curc))) {
-                    if (symc != NULL) *symc = curc;
-                    return get_car(vallist);
-                }
+            if (symh == symhash(curc) && str_eq(symbol, symname(curc))) {
+                if (symc != NULL) *symc = curc;
+                return get_car(vallist);
             }
 
             symlist = list_next(secd, symlist);
@@ -195,36 +145,6 @@ cell_t *lookup_env(secd_t *secd, const char *symbol, cell_t **symc) {
     }
     //errorf(";; error in lookup_env(): %s not found\n", symbol);
     return new_error(secd, SECD_NIL, "Lookup failed for: '%s'", symbol);
-}
-
-cell_t *lookup_symenv(secd_t *secd, const char *symbol) {
-    cell_t *env = secd->env;
-    assert(cell_type(env) == CELL_CONS,
-            ";; error in lookup_symbol(): environment is not a list");
-
-    cell_t *res = lookup_fake_variables(secd, symbol);
-    if (not_nil(res))
-        return res;
-
-    while (not_nil(env)) {       // walk through frames
-        cell_t *frame = get_car(env);
-        cell_t *symlist = get_car(frame);
-
-        while (not_nil(symlist)) {   // walk through symbols
-            cell_t *cur_sym = get_car(symlist);
-            assert(is_symbol(cur_sym),
-                   ";; error in lookup_symbol(): variable at [%ld] is not a symbol",
-                   cell_index(secd, cur_sym));
-
-            if (str_eq(symbol, symname(cur_sym))) {
-                return cur_sym;
-            }
-            symlist = list_next(secd, symlist);
-        }
-
-        env = list_next(secd, env);
-    }
-    return SECD_NIL;
 }
 
 static cell_t *
@@ -262,16 +182,11 @@ walk_through_arguments(secd_t *secd, cell_t *frame, cell_t **args_io) {
 
     size_t valcount = 0;
 
-    if (is_symbol(symlist)) {
-        /* ((lambda args <body>) arg1 arg2 ...)
-         *  => (lambda (args='(arg1 arg2 ...)) <body>)*/
-        frame->as.cons.car = share_cell(secd, new_cons(secd, symlist, SECD_NIL));
-        frame->as.cons.cdr = share_cell(secd, new_cons(secd, vallist, SECD_NIL));
-        drop_cell(secd, symlist); drop_cell(secd, vallist);
-        return SECD_NIL;
-    }
-
     while (not_nil(symlist)) {
+        if (is_symbol(symlist)) {
+            break;
+        }
+
         if (is_nil(vallist)) {
             errorf(";; arity mismatch: %zd argument(s) is not enough\n", valcount);
             return new_error(secd, SECD_NIL,
@@ -285,7 +200,7 @@ walk_through_arguments(secd_t *secd, cell_t *frame, cell_t **args_io) {
         cell_t *nextsyms = list_next(secd, symlist);
         cell_t *nextvals = list_next(secd, vallist);
 
-        /* dot-lists of arguments? */
+        /* dot-lists of arguments? * /
         if (is_symbol(nextsyms)) {
             symlist->as.cons.cdr =
                 share_cell(secd, new_cons(secd, nextsyms, SECD_NIL));
@@ -293,7 +208,7 @@ walk_through_arguments(secd_t *secd, cell_t *frame, cell_t **args_io) {
                 share_cell(secd, new_cons(secd, nextvals, SECD_NIL));
             drop_cell(secd, nextsyms); drop_cell(secd, nextvals);
             break;
-        }
+        } / */
 
         ++valcount;
 

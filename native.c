@@ -288,7 +288,10 @@ cell_t *secdf_defp(secd_t *secd, cell_t *args) {
 
     cell_t *sym = list_head(args);
     assert(is_symbol(sym), "secdf_deps: not a symbol");
-    return to_bool(secd, not_nil(lookup_symenv(secd, symname(sym))));
+
+    cell_t *defc = SECD_NIL;
+    lookup_env(secd, symname(sym), &defc);
+    return to_bool(secd, not_nil(defc));
 }
 
 cell_t *secdf_hash(secd_t *secd, cell_t *args) {
