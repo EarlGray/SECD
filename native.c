@@ -866,7 +866,7 @@ cell_t *secdf_readchar(secd_t *secd, cell_t *args) {
         return new_symbol(secd, EOF_OBJ);
 
     if (!(b & 0x80))
-        return new_number(secd, b);
+        return new_char(secd, b);
 
     unichar_t c;
     int nbytes = utf8seqlen(b, &c);
@@ -884,7 +884,7 @@ cell_t *secdf_readchar(secd_t *secd, cell_t *args) {
         }
         c = (c << 6) | (0x3F & b);
     }
-    return new_number(secd, c);
+    return new_char(secd, c);
 }
 
 cell_t *secdf_readu8(secd_t *secd, cell_t *args) {
