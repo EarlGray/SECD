@@ -1,10 +1,8 @@
 #ifndef __SECD_CONF_H___
 #define __SECD_CONF_H___
 
-#define N_CELLS     256 * 1024
-
 #define TAILRECURSION 1
-#define CASESENSITIVE 0
+#define CASESENSITIVE 1
 
 #define TYPE_BITS  8
 #define NREF_BITS  (8 * sizeof(size_t) - TYPE_BITS)

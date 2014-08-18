@@ -14,6 +14,7 @@ die () {
 interp () {
     # is there compiled REPL code?
     [ -r "$REPL" ] || $SECDVM $COMPILER <$REPLSRC >$REPL
+
     RLWRAP="`which rlwrap`"
     [ "$RLWRAP" ] && RLWRAP="$RLWRAP -r -q \"\\\"\" "
     exec $RLWRAP $SECDVM $REPL
@@ -28,12 +29,13 @@ compile () {
     esac
 
     SRC="$1"
-    DST="`echo "$SRC" | sed 's/.scm$/.secd/'`"
+    DST="${1/scm/secd}"
 
     # backup destination if needed
     [ -e "$DST" ] && mv "$DST" "$DST~"
     $SECDVM $COMPILER <$SRC >"${DST}.1" || die "Error: compilation failed"
     mv "${DST}.1" $DST
+    exit 0
 }
 
 # is there the secd interpreter?

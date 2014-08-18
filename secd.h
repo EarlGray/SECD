@@ -3,9 +3,9 @@
 
 #include "conf.h"
 
-#include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdint.h>
 
 #ifndef __unused
 # define __unused __attribute__((unused))
@@ -59,30 +59,65 @@ typedef  struct string string_t;
 
 /* machine operation set */
 typedef enum {
-    SECD_ADD,   /* (a&int . b&int . s, e, ADD . c, d) -> (a+b . s, e, c, d) */
+    /* (a&int . b&int . s, e, ADD . c, d) -> (a+b . s, e, c, d) */
+    SECD_ADD,
+
+    /* (clos(args, c', e').argv.s, e, AP.c, d)
+     *   -> (nil, frame(args, argv).e', c', kont(s.e.c).d)
+     * ((kont(s', e', c').d').v.s, e, c, d) -> (v.s', e', c', d')
+     */
     SECD_AP,
+
+    /* (clos((arg), c', e').s, e, APCC.c, d)
+     *   -> (nil, frame(arg=(kont(s,e,c).d)).e', c', d)
+     */
     SECD_APCC,
+
+    /* (v&cons . s, e, CAR.c, d) -> ((car v).s, e, c, d) */
     SECD_CAR,
+    /* (v&cons . s, e, CDR.c, d) -> ((cdr v).s, e, c, d) */
     SECD_CDR,
+    /* (hd . tl . s, e, CONS.c, d) -> ((hd . tl).s, e, c, d) */
     SECD_CONS,
+    /* (x&int . y&int . s, e, DIV.c, d) -> ((x/y).s, e, c, d) */
     SECD_DIV,
+    /* (s, e, DUM.c, d) -> (s, dummyframe.e, c, d) */
     SECD_DUM,
+    /* (x . y . s, e, EQ.c, d) -> ((eq? x y) . s, e, c, d) */
     SECD_EQ,
+    /* (s, e, JOIN.nil, c'.d) -> (s, e, c', d) */
     SECD_JOIN,
+    /* (s, e, LD.v.c, d) -> (lookup(v, e).s, e, c, d) */
     SECD_LD,
+    /* (s, e, LDC.v.c, d) -> (v.s, e, c, d) */
     SECD_LDC,
+    /* (s, e, LDF.(args c').c, d) -> (clos(args, c', e).s, e, c, d) */
     SECD_LDF,
+    /* (x&int . y&int . s, e, LEQ.c, d) -> ((x <= y).s, e, c, d) */
     SECD_LEQ,
+    /* (x&int . y&int . s, e, MUL.c, d) -> ((x * y).s, e, c, d) */
     SECD_MUL,
+    /* (v.s, e, PRINT.c, d) -> (v.s, e, c, d) with priting v to *stdout* */
     SECD_PRN,
+    /* (clos(args, c', e').argv.s, e', RAP.c, d)
+     *   -> (nil, set-car!(frame(args, argv), e'), c', kont(s, cdr(e'), c).d)
+     */
     SECD_RAP,
+    /* (s, e, READ.c, d) -> (v.s, e, c, d) where v is read from *stdin* */
     SECD_READ,
+    /* (x&int . y&int . s, e, REM.c, d) -> ((x mod y).s, e, c, d) */
     SECD_REM,
+    /* (v.nil, e, RTN.nil, kont(s',e',c').d) -> (v.s', e', c', d) */
     SECD_RTN,
+    /* (v&bool . s, e, SEL.thenc.elsec.c, d) -> (s, e, (v ? thenc : elsec), c.d) */
     SECD_SEL,
+    /* (v.s, e, c, d) -> stop. */
     SECD_STOP,
+    /* (x&int . y&int . s, e, SUB.c, d) -> ((x - y).s, e, c, d) */
     SECD_SUB,
+    /* (v . s, e, TYPE.c, d) -> (type(v).s, e, c, d) */
     SECD_TYPE,
+
     SECD_LAST, // not an operation
 } opindex_t;
 
@@ -372,22 +407,10 @@ inline static cell_t *mcons_next(cell_t *mcons) {
     return mcons->as.mcons.next;
 }
 
-#define INIT_OP(op) {       \
-    .type = CELL_OP,        \
-    .nref = DONT_FREE_THIS, \
-    .as.num = (op) }
-
 #define INIT_FUNC(func) {   \
     .type = CELL_FUNC,      \
     .nref = DONT_FREE_THIS, \
     .as.ptr = (func) }
-
-#define INIT_ERROR(txt) {   \
-    .type = CELL_ERROR,     \
-    .nref = DONT_FREE_THIS, \
-    .as.err = {             \
-        .msg = (txt),       \
-        .len = sizeof(txt) } }
 
 /*
  * reader/parser
@@ -410,7 +433,7 @@ cell_t *read_secd(secd_t *secd);
  * machine
  */
 
-secd_t * init_secd(secd_t *secd);
+secd_t * init_secd(secd_t *secd, cell_t *heap, size_t ncells);
 cell_t * run_secd(secd_t *secd, cell_t *ctrl);
 
 /* serialization */

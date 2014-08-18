@@ -2,7 +2,6 @@
 #include "secd_io.h"
 #include "secdops.h"
 
-#include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
 

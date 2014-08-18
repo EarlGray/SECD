@@ -5,10 +5,9 @@
 #include "memory.h"
 
 #include <stdlib.h>
-#include <stdint.h>
 #include <string.h>
-#include <limits.h>
 #include <ctype.h>
+#include <limits.h>
 
 void sexp_print_opcode(secd_t *secd, cell_t *port, opindex_t op) {
     if (op < SECD_LAST) {

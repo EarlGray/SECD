@@ -4,7 +4,7 @@
 #include "memory.h"
 #include "env.h"
 
-#include <string.h>
+#include <string.h>  /* strcmp(), memcmp() */
 
 /*
  *  Compiled form of control paths

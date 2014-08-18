@@ -200,16 +200,6 @@ walk_through_arguments(secd_t *secd, cell_t *frame, cell_t **args_io) {
         cell_t *nextsyms = list_next(secd, symlist);
         cell_t *nextvals = list_next(secd, vallist);
 
-        /* dot-lists of arguments? * /
-        if (is_symbol(nextsyms)) {
-            symlist->as.cons.cdr =
-                share_cell(secd, new_cons(secd, nextsyms, SECD_NIL));
-            vallist->as.cons.cdr =
-                share_cell(secd, new_cons(secd, nextvals, SECD_NIL));
-            drop_cell(secd, nextsyms); drop_cell(secd, nextvals);
-            break;
-        } / */
-
         ++valcount;
 
         symlist = nextsyms;

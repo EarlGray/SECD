@@ -5,6 +5,8 @@
 #define SECD_FAKEVAR_STDOUT "*stdout*"
 #define SECD_FAKEVAR_STDDBG "*stddbg*"
 
+#define SECD_EXC_HANDLERS  "*secd-exception-handlers*"
+
 typedef struct {
     const char *name;
     const cell_t *val;

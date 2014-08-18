@@ -4,7 +4,6 @@
 #include "env.h"
 
 #include <string.h>
-#include <stdint.h>
 
 void print_array_layout(secd_t *secd);
 

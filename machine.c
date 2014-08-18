@@ -4,8 +4,9 @@
 #include "env.h"
 #include "secdops.h"
 
-#include <stdlib.h>
-#include <sys/time.h>
+#if (TIMING)
+# include <sys/time.h>
+#endif
 
 int secd_dump_state(secd_t *secd, const char *fname);
 
@@ -13,15 +14,12 @@ int secd_dump_state(secd_t *secd, const char *fname);
  * SECD machine
  */
 
-secd_t * init_secd(secd_t *secd) {
-    /* allocate memory chunk */
-    cell_t *heap = (cell_t *)calloc(N_CELLS, sizeof(cell_t));
-
+secd_t * init_secd(secd_t *secd, cell_t *heap, size_t ncells) {
     secd->free = SECD_NIL;
     secd->stack = secd->dump =
         secd->control = secd->env = SECD_NIL;
 
-    init_mem(secd, heap, N_CELLS);
+    init_mem(secd, heap, ncells);
 
     secd->truth_value = share_cell(secd, new_symbol(secd, SECD_TRUE));
     secd->false_value = share_cell(secd, new_symbol(secd, SECD_FALSE));

@@ -2,6 +2,9 @@
 #include "secd_io.h"
 
 #include <unistd.h>
+#include <stdlib.h>
+
+#define N_CELLS     256 * 1024
 
 int main(int argc, char *argv[]) {
     const char *mytty = NULL;
@@ -16,7 +19,8 @@ int main(int argc, char *argv[]) {
     }
 
     secd_t secd;
-    init_secd(&secd);
+    cell_t *heap = (cell_t *)malloc(sizeof(cell_t) * N_CELLS);
+    init_secd(&secd, heap, N_CELLS);
 
 #if ((CTRLDEBUG) || (MEMDEBUG))
     secd_set_dbg(secd, secd_fopen(&secd, "secd.log", "w"));
@@ -38,8 +42,5 @@ int main(int argc, char *argv[]) {
     cell_t *ret;
     ret = run_secd(&secd, inp);
 
-    if (is_error(ret)) {
-        return 1;
-    }
-    return 0;
+    return (is_error(ret) ? EXIT_FAILURE : EXIT_SUCCESS);
 }
