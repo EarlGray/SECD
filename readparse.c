@@ -201,6 +201,7 @@ void sexp_display(secd_t *secd, cell_t *port, cell_t *cell) {
  *  A parser of a simple Lisp subset
  */
 #define MAX_LEXEME_SIZE     256
+#define STRING_BUFSIZE      1024
 
 typedef  int  token_t;
 typedef  struct secd_parser secd_parser_t;
@@ -232,7 +233,10 @@ struct secd_parser {
     char symtok[MAX_LEXEME_SIZE];
     char issymbc[UCHAR_MAX + 1];
 
-    char *strtok;
+    struct {
+        cell_t *buflist; /* list of bytevectors of STRING_BUFSIZE */
+        size_t size;
+    } strtok;
 
     int nested;
 };
@@ -310,62 +314,89 @@ inline static token_t lexsymbol(secd_parser_t *p) {
 }
 
 inline static token_t lexstring(secd_parser_t *p) {
-    size_t bufsize = 256;      /* initial size since string size is not limited */
+    secd_t *secd = p->secd;
+    cell_t *bufv = new_bytevector_of_size(secd, STRING_BUFSIZE);
+    cell_t *bufc = new_cons(secd, bufv, SECD_NIL);
+    p->strtok.buflist = share_cell(secd, bufc);
+    p->strtok.size = 0;
+
+    char *buf = bufv->as.str.data;
     size_t read_count = 0;
-    char *buf = malloc(bufsize); /* to be freed after p->strtok is consumed */
+
     while (1) {
+        if (read_count >= STRING_BUFSIZE) {
+            bufv = new_bytevector_of_size(secd, STRING_BUFSIZE);
+            cell_t *newbufc = new_cons(secd, bufv, SECD_NIL);
+            bufc->as.cons.cdr = share_cell(secd, newbufc);
+            bufc = newbufc;
+
+            buf = bufv->as.str.data;
+            read_count = 0;
+
+            p->strtok.size += STRING_BUFSIZE;
+        }
+
         nextchar(p);
         switch (p->lc) {
-          case '\\':
-            nextchar(p);
-            switch (p->lc) {
-              case 'a' : buf[read_count++] = '\x07'; break;
-              case 'b' : buf[read_count++] = '\x08'; break;
-              case 't' : buf[read_count++] = '\x09'; break;
-              case 'n' : buf[read_count++] = '\x0A'; break;
-              case 'x': {
-                    char hexbuf[10];
-                    char *hxb = hexbuf;
-
-                    nextchar(p);
-                    if (!isxdigit(p->lc))
-                        goto cleanup_and_exit;
-                    do {
-                        *hxb++ = p->lc;
-                        nextchar(p);
-                    } while ((hxb - hexbuf < 9) && isxdigit(p->lc));
-                    if (p->lc != ';')
-                        goto cleanup_and_exit;
-
-                    *hxb = '\0';
-                    unichar_t charcode = (int)strtol(hexbuf, NULL, 16);
-                    char *after = utf8cpy(buf + read_count, charcode);
-                    if (!after)
-                        goto cleanup_and_exit;
-
-                    read_count = after - buf;
-                } break;
-              default:
-                buf[read_count++] = p->lc;
-            }
-            break;
           case '"':
             nextchar(p);
             buf[read_count] = '\0';
-            p->strtok = buf;    /* don't forget to free */
+            p->strtok.size += read_count;
             return (p->token = TOK_STR);
-          default:
-            buf[read_count] = p->lc;
-            ++read_count;
-            if (read_count + 4 >= bufsize) { // +4 because of utf8cpy
-                /* reallocate */
-                bufsize *= 2;
-                buf = realloc(buf, bufsize);
-                if (!buf) {
-                    errorf("lexstring: not enough memory for a string\n");
-                    return TOK_ERR;
+          case '\\':
+            nextchar(p);
+            switch (p->lc) {
+              case 'a' : buf[ read_count++ ] = '\x07'; break;
+              case 'b' : buf[ read_count++ ] = '\x08'; break;
+              case 't' : buf[ read_count++ ] = '\x09'; break;
+              case 'n' : buf[ read_count++ ] = '\x0A'; break;
+              case 'x': {
+                char hexbuf[10];
+                char *hxb = hexbuf;
+
+                nextchar(p);
+                if (!isxdigit(p->lc))
+                    goto cleanup_and_exit;
+                do {
+                    *hxb++ = p->lc;
+                    nextchar(p);
+                } while ((hxb - hexbuf < 9) && isxdigit(p->lc));
+                if (p->lc != ';')
+                    goto cleanup_and_exit;
+                *hxb = '\0';
+
+                unichar_t charcode = (int)strtol(hexbuf, NULL, 16);
+                size_t nbytes = utf8len(charcode);
+
+                if ((read_count + nbytes) <= STRING_BUFSIZE) {
+                    utf8cpy(buf + read_count, charcode);
+                    read_count += nbytes;
+                } else {
+                    utf8cpy(hexbuf, charcode);
+
+                    size_t nbefore = STRING_BUFSIZE - read_count;
+                    /* first part into the old buffer */
+                    memcpy(buf + read_count, hexbuf, nbefore);
+
+                    bufv = new_bytevector_of_size(secd, STRING_BUFSIZE);
+                    cell_t *newbufc = new_cons(secd, bufv, SECD_NIL);
+                    bufc->as.cons.cdr = share_cell(secd, newbufc);
+                    bufc = newbufc;
+
+                    buf = bufv->as.str.data;
+                    read_count = nbytes - nbefore;
+                    /* second part into the new buffer */
+                    memcpy(buf, hexbuf + nbefore, read_count);
+
+                    p->strtok.size += nbytes;
                 }
+                } break;
+              default:
+                buf[ read_count++ ] = p->lc;
             }
+            break;
+          default:
+            buf[ read_count++ ] = p->lc;
         }
     }
 cleanup_and_exit:
@@ -553,9 +584,26 @@ static cell_t *read_token(secd_t *secd, secd_parser_t *p) {
         return new_char(secd, p->numtok);
       case TOK_SYM:
         return new_symbol(secd, p->symtok);
-      case TOK_STR:
-        inp = new_string(secd, p->strtok);
-        free(p->strtok);
+      case TOK_STR: {
+        inp = new_string_of_size(secd, p->strtok.size);
+        char *strbuf = inp->as.str.data;
+        size_t stroff = 0;
+
+        cell_t *bufl = p->strtok.buflist;
+        while (not_nil(bufl)) {
+            cell_t *bufv = get_car(bufl);
+
+            size_t tocopy = p->strtok.size - stroff;
+            if (tocopy > STRING_BUFSIZE)
+                tocopy = STRING_BUFSIZE;
+            memcpy(strbuf + stroff, bufv->as.str.data, tocopy);
+            stroff += tocopy;
+
+            bufl = list_next(secd, bufl);
+        }
+        drop_cell(secd, p->strtok.buflist);
+        p->strtok.size = 0;
+        }
         return inp;
       case TOK_EOF:
         return new_symbol(secd, EOF_OBJ);

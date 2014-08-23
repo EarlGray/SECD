@@ -175,6 +175,7 @@ void init_mem(secd_t *secd, cell_t *heap, size_t size);
  */
 typedef  unsigned int  unichar_t;
 
+size_t utf8len(unichar_t ucs);
 char *utf8cpy(char *to, unichar_t ucs);
 unichar_t utf8get(const char *u8, const char **next);
 
