@@ -533,7 +533,7 @@ cell_t *new_strport(secd_t *secd, cell_t *str, const char *mode) {
 
     cell->type = CELL_PORT;
     cell->as.port.file = false;
-    cell->as.port.as.str = str;
+    cell->as.port.as.str = share_cell(secd, str);
     return init_port_mode(secd, cell, mode);
 }
 
