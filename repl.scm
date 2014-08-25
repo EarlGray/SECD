@@ -303,6 +303,7 @@
 
 (apply (lambda (command arglist) (secd-apply command arglist)))
 
+(eq? (lambda (x y) (eq? x y)))
 (+ (lambda (x y) (+ x y)))  ; compiled to (LD x  LD y  ADD)
 (- (lambda (x y) (- x y)))
 (* (lambda (x y) (* x y)))
@@ -328,20 +329,34 @@
 (vector (lambda args (list->vector args)))
 
 (null?       (lambda (obj) (eq? obj '())))
-(pair?       (lambda (obj) (if (null? obj) #f (eq? (secd-type obj) 'cons))))
 (number?     (lambda (obj) (eq? (secd-type obj) 'int)))
-(symbol?     (lambda (obj) (eq? (secd-type obj) 'sym)))
 (string?     (lambda (obj) (eq? (secd-type obj) 'str)))
 (vector?     (lambda (obj) (eq? (secd-type obj) 'vect)))
 (port?       (lambda (obj) (eq? (secd-type obj) 'port)))
 (char?       (lambda (obj) (eq? (secd-type obj) 'char)))
 (bytevector? (lambda (obj) (eq? (secd-type obj) 'bvect)))
+(boolean?    (lambda (obj) (if obj (eq? obj #t) #t)))
+(pair?       (lambda (obj)
+  (cond
+    ((not (eq? (secd-type obj) 'cons)) #f)
+    ((null? obj) #f)
+    ((procedure? obj) #f)
+    (else #t))))
+(symbol?     (lambda (obj)
+  (cond
+    ((not (eq? (secd-type obj) 'sym)) #f)
+    ((boolean? obj) #f)
+    ((eof-object? obj) #f)
+    (else #t))))
 (procedure?  (lambda (obj)
   (cond
     ((eq? (secd-type obj) 'func)
         #t)
     ((eq? (secd-type obj) 'cons)
       (cond
+        ((null? obj) #f)
+        ((eq? (secd-type (car obj)) 'kont) #t)
+        ; TODO: (procedure? (cons 1 2)) crashes
         ((not (eq? (secd-type (car (cdr obj))) 'frame)) #f)
         ((not (eq? (secd-type (car(car(cdr(car obj))))) 'op)) #f)
         (else
@@ -364,18 +379,14 @@
 
 (newline (lambda () (display "\n")))
 
-(*secd-exception-handlers*
-  (cons (lambda (e) (begin
-          (display "** EXCEPTION **\n")
-          (display e)
-          (display "\n*************\n");
-          (repl))) '()))
-
-(with-exception-handler
-  (lambda (handler thunk)
-    (let ((*secd-exception-handlers*
-            (cons handler *secd-exception-handlers*)))
-      (thunk))))
+(repl-exc-handler
+  (lambda (e)
+    (begin
+      (display "** EXCEPTION **\n")
+      (display e)
+      (display "\n*************\n");
+      (secd 'env)
+      (repl))))
 
 (repl (lambda ()
   (begin
@@ -398,6 +409,7 @@
          (begin
            (display "This file must be run in SECDScheme\n")
            (quit))))
+  (secd-bind! '*secd-exception-handlers* (list repl-exc-handler))
   (secd-bind! '*prompt* "\n;>> ")
   (secd-bind! '*macros*
     (list

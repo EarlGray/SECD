@@ -25,3 +25,4 @@
   (let ((*stdin* (open-input-string str)))
     (thunk)))
 
+(define (eof-object)  (string->symbol "#<eof>"))
