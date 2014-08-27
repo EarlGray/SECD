@@ -303,6 +303,21 @@ cell_t *secdf_hash(secd_t *secd, cell_t *args) {
     return SECD_NIL;
 }
 
+cell_t *secdf_symleq(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "(symbolptr-leq: no arguments");
+
+    cell_t *symc1 = get_car(args);
+    assert(is_symbol(symc1), "symbolptr-leq: first argument: not a symbol");
+
+    args = list_next(secd, args);
+    assert(not_nil(args), "symbolptr-leq: no second argument");
+
+    cell_t *symc2 = get_car(args);
+    assert(is_symbol(symc2), "symbolptr-leq: second argument is not a symbol");
+
+    return to_bool(secd, (unsigned long)symc1->as.sym.data <= (unsigned long)symc2->as.sym.data);
+}
+
 cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_ctl\n");
     if (is_nil(args))
@@ -1006,6 +1021,7 @@ const cell_t debug_func = INIT_FUNC(secdf_ctl);
 const cell_t getenv_fun = INIT_FUNC(secdf_getenv);
 const cell_t bind_func  = INIT_FUNC(secdf_bind);
 const cell_t hash_func  = INIT_FUNC(secdf_hash);
+const cell_t symleq_fun = INIT_FUNC(secdf_symleq);
 
 //const cell_t strnum_fun = INIT_FUNC(secdf_str2num);
 //const cell_t numstr_fun = INIT_FUNC(secdf_num2str);
@@ -1102,6 +1118,7 @@ native_functions[] = {
     { "list",           &list_func  },
     { "append",         &appnd_func },
     { "eof-object?",    &eofp_func  },
+    { "symbolptr-leq",  &symleq_fun },
     { "secd-hash",      &hash_func  },
     { "secd",           &debug_func },
     { "defined?",       &defp_func  },
