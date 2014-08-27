@@ -385,7 +385,6 @@
       (display "** EXCEPTION **\n")
       (display e)
       (display "\n*************\n");
-      (secd 'env)
       (repl))))
 
 (repl (lambda ()

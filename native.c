@@ -446,6 +446,42 @@ cell_t *secdf_intchr(secd_t *secd, cell_t *args) {
     return new_char(secd, numval(num));
 }
 
+cell_t *secdf_xor(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "(xor): no arguments");
+    assert(is_cons(args), "(xor): invalid arguments");
+
+    cell_t *num1 = get_car(args);
+    assert(is_number(num1), "(xor): num1 not a number");
+
+    assert(not_nil(args), "(xor): no num2");
+    args = list_next(secd, args);
+
+    cell_t *num2 = get_car(args);
+    assert(is_number(num2), "(xor): num2 not a number");
+
+    int res = numval(num1) ^ numval(num2);
+    cell_t *resc = new_number(secd, res);
+    return resc;
+}
+
+cell_t *secdf_or(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "(or): no arguments");
+    assert(is_cons(args), "(or): invalid arguments");
+
+    cell_t *num1 = get_car(args);
+    assert(is_number(num1), "(or): num1 not a number");
+
+    assert(not_nil(args), "(or): no num2");
+    args = list_next(secd, args);
+
+    cell_t *num2 = get_car(args);
+    assert(is_number(num2), "(or): num2 not a number");
+
+    int res = numval(num1) | numval(num2);
+    cell_t *resc = new_number(secd, res);
+    return resc;
+}
+
 /*
  *     Vector
  */
@@ -971,6 +1007,11 @@ const cell_t getenv_fun = INIT_FUNC(secdf_getenv);
 const cell_t bind_func  = INIT_FUNC(secdf_bind);
 const cell_t hash_func  = INIT_FUNC(secdf_hash);
 
+//const cell_t strnum_fun = INIT_FUNC(secdf_str2num);
+//const cell_t numstr_fun = INIT_FUNC(secdf_num2str);
+const cell_t xorint_fun = INIT_FUNC(secdf_xor);
+const cell_t orint_fun  = INIT_FUNC(secdf_or);
+
 const cell_t raise_fun  = INIT_FUNC(secdf_raise);
 const cell_t raisec_fun = INIT_FUNC(secdf_raisec);
 /* list functions */
@@ -1022,6 +1063,9 @@ native_functions[] = {
     { "list->string",   &lststr_fun },
     //{ "string->number", &strnum_fun },
     //{ "number->string", &numstr_fun },
+
+    { "int-xor",        &xorint_fun },
+    { "int-or",         &orint_fun  },
 
     { "char->integer",  &chrint_fun },
     { "integer->char",  &intchr_fun },
