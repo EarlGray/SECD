@@ -130,6 +130,31 @@ cell_t * compile_ctrl(secd_t *secd, cell_t **ctrl) {
     return assign_cell(secd, ctrl, compiled);
 }
 
+/*
+ *  Cell type encoding with ASCII
+ */
+const char secd_type_chars[] = {
+    [CELL_UNDEF] = 'u',
+    [CELL_CONS]  = ':',
+    [CELL_ARRAY] = 'v',
+    [CELL_STR]   = 'S',
+    [CELL_BYTES] = 'b',
+    [CELL_FRAME] = 'F',
+    [CELL_KONT]  = 'k',
+    [CELL_ARRMETA] = 'M',
+    [CELL_FREE]  = '0',
+    [CELL_REF]   = 'r',
+
+    [CELL_SYM]   = 's',
+    [CELL_INT]   = 'i',
+    [CELL_CHAR]  = 'c',
+    [CELL_OP]    = 'o',
+    [CELL_FUNC]  = 'n',
+    [CELL_PORT]  = 'p',
+
+    [CELL_ERROR] = 'E',
+};
+
 
 /*
  *  SECD built-ins
