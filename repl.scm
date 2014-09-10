@@ -164,15 +164,30 @@
               (body (append (secd-compile (cons 'begin (cdr tl))) '(RTN))))
           (list 'LDF (list args body))))
       ((eq? hd 'let)
-        (let ((bindings (unzip (car tl)))
-              (body (cdr tl)))
-          (let ((args (car bindings))
-                (exprs (cadr bindings)))
-            (append (compile-bindings exprs)
-                    (list 'LDF
-                        (list args
-                            (append (secd-compile (cons 'begin body)) '(RTN))))
-                    '(AP)))))
+        (cond
+          ((symbol? (car tl))   ;; let-loop
+            (let ((loopname (car tl))
+                  (bindings (unzip (cadr tl)))
+                  (body (cddr tl)))
+              (let ((args (car bindings))
+                    (exprs (cadr bindings)))
+                (let ((loopfun
+                        (list 'letrec
+                           (list (list loopname (list 'lambda args (cons 'begin body))))
+                           (cons loopname exprs))))
+                  (begin
+                    ;(display loopfun)
+                    (secd-compile loopfun))))))
+          (else     ;; just let
+            (let ((bindings (unzip (car tl)))
+                  (body (cdr tl)))
+              (let ((args (car bindings))
+                    (exprs (cadr bindings)))
+                (append (compile-bindings exprs)
+                        (list 'LDF
+                            (list args
+                                (append (secd-compile (cons 'begin body)) '(RTN))))
+                        '(AP)))))))
       ((eq? hd 'letrec)
         (let ((bindings (unzip (car tl)))
               (body (cdr tl)))
