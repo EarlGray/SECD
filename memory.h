@@ -34,6 +34,7 @@ cell_t *new_clone(secd_t *secd, cell_t *from);
 
 cell_t *new_error(secd_t *secd, cell_t *info, const char *fmt, ...);
 cell_t *new_continuation(secd_t *secd, cell_t *s, cell_t *e, cell_t *c);
+cell_t *new_current_continuation(secd_t *secd);
 
 cell_t *copy_value(
         secd_t *secd,

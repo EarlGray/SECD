@@ -444,6 +444,7 @@ cell_t *secd_mem_info(secd_t *secd);
 bool is_control_compiled(cell_t *control);
 cell_t *compile_control_path(secd_t *secd, cell_t *control);
 
+cell_t *secd_execute(secd_t *secd, cell_t *clos, cell_t *argv);
 cell_t *secd_raise(secd_t *secd, cell_t *exc);
 
 /*

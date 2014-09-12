@@ -1010,6 +1010,10 @@ cell_t *secdf_raisec(secd_t *secd, cell_t *args) {
     return SECD_NIL;
 }
 
+cell_t *secdf_testf(secd_t *secd, cell_t *args) {
+    return secd_execute(secd, get_car(args), get_cdr(args));
+}
+
 
 /*
  *    Native function mapping table
@@ -1022,6 +1026,7 @@ const cell_t getenv_fun = INIT_FUNC(secdf_getenv);
 const cell_t bind_func  = INIT_FUNC(secdf_bind);
 const cell_t hash_func  = INIT_FUNC(secdf_hash);
 const cell_t symleq_fun = INIT_FUNC(secdf_symleq);
+const cell_t test_fun   = INIT_FUNC(secdf_testf);
 
 //const cell_t strnum_fun = INIT_FUNC(secdf_str2num);
 //const cell_t numstr_fun = INIT_FUNC(secdf_num2str);
@@ -1079,6 +1084,7 @@ native_functions[] = {
     { "list->string",   &lststr_fun, "lc S" },
     //{ "string->number", &strnum_fun },
     //{ "number->string", &numstr_fun },
+    { "test-ap",        &test_fun},
 
     { "int-xor",        &xorint_fun, "i i i" },
     { "int-or",         &orint_fun,  "i i i" },

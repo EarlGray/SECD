@@ -39,61 +39,103 @@ static bool handle_exception(secd_t *secd, cell_t *exc) {
     return !is_error(secd_raise(secd, exc));
 }
 
+static cell_t *fatal_exception(secd_t *secd, cell_t *exc, index_t opind) {
+    errorf("****************\n");
+    print_env(secd);
+    errorf("****************\n");
+    errorf("FATAL EXCEPTION: %s failed\n", opcode_table[ opind ].name);
+    return exc;
+}
+
+static void run_postop(secd_t *secd) {
+    switch (secd->postop) {
+      case SECDPOST_GC:
+          secd_mark_and_sweep_gc(secd);
+          break;
+      case SECDPOST_MACHINE_DUMP:
+          secd_dump_state(secd, "secdstate.dump");
+          break;
+      case SECD_NOPOST:
+          break;
+    }
+    secd->postop = SECD_NOPOST;
+}
+
+static bool about_to_halt(secd_t *secd, index_t opind, cell_t **ret) {
+    switch (opind) {
+      case SECD_STOP:
+          *ret = SECD_NIL;
+          return true;
+
+      case SECD_RTN:
+          if (not_nil(secd->dump) && is_nil(get_car(secd->dump))) {
+            pop_dump(secd);
+            /* return into native code */
+            if (is_nil(secd->stack)) {
+                *ret = new_error(secd, SECD_NIL,
+                                 "secd_run: No value on stack to return");
+            } else {
+                *ret = list_head(secd->stack);
+            }
+            return true;
+          }
+    }
+    return false;
+}
+
+#if (TIMING)
+# define TIMING_DECLARATIONS(ts_then, ts_now) \
+    struct timeval ts_then, ts_now;
+
+# define TIMING_START_OPERATION(ts_then) \
+    gettimeofday(&ts_then, NULL);
+
+# define TIMING_END_OPERATION(ts_then, ts_now)  \
+    gettimeofday(&ts_now, NULL);                \
+    int usec = ts_now.tv_usec - ts_then.tv_usec;\
+    if (usec < 0) usec += 1000000;              \
+    ctrldebugf("    0.%06d s elapsed\n", usec);
+
+#else
+# define TIMING_DECLARATIONS(ts_then, ts_now)
+# define TIMING_START_OPERATION(ts_then)
+# define TIMING_END_OPERATION(ts_then, ts_now)
+#endif
+
 cell_t * run_secd(secd_t *secd, cell_t *ctrl) {
-    cell_t *op;
+    cell_t *op, *ret;
+    TIMING_DECLARATIONS(ts_then, ts_now);
 
     share_cell(secd, ctrl);
     set_control(secd, &ctrl);
 
-#if (TIMING)
-    struct timeval ts_then;
-    struct timeval ts_now;
-#endif
-
     while (true)  {
-#if (TIMING)
-        gettimeofday(&ts_then, NULL);
-#endif
+        TIMING_START_OPERATION(ts_then);
+
         op = pop_control(secd);
         assert_cell(op, "run: no command");
-        assert_or_continue(
-                cell_type(op) == CELL_OP,
-                "run: not an opcode at [%ld]\n", cell_index(secd, op));
+        if (cell_type(op) != CELL_OP) {
+             errorf("run: not an opcode at [%ld]\n", cell_index(secd, op));
+             dbg_printc(secd, op);
+             continue;
+        }
 
         int opind = op->as.op;
-        secd_opfunc_t callee = (secd_opfunc_t) opcode_table[ opind ].fun;
-        if (SECD_NIL == callee)
-            return SECD_NIL;  // STOP
+        if (about_to_halt(secd, opind, &ret))
+            return ret;
 
-        cell_t *ret = callee(secd);
-        if (is_error(ret)) {
-            if (!handle_exception(secd, ret)) {
-                errorf("****************\n");
-                print_env(secd);
-                errorf("****************\n");
-                errorf("FATAL EXCEPTION: %s failed\n", opcode_table[ opind ].name);
-                return ret;
-            }
-        }
+        secd_opfunc_t callee = (secd_opfunc_t) opcode_table[ opind ].fun;
+
+        ret = callee(secd);
+        if (is_error(ret))
+            if (!handle_exception(secd, ret))
+                return fatal_exception(secd, ret, opind);
+
         drop_cell(secd, op);
 
-#if TIMING
-        gettimeofday(&ts_now, NULL);
-        int usec = ts_now.tv_usec - ts_then.tv_usec;
-        if (usec < 0) usec += 1000000;
-        ctrldebugf("    0.%06d s elapsed\n", usec);
-#endif
-        switch (secd->postop) {
-          case SECDPOST_GC:
-              secd_mark_and_sweep_gc(secd);
-              break;
-          case SECDPOST_MACHINE_DUMP:
-              secd_dump_state(secd, "secdstate.dump");
-              break;
-          case SECD_NOPOST:
-              break;
-        }
-        secd->postop = SECD_NOPOST;
+        TIMING_END_OPERATION(ts_then, ts_now)
+
+        run_postop(secd);
 
         ++secd->tick;
     }

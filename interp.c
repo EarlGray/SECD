@@ -131,6 +131,68 @@ cell_t * compile_ctrl(secd_t *secd, cell_t **ctrl) {
 }
 
 /*
+ *  Run a SECD function from native code
+ */
+cell_t *secd_execute(secd_t *secd, cell_t *clos, cell_t *argv) {
+    assert(is_cons(clos), "secd_execute: closure is not a cons");
+    assert(not_nil(clos), "secd_execute: nil argument");
+
+    cell_t *func = get_car(clos);
+    cell_t *env = get_cdr(clos);
+
+    cell_t *args = get_car(func);
+    cell_t *ctrl = get_car(get_cdr(func));
+
+    cell_t *kont = new_current_continuation(secd);
+
+    cell_t *frame = setup_frame(secd, args, argv, env);
+    assert_cell(frame, "secd_execute: failed to setup frame");
+
+    /* jump into the closure */
+    assign_cell(secd, &secd->stack, SECD_NIL);
+    assign_cell(secd, &secd->env, new_cons(secd, frame, env));
+    push_dump(secd, SECD_NIL); /* signals to run_secd() to return */
+
+    cell_t *result = run_secd(secd, ctrl);
+    assign_cell(secd, &secd->stack, kont->as.kont.stack);
+    assign_cell(secd, &secd->env, kont->as.kont.env);
+    assign_cell(secd, &secd->control, kont->as.kont.ctrl);
+    //dbg_printc(secd, secd->stack);
+    //dbg_printc(secd, secd->control);
+
+    free_cell(secd, kont);
+    return result;
+}
+
+cell_t *secd_raise(secd_t *secd, cell_t *exc) {
+    cell_t *symc = NULL;
+    cell_t *exchandlers = lookup_env(secd, SECD_EXC_HANDLERS, &symc);
+    assert(symc, "raise: no exception handlers");
+    assert(not_nil(exchandlers), "raise: no handlers");
+
+    assert(is_cons(exchandlers), "raise: not a cons");
+    cell_t *handler = get_car(exchandlers);
+
+    cell_t *func = get_car(handler);
+    cell_t *eargs = get_car(func);
+    cell_t *ectrl = get_car(get_cdr(func));
+    assert(cell_type(get_car(ectrl)) == CELL_OP, "raise: exchandler is not a closure");
+
+    cell_t *eargv = new_cons(secd, exc, SECD_NIL);
+
+    cell_t *frame = setup_frame(secd, eargs, eargv, secd->env);
+    assert_cell(frame, "raise: setup_frame() failed");
+
+    /* set new SECD state */
+    assign_cell(secd, &secd->stack, SECD_NIL);
+    assign_cell(secd, &secd->env, new_cons(secd, frame, secd->env));
+    set_control(secd, &ectrl);
+    assign_cell(secd, &secd->dump, SECD_NIL);
+
+    return SECD_NIL;
+}
+
+/*
  *  Cell type encoding with ASCII
  */
 const char secd_type_chars[] = {
@@ -578,12 +640,10 @@ cell_t *secd_ap(secd_t *secd) {
         assign_cell(secd, &secd->dump, new_dump);
         ctrldebugf("secd_ap: tailrec\n");
     } else {
-        push_dump(secd, new_continuation(secd,
-                            secd->stack, secd->env, secd->control));
+        push_dump(secd, new_current_continuation(secd));
     }
 #else
-    push_dump(secd, new_continuation(secd,
-                        secd->stack, secd->env, secd->control));
+    push_dump(secd, new_current_continuation(secd));
 #endif
     assign_cell(secd, &secd->stack, SECD_NIL);
     assign_cell(secd, &secd->env, new_cons(secd, frame, newenv));
@@ -603,18 +663,20 @@ cell_t *secd_rtn(secd_t *secd) {
     cell_t *result = pop_stack(secd);
     assert(is_nil(secd->stack), "secd_rtn: stack holds more than 1 value");
 
+    /* new SECD state */
     cell_t *kont = pop_dump(secd);
     assert(cell_type(kont) == CELL_KONT, "secd_rtn: not a continuation on dump");
 
-    secd->stack = share_cell(secd, new_cons(secd, result, kont->as.kont.stack));
-
+    set_control(secd, &kont->as.kont.ctrl);
+    //secd->control = share_cell(secd, kont->as.kont.ctrl);
     assign_cell(secd, &secd->env, kont->as.kont.env);
+    assign_cell(secd, &secd->stack, kont->as.kont.stack);
+    push_stack(secd, result);
+
     /* restoring I/O */
     cell_t *frame_io = get_car(secd->env);
     secd->input_port = get_car(frame_io->as.frame.io);
     secd->output_port = get_cdr(frame_io->as.frame.io);
-
-    secd->control = share_cell(secd, kont->as.kont.ctrl);
 
     drop_cell(secd, result);
     drop_cell(secd, kont);
@@ -640,23 +702,26 @@ cell_t *secd_rap(secd_t *secd) {
     cell_t *closure = pop_stack(secd);
     cell_t *argvals = pop_stack(secd);
 
+    /* unpack closure */
     cell_t *newenv = get_cdr(closure);
     cell_t *func = get_car(closure);
     cell_t *argnames = get_car(func);
 
-    push_dump(secd, new_continuation(secd,
-                        secd->stack, get_cdr(secd->env), secd->control));
-
+    /* setup environment */
     cell_t *frame = setup_frame(secd, argnames, argvals, list_next(secd, newenv));
     assert_cell(frame, "secd_rap: setup_frame() failed");
 
     newenv->as.cons.car = share_cell(secd, frame);
 
-    drop_cell(secd, secd->stack);
-    secd->stack = SECD_NIL;
+    /* return info */
+    cell_t *retkont = new_continuation(secd,
+                        secd->stack, get_cdr(secd->env), secd->control);
 
+    /* new SECD state */
+    assign_cell(secd, &secd->stack, SECD_NIL);
     assign_cell(secd, &secd->env, newenv);
     set_control(secd, &func->as.cons.cdr->as.cons.car);
+    push_dump(secd, retkont);
 
     drop_cell(secd, closure); drop_cell(secd, argvals);
     return secd->truth_value;
@@ -678,8 +743,7 @@ cell_t *secd_apcc(secd_t *secd) {
     assert(cell_type(list_head(newenv)) == CELL_FRAME,
            "secd_apcc: not a frame in newenv");
 
-    cell_t *current_cont =
-        new_continuation(secd, secd->stack, secd->env, secd->control);
+    cell_t *current_cont = new_current_continuation(secd);
 
     cell_t *args = get_car(func);
     assert(is_cons(args), "secd_apcc: not a cons at args in closure");
@@ -693,14 +757,11 @@ cell_t *secd_apcc(secd_t *secd) {
     cell_t *frame = setup_frame(secd, args, argv, newenv);
     assert_cell(frame, "secd_apcc: setup_frame() failed");
 
-    push_dump(secd, current_cont);
-
-    drop_cell(secd, secd->stack);
-    secd->stack = SECD_NIL;
-
+    /* new SECD state */
+    assign_cell(secd, &secd->stack, SECD_NIL);
     assign_cell(secd, &secd->env, new_cons(secd, frame, newenv));
-
     set_control(secd, &func->as.cons.cdr->as.cons.car);
+    push_dump(secd, current_cont);
 
     drop_cell(secd, closure); drop_cell(secd, argv);
     return secd->truth_value;
@@ -726,34 +787,6 @@ cell_t *secd_print(secd_t *secd) {
     sexp_print(secd, top);
     secd_printf(secd, "\n");
     return top;
-}
-
-cell_t *secd_raise(secd_t *secd, cell_t *exc) {
-    cell_t *symc = NULL;
-    cell_t *exchandlers = lookup_env(secd, SECD_EXC_HANDLERS, &symc);
-    assert(symc, "raise: no exception handlers");
-    assert(not_nil(exchandlers), "raise: no handlers");
-
-    assert(is_cons(exchandlers), "raise: not a cons");
-    cell_t *handler = get_car(exchandlers);
-
-    cell_t *func = get_car(handler);
-    cell_t *eargs = get_car(func);
-    cell_t *ectrl = get_car(get_cdr(func));
-    assert(cell_type(get_car(ectrl)) == CELL_OP, "raise: exchandler is not a closure");
-
-    cell_t *eargv = new_cons(secd, exc, SECD_NIL);
-
-    cell_t *frame = setup_frame(secd, eargs, eargv, secd->env);
-    assert_cell(frame, "raise: setup_frame() failed");
-
-    /* set new SECD state */
-    assign_cell(secd, &secd->stack, SECD_NIL);
-    assign_cell(secd, &secd->env, new_cons(secd, frame, secd->env));
-    set_control(secd, &ectrl);
-    assign_cell(secd, &secd->dump, SECD_NIL);
-
-    return SECD_NIL;
 }
 
 const opcode_t opcode_table[] = {

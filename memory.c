@@ -401,6 +401,10 @@ cell_t *new_continuation(secd_t *secd, cell_t *s, cell_t *e, cell_t *c) {
     return k;
 }
 
+cell_t *new_current_continuation(secd_t *secd) {
+    return new_continuation(secd, secd->stack, secd->env, secd->control);
+}
+
 cell_t *init_number(cell_t *c, int n) {
     c->type = CELL_INT;
     c->as.num = n;
@@ -980,6 +984,10 @@ cell_t *vector_to_list(secd_t *secd, cell_t *vct, int start, int end) {
     }
     return lst;
 }
+
+/*
+ *  Hashtable utilities
+ */
 
 /*
  *  Abstract operations
