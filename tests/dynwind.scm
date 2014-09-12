@@ -1,0 +1,13 @@
+(define (test-dynwind)
+  (let ((msgs '()) (c #f))
+    (let ((log (lambda (msg) (set! msgs (cons msg msgs)))))
+      (dynamic-wind
+        (lambda () (log 'connect))
+        (lambda ()
+          (log (call/cc (lambda (k) 
+                 (set! c k)
+                 'first-time-here))))
+        (lambda () (log 'disconnect)))
+      (if (< (length msgs) 4)
+          (c 'second-time)
+          (reverse msgs)))))
