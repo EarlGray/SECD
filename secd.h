@@ -426,6 +426,7 @@ void sexp_display(secd_t *secd, cell_t *port, cell_t *cell);
 /* Reads S-expressions from port.
  * If port is SECD_NIL, defaults to secd->input_port */
 cell_t *sexp_parse(secd_t *secd, cell_t *port);
+cell_t *sexp_lexeme(secd_t *secd, int line, int pos, int prevchar);
 
 cell_t *read_secd(secd_t *secd);
 

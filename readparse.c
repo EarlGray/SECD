@@ -226,6 +226,8 @@ struct secd_parser {
     secd_t *secd;
     token_t token;
 
+    int line;
+    int pos;
     /* lexer guts */
     int lc;     // lex char
     int numtok;
@@ -246,6 +248,7 @@ secd_parser_t *init_parser(secd_t *secd, secd_parser_t *p) {
     p->lc = ' ';
     p->nested = 0;
     p->secd = secd;
+    p->line = 1; p->pos = 0;
 
     memset(p->issymbc, false, 0x20);
     memset(p->issymbc + 0x20, true, UCHAR_MAX - 0x20);
@@ -257,13 +260,19 @@ secd_parser_t *init_parser(secd_t *secd, secd_parser_t *p) {
 
 inline static int nextchar(secd_parser_t *p) {
     secd_t *secd = p->secd;
-    return p->lc = secd_getc(secd, secd->input_port);
+    p->lc = secd_getc(secd, secd->input_port);
+    if (p->lc == '\n') {
+        ++p->line;
+        p->pos = 0;
+    } else
+        ++p->pos;
+    return p->lc;
 }
 
 inline static bool isbasedigit(int c, int base) {
     switch (base) {
-      case 2: return (base == '0') || (base == '1');
-      case 8: return (base <= '0') && (base <= '7');
+      case 2: return (c == '0') || (c == '1');
+      case 8: return ('0' <= c) && (c < '8');
       case 10: return isdigit(c);
       case 16: return isxdigit(c);
     }
@@ -478,15 +487,13 @@ token_t lexnext(secd_parser_t *p) {
                 p->symtok[2] = '\0';
                 nextchar(p);
                 return (p->token = TOK_SYM);
-            case ';': {
+            case ';':
                 nextchar(p);
                 free_cell(p->secd, read_token(p->secd, p));
                 return lexnext(p);
-            }
-            case '|': {
+            case '|':
                 lex_mltln_comment(p);
                 return lexnext(p);
-            }
             /* chars */
             case '\\': nextchar(p); return lexchar(p);
             /* numbers */
@@ -720,6 +727,55 @@ error_exit:
 cell_t *sexp_read(secd_t *secd, secd_parser_t *p) {
     lexnext(p);
     return read_token(secd, p);
+}
+
+static inline cell_t *
+new_lexeme(secd_t *secd, const char *type, cell_t *contents) {
+    cell_t *contc = new_cons(secd, contents, SECD_NIL);
+    return new_cons(secd, new_symbol(secd, type), contc);
+}
+
+cell_t *sexp_lexeme(secd_t *secd, int line, int pos, int prevchar) {
+    cell_t *result;
+    secd_parser_t p;
+
+    init_parser(secd, &p);
+    p.line = line;
+    p.pos = pos;
+    p.lc = prevchar;
+
+    lexnext(&p);
+
+    switch (p.token) {
+      case TOK_EOF:
+        return new_symbol(secd, EOF_OBJ);
+      case TOK_SYM:
+        result = new_lexeme(secd, "sym", new_symbol(secd, p.symtok));
+        break;
+      case TOK_NUM:
+        result = new_lexeme(secd, "int", new_number(secd, p.numtok));
+        break;
+      case TOK_STR:
+        result = new_lexeme(secd, "str", new_string(secd, p.strtok));
+        free(p.strtok);
+        break;
+      case TOK_CHAR:
+        result = new_lexeme(secd, "char", new_char(secd, p.numtok));
+        break;
+      case TOK_QUOTE: case TOK_QQ:
+      case TOK_UQ: case TOK_UQSPL:
+        result = new_lexeme(secd, special_form_for(p.token), SECD_NIL);
+        break;
+      case TOK_ERR:
+        result = new_lexeme(secd, "syntax error", SECD_NIL);
+        break;
+      default:
+        result = new_lexeme(secd, "token", new_char(secd, p.token));
+    }
+    cell_t *pcharc = new_cons(secd, new_char(secd, p.lc), result);
+    cell_t *posc = new_cons(secd, new_number(secd, p.pos), pcharc);
+    cell_t *linec = new_cons(secd, new_number(secd, p.line), posc);
+    return linec;
 }
 
 cell_t *sexp_parse(secd_t *secd, cell_t *port) {

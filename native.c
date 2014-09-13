@@ -447,6 +447,22 @@ cell_t *secdf_bind(secd_t *secd, cell_t *args) {
     return sym;
 }
 
+cell_t *secdf_readlex(secd_t *secd, cell_t *args) {
+    ctrldebugf("secdf_readlex\n");
+
+    int line = 0, pos = 0;
+    int startchar = ' ';
+    if (not_nil(args)) {
+        cell_t *scc = get_car(args);
+        assert(cell_type(scc) == CELL_CHAR, "(read-lexeme: a char expected");
+        startchar = scc->as.num;
+        if (not_nil(get_cdr(args)))
+            get_two_nums(secd, args, &line, &pos, "(read-lexeme)");
+    }
+    cell_t *res = sexp_lexeme(secd, line, pos, startchar);
+    return res;
+}
+
 cell_t *secdf_chrint(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "secdf_chrint: no argument");
     cell_t *chr = get_car(args);
@@ -1027,6 +1043,7 @@ const cell_t bind_func  = INIT_FUNC(secdf_bind);
 const cell_t hash_func  = INIT_FUNC(secdf_hash);
 const cell_t symleq_fun = INIT_FUNC(secdf_symleq);
 const cell_t test_fun   = INIT_FUNC(secdf_testf);
+const cell_t readlex_fun = INIT_FUNC(secdf_readlex);
 
 //const cell_t strnum_fun = INIT_FUNC(secdf_str2num);
 //const cell_t numstr_fun = INIT_FUNC(secdf_num2str);
@@ -1108,6 +1125,7 @@ native_functions[] = {
     { "list->vector",   &l2v_func,   "lA vA" },
 
     { "display",            &displ_fun,  "A l_" },
+    { "read-lexeme",        &readlex_fun},
     { "open-input-file",    &fiopen_fun, "S p"  },
     { "open-input-string",  &siopen_fun, "S p"  },
     { "read-char",          &fgetc_fun,  "p? c" },

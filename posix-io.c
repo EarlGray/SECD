@@ -98,6 +98,8 @@ int secd_getc(secd_t __unused *secd, cell_t *port) {
             return EOF;
 
         char c = strmem(str)[str->as.str.offset];
+        if (c == '\0')
+            return SECD_EOF;
         ++str->as.str.offset;
         return (int)c;
     }
