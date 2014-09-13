@@ -429,6 +429,27 @@ token_t lexchar(secd_parser_t *p) {
     return (p->token = TOK_ERR);
 }
 
+static void lex_mltln_comment(secd_parser_t *p) {
+    while (true) {
+        nextchar(p);
+        switch (p->lc) {
+          case '"':
+              lexstring(p);
+              break;
+          case '#':
+             if (nextchar(p) == '|')
+                 lex_mltln_comment(p);
+             break;
+          case '|':
+             if (nextchar(p) == '#') {
+                 nextchar(p);
+                 return;
+             }
+             break;
+        }
+    }
+}
+
 token_t lexnext(secd_parser_t *p) {
     /* skip spaces */
     while (isspace(p->lc))
@@ -460,6 +481,10 @@ token_t lexnext(secd_parser_t *p) {
             case ';': {
                 nextchar(p);
                 free_cell(p->secd, read_token(p->secd, p));
+                return lexnext(p);
+            }
+            case '|': {
+                lex_mltln_comment(p);
                 return lexnext(p);
             }
             /* chars */
