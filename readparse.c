@@ -240,6 +240,7 @@ struct secd_parser {
 cell_t *sexp_read(secd_t *secd, secd_parser_t *p);
 cell_t *read_list(secd_t *secd, secd_parser_t *p);
 
+static cell_t *read_token(secd_t *secd, secd_parser_t *p);
 
 secd_parser_t *init_parser(secd_t *secd, secd_parser_t *p) {
     p->lc = ' ';
@@ -456,6 +457,11 @@ token_t lexnext(secd_parser_t *p) {
                 p->symtok[2] = '\0';
                 nextchar(p);
                 return (p->token = TOK_SYM);
+            case ';': {
+                nextchar(p);
+                free_cell(p->secd, read_token(p->secd, p));
+                return lexnext(p);
+            }
             /* chars */
             case '\\': nextchar(p); return lexchar(p);
             /* numbers */
