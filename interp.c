@@ -154,6 +154,8 @@ cell_t *secd_execute(secd_t *secd, cell_t *clos, cell_t *argv) {
     push_dump(secd, SECD_NIL); /* signals to run_secd() to return */
 
     cell_t *result = run_secd(secd, ctrl);
+    share_cell(secd, result);
+
     assign_cell(secd, &secd->stack, kont->as.kont.stack);
     assign_cell(secd, &secd->env, kont->as.kont.env);
     assign_cell(secd, &secd->control, kont->as.kont.ctrl);

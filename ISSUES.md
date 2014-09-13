@@ -14,8 +14,9 @@ Tasks Pending:
 | T19   | `letrec*`, `let*`; analyses for dependencies in large `letrec*`s
 | T20   | numbers: floating point, libgmp?
 | T21   | `eval` does not use the supplied environment
-| F3    | FEATURE: non-blocking I/O
-| F4    | FEATURE: green threads + mailboxes + messaging
+| T22   | unquote-splicing
+| T23   | native hashtables
+| F3    | FEATURE: non-blocking I/O, green threads + mailboxes + messaging
 | F5    | FEATURE: small FFI, native modules as .so
 | F6    | FEATURE: LLVM-backend
 
@@ -52,5 +53,6 @@ Defects Fixed:
 | D1    |  `(eq? "str" "str")` not handled
 | D2    | Crash on reading `#()`
 | D4    | Crash on freeing result of `(make-vector 2 'any)` -- part of T1
+| D9    | `(test-ap)`/`secd_execute()`  does not work
 | D7    | secdtool:free-variables does not handle #.DUM - #.RAP correctly
 | D8    | crash on (secd 'gc)
