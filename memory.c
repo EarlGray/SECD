@@ -1172,6 +1172,31 @@ bool secdht_lookup(secd_t *secd, cell_t *ht, cell_t *key, cell_t **val) {
     return true;
 }
 
+cell_t *secdht_fold(secd_t *secd, cell_t *ht, cell_t *val, cell_t *iter) {
+    int i;
+    cell_t *hasharr = arr_ref(ht, HT_ARR);
+
+    share_cell(secd, val);
+
+    for (i = 0; i < arr_size(secd, hasharr); ++i) {
+        cell_t *bucket = arr_ref(hasharr, i);
+        if (!is_cons(bucket)) continue;
+
+        while (not_nil(bucket)) {
+            cell_t *kv = get_car(bucket);
+            cell_t *argv = new_cons(secd, val, SECD_NIL);
+            argv = new_cons(secd, kv, argv);
+
+            cell_t *val1 = secd_execute(secd, iter, argv);
+            assign_cell(secd, &val, val1);
+
+            bucket = get_cdr(bucket);
+        }
+    }
+
+    return val;
+}
+
 /*
  *  Abstract operations
  */

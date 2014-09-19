@@ -189,6 +189,8 @@ cell_t *secdht_insert(secd_t *secd, cell_t *ht, cell_t *key, cell_t *val);
 
 bool secdht_lookup(secd_t *secd, cell_t *ht, cell_t *key, cell_t **val);
 
+cell_t *secdht_fold(secd_t *secd, cell_t *ht, cell_t *val, cell_t *iter);
+
 /*
  *    UTF-8
  */

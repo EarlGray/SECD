@@ -926,6 +926,25 @@ cell_t *secdf_htset(secd_t *secd, cell_t *args) {
     return SECD_NIL;
 }
 
+cell_t *secdf_htfold(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "ht-fold: no arguments");
+
+    cell_t *ht = get_car(args);
+    assert(secdht_is(secd, ht), "ht-fold: not a hashtable");
+
+    args = get_cdr(args);
+    assert(not_nil(args), "ht-fold: initval expected");
+
+    cell_t *initval = get_car(args);
+
+    args = get_cdr(args);
+    assert(not_nil(args), "ht-fold: iterfunc expected");
+
+    cell_t *iterfunc = get_car(args);
+
+    return secdht_fold(secd, ht, initval, iterfunc);
+}
+
 
 /*
  *    I/O ports
@@ -1160,6 +1179,7 @@ const cell_t str2bv_fun = INIT_FUNC(secdf_str2bv);
 const cell_t mkht_fun   = INIT_FUNC(secdf_mkht);
 const cell_t htref_fun  = INIT_FUNC(secdf_htref);
 const cell_t htset_fun  = INIT_FUNC(secdf_htset);
+const cell_t htfold_fun = INIT_FUNC(secdf_htfold);
 /* i/o ports */
 const cell_t displ_fun  = INIT_FUNC(secdf_display);
 const cell_t fiopen_fun = INIT_FUNC(secdf_ifopen);
@@ -1207,6 +1227,7 @@ native_functions[] = {
     { "ht-make",        &mkht_fun   },
     { "ht-ref",         &htref_fun  },
     { "ht-set!",        &htset_fun  },
+    { "ht-fold",        &htfold_fun },
 
     { "make-vector",    &vmake_func, "i i? vA" },
     { "vector-length",  &vlen_func,  "vA i"  },
