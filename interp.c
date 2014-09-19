@@ -134,6 +134,10 @@ cell_t * compile_ctrl(secd_t *secd, cell_t **ctrl) {
  *  Run a SECD function from native code
  */
 cell_t *secd_execute(secd_t *secd, cell_t *clos, cell_t *argv) {
+    if (cell_type(clos) == CELL_FUNC) {
+        secd_nativefunc_t func = (secd_nativefunc_t)clos->as.ptr;
+        return func(secd, argv);
+    }
     assert(is_cons(clos), "secd_execute: closure is not a cons");
     assert(not_nil(clos), "secd_execute: nil argument");
 

@@ -120,25 +120,12 @@ static inline cell_t *meta_mem(cell_t *meta) {
     return meta + 1;
 }
 
-static inline const cell_t *
-arr_val(const cell_t *arr, size_t index) {
-    if (cell_type(arr) != CELL_ARRAY) {
-        errorf("arr_val: not a CELL_ARRAY\n");
-        return SECD_NIL;
-    }
-    return arr->as.arr.data + index;
-}
-
 static inline cell_t *arr_mem(const cell_t *arr) {
     if (cell_type(arr) != CELL_ARRAY) {
         errorf("arr_mem: not a CELL_ARRAY\n");
         return SECD_NIL;
     }
     return arr->as.arr.data;
-}
-
-static inline size_t arr_size(secd_t *secd, const cell_t *arr) {
-    return arrmeta_size(secd, arr_val(arr, -1));
 }
 
 static inline size_t mem_size(const cell_t *str) {
@@ -149,8 +136,23 @@ static inline size_t mem_size(const cell_t *str) {
     return str->as.str.size;
 }
 
-static inline cell_t *arr_ref(cell_t *arr, size_t index) {
+static inline const cell_t *
+arr_val(const cell_t *arr, size_t index) {
+    if (cell_type(arr) != CELL_ARRAY) {
+        errorf("arr_val: not a CELL_ARRAY\n");
+        return SECD_NIL;
+    }
+    return arr->as.arr.data + index;
+}
+
+static inline cell_t *
+arr_ref(cell_t *arr, size_t index) {
     return arr_mem(arr) + index;
+}
+
+static inline cell_t *
+arr_get(secd_t *secd, cell_t *arr, size_t index) {
+    return new_clone(secd, arr_ref(arr, index));
 }
 
 static inline cell_t *
@@ -159,6 +161,10 @@ arr_set(secd_t *secd, cell_t *arr, size_t index, const cell_t *val) {
     drop_value(secd, ref);
     copy_value(secd, ref, val);
     return arr;
+}
+
+static inline size_t arr_size(secd_t *secd, const cell_t *arr) {
+    return arrmeta_size(secd, arr_val(arr, -1));
 }
 
 cell_t *fill_array(secd_t *secd, cell_t *arr, cell_t *with);
@@ -171,6 +177,15 @@ void secd_mark_and_sweep_gc(secd_t *secd);
 
 void init_mem(secd_t *secd, cell_t *heap, size_t size);
 
+/*
+ *    Hashtables
+ */
+
+cell_t *secdht_new(secd_t *secd, int initcap, cell_t *eqfun, cell_t *hashfun);
+
+cell_t *secdht_insert(secd_t *secd, cell_t *ht, cell_t *key, cell_t *val);
+
+bool secdht_lookup(secd_t *secd, cell_t *ht, cell_t *key, cell_t **val);
 /*
  *    UTF-8
  */

@@ -293,6 +293,18 @@ cell_t *secdf_defp(secd_t *secd, cell_t *args) {
     return to_bool(secd, not_nil(defc));
 }
 
+cell_t *secdf_equal(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "secdf_equal: no arguments");
+    cell_t *fst = list_head(args);
+
+    args = list_next(secd, args);
+    assert(not_nil(args), "secdf_equal: second argument expected");
+
+    cell_t *snd = list_head(args);
+
+    return to_bool(secd, is_equal(secd, fst, snd));
+}
+
 cell_t *secdf_hash(secd_t *secd, cell_t *args) {
     ctrldebugf("secdf_hash\n");
     assert(not_nil(args), "secdf_hash: no arguments");
@@ -300,7 +312,7 @@ cell_t *secdf_hash(secd_t *secd, cell_t *args) {
     cell_t *cell = list_head(args);
     if (is_symbol(cell))
         return new_number(secd, symhash(cell));
-    return SECD_NIL;
+    return secd->false_value;
 }
 
 cell_t *secdf_symleq(secd_t *secd, cell_t *args) {
@@ -1039,6 +1051,7 @@ const cell_t defp_func  = INIT_FUNC(secdf_defp);
 const cell_t eofp_func  = INIT_FUNC(secdf_eofp);
 const cell_t debug_func = INIT_FUNC(secdf_ctl);
 const cell_t getenv_fun = INIT_FUNC(secdf_getenv);
+const cell_t equal_func = INIT_FUNC(secdf_equal);
 const cell_t bind_func  = INIT_FUNC(secdf_bind);
 const cell_t hash_func  = INIT_FUNC(secdf_hash);
 const cell_t symleq_fun = INIT_FUNC(secdf_symleq);
@@ -1090,6 +1103,13 @@ const cell_t freadb_fun = INIT_FUNC(secdf_readu8);
 //const cell_t readln_fun = INIT_FUNC(secdf_readln);
 const cell_t pinfo_fun  = INIT_FUNC(secdf_pinfo);
 const cell_t pclose_fun = INIT_FUNC(secdf_pclose);
+
+const cell_t *secd_default_equal_fun(void) {
+    return &equal_func;
+}
+const cell_t *secd_default_hash_fun(void) {
+    return &hash_func;
+}
 
 const native_binding_t
 native_functions[] = {
@@ -1146,6 +1166,7 @@ native_functions[] = {
     { "secd-hash",      &hash_func,  "s i"    },
     { "secd",           &debug_func, "s u"    },
     { "defined?",       &defp_func,  "s s"    },
+    { "equal?",         &equal_func},
     { "secd-bind!",     &bind_func,  "s A s!" },
     { "interaction-environment", &getenv_fun, "lF" },
 

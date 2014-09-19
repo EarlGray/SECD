@@ -988,6 +988,154 @@ cell_t *vector_to_list(secd_t *secd, cell_t *vct, int start, int end) {
 /*
  *  Hashtable utilities
  */
+const unsigned MAX_HT_LOAD_RATIO = 70;  // percent
+
+enum {
+    /* indexes */
+    HT_SIZE = 0,
+    HT_ARR,
+    HT_EQVFUN,
+    HT_HASHFUN,
+    /* hashtable structure size */
+    HTSTRUCT_SIZE
+};
+
+inline static hash_t
+secdht_hash(secd_t *secd, cell_t *ht, cell_t *val) {
+    cell_t *hashfun = arr_ref(ht, HT_HASHFUN);
+    cell_t *hashc = secd_execute(secd, hashfun, new_cons(secd, val, SECD_NIL));
+    hash_t hash = numval(hashc);
+    free_cell(secd, hashc);
+    return hash;
+}
+
+inline static bool
+secdht_eq(secd_t *secd, cell_t *ht, cell_t *a, cell_t *b) {
+    cell_t *eqfun = arr_ref(ht, HT_EQVFUN);
+
+    cell_t *argv = new_cons(secd, b, SECD_NIL);
+    argv = new_cons(secd, a, argv);
+    share_cell(secd, argv);
+
+    cell_t *eqc = secd_execute(secd, eqfun, argv);
+    bool eq = secd_bool(secd, eqc);
+
+    free_cell(secd, eqc); drop_cell(secd, argv);
+    return eq;
+}
+
+cell_t *secdht_new(secd_t *secd, int initcap, cell_t *eqfun, cell_t *hashfun) {
+    if (initcap <= 0)
+        initcap = 8;
+
+    if (is_nil(eqfun))
+        eqfun = (cell_t *)secd_default_equal_fun();
+    if (is_nil(hashfun))
+        hashfun = (cell_t*)secd_default_hash_fun();
+
+    cell_t *ht = new_array(secd, HTSTRUCT_SIZE);
+
+    cell_t *arr = new_array(secd, initcap);
+    fill_array(secd, arr, secd->false_value);
+
+    init_number(arr_ref(ht, HT_SIZE), 0);
+    copy_value(secd, arr_ref(ht, HT_ARR), arr);
+    copy_value(secd, arr_ref(ht, HT_EQVFUN), eqfun);
+    copy_value(secd, arr_ref(ht, HT_HASHFUN), hashfun);
+
+    free_cell(secd, arr);
+    return ht;
+}
+
+static cell_t *
+secdht_put(secd_t *secd, cell_t *ht, cell_t *hasharr,
+           cell_t *key, cell_t *val)
+{
+    size_t htcapacity = arr_size(secd, hasharr);
+    hash_t hash = secdht_hash(secd, ht, key);
+
+    cell_t *hashchain = arr_ref(hasharr, hash % htcapacity);
+    if (is_cons(hashchain)) {
+        cell_t *oldchain = new_clone(secd, hashchain);
+
+        cell_t *kv = new_cons(secd, key, val);
+        cell_t *newchain = new_cons(secd, kv, oldchain);
+
+        drop_value(secd, hashchain);
+        copy_value(secd, hashchain, newchain);
+    } else {
+        init_cons(secd, hashchain, val, SECD_NIL);
+    }
+
+    ++ arr_ref(ht, HT_SIZE)->as.num;
+
+    return SECD_NIL;
+}
+
+static cell_t *secdht_rebalance(secd_t *secd, cell_t *ht) {
+    cell_t *oldarr = arr_ref(ht, HT_ARR);
+    size_t oldcap = arr_size(secd, oldarr);
+
+    size_t newcap = oldcap * 2;
+    cell_t *newarr = new_array(secd, newcap);
+
+    size_t i;
+    for (i = 0; i < oldcap; ++i) {
+        cell_t *hashlst = arr_ref(oldarr, i);
+        if (!is_cons(hashlst)) continue;
+
+        while (not_nil(hashlst)) {
+            cell_t *kv = get_car(hashlst);
+            cell_t *key = get_car(kv);
+            cell_t *val = get_cdr(kv);
+
+            secdht_put(secd, ht, newarr, key, val);
+
+            hashlst = get_cdr(hashlst);
+        }
+    }
+
+    arr_set(secd, ht, HT_ARR, newarr);
+
+    return ht;
+}
+
+cell_t *secdht_insert(secd_t *secd, cell_t *ht, cell_t *key, cell_t *val) {
+    cell_t *hasharr = arr_ref(ht, HT_ARR);
+    size_t htcapacity = arr_size(secd, hasharr);
+    size_t htsize = numval(arr_val(ht, HT_SIZE));
+
+    if (((100 * (htsize + 1)) / htcapacity) > MAX_HT_LOAD_RATIO) {
+        secdht_rebalance(secd, ht);
+
+        hasharr = arr_ref(ht, HT_ARR);
+        //htcapacity = arr_size(secd, hasharr);
+    }
+
+    secdht_put(secd, ht, hasharr, key, val);
+
+    return ht;
+}
+
+bool secdht_lookup(secd_t *secd, cell_t *ht, cell_t *key, cell_t **val) {
+    cell_t *hasharr = arr_ref(ht, HT_ARR);
+    size_t htcap = arr_size(secd, hasharr);
+
+    hash_t hash = secdht_hash(secd, ht, key);
+
+    cell_t *bucket = arr_ref(hasharr, hash % htcap);
+
+    while (not_nil(bucket)) {
+        cell_t *kv = get_car(bucket);
+        if (secdht_eq(secd, ht, get_car(kv), key)) {
+            if (val) *val = get_cdr(kv);
+            return true;
+        }
+
+        bucket = get_cdr(bucket);
+    }
+    return false;
+}
 
 /*
  *  Abstract operations

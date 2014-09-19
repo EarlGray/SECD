@@ -3,7 +3,7 @@ objs 	:= interp.o machine.o env.o memory.o native.o readparse.o
 # posix:
 objs 	+= posix-io.o secd.o
 
-CFLAGS 	:= -O0 -g -Wall -Wextra
+CFLAGS 	:= -O1 -g -Wall -Wextra
 VM 		:= ./secd
 SECDCC 	:= scm2secd.secd
 REPL 	:= repl.secd
@@ -29,7 +29,7 @@ sos: $(objs) sos.o repl.o
 
 %.o : %.secd
 	@echo "LD  $<"
-	@$(LD) -r -b binary -o $@ $<
+	@$(LD) $(LDFLAGS) -r -b binary -o $@ $<
 
 %.secd: %.scm $(VM)
 	@echo "  SECDCC $@"
