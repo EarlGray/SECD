@@ -1000,12 +1000,26 @@ enum {
     HTSTRUCT_SIZE
 };
 
+bool secdht_is(secd_t *secd, cell_t *obj) {
+    if (cell_type(obj) != CELL_ARRAY) return false;
+    if (arr_size(secd, obj) != HTSTRUCT_SIZE) return false;
+    if (!is_number(arr_val(obj, HT_SIZE))) return false;
+    if (cell_type(arr_val(obj, HT_ARR)) != CELL_ARRAY) return false;
+    return true;
+}
+
 inline static hash_t
 secdht_hash(secd_t *secd, cell_t *ht, cell_t *val) {
     cell_t *hashfun = arr_ref(ht, HT_HASHFUN);
     cell_t *hashc = secd_execute(secd, hashfun, new_cons(secd, val, SECD_NIL));
+    share_cell(secd, hashc);
+    if (!is_number(hashc)) {
+        drop_cell(secd, hashc);
+        errorf("secdht_hash: not a number");
+        return -1;
+    }
     hash_t hash = numval(hashc);
-    free_cell(secd, hashc);
+    drop_cell(secd, hashc);
     return hash;
 }
 
@@ -1018,9 +1032,10 @@ secdht_eq(secd_t *secd, cell_t *ht, cell_t *a, cell_t *b) {
     share_cell(secd, argv);
 
     cell_t *eqc = secd_execute(secd, eqfun, argv);
+    share_cell(secd, eqc);
     bool eq = secd_bool(secd, eqc);
 
-    free_cell(secd, eqc); drop_cell(secd, argv);
+    drop_cell(secd, eqc); drop_cell(secd, argv);
     return eq;
 }
 
@@ -1047,6 +1062,24 @@ cell_t *secdht_new(secd_t *secd, int initcap, cell_t *eqfun, cell_t *hashfun) {
     return ht;
 }
 
+static bool secdht_lookup_bucket(secd_t *secd,
+        cell_t *ht, cell_t *bucket, cell_t *key, cell_t **kv)
+{
+    if (!is_cons(bucket))
+        return false;
+
+    while (not_nil(bucket)) {
+        cell_t *thiskv = get_car(bucket);
+        if (secdht_eq(secd, ht, get_car(thiskv), key)) {
+            if (kv) *kv = thiskv;
+            return true;
+        }
+
+        bucket = get_cdr(bucket);
+    }
+    return false;
+}
+
 static cell_t *
 secdht_put(secd_t *secd, cell_t *ht, cell_t *hasharr,
            cell_t *key, cell_t *val)
@@ -1054,21 +1087,28 @@ secdht_put(secd_t *secd, cell_t *ht, cell_t *hasharr,
     size_t htcapacity = arr_size(secd, hasharr);
     hash_t hash = secdht_hash(secd, ht, key);
 
-    cell_t *hashchain = arr_ref(hasharr, hash % htcapacity);
-    if (is_cons(hashchain)) {
-        cell_t *oldchain = new_clone(secd, hashchain);
+    cell_t *kv = new_cons(secd, key, val);
+    share_cell(secd, kv);
 
-        cell_t *kv = new_cons(secd, key, val);
-        cell_t *newchain = new_cons(secd, kv, oldchain);
-
-        drop_value(secd, hashchain);
-        copy_value(secd, hashchain, newchain);
+    cell_t *bucket = arr_ref(hasharr, hash % htcapacity);
+    if (is_cons(bucket)) {
+        cell_t *oldkv = SECD_NIL;
+        if (secdht_lookup_bucket(secd, ht, bucket, key, &oldkv)) {
+            /* key already exists, modify value */
+            assign_cell(secd, &oldkv->as.cons.cdr, val);
+        } else {
+            /* insert new kv after first item of the bucket */
+            cell_t *chainc = new_cons(secd, kv, bucket->as.cons.cdr);
+            assign_cell(secd, &bucket->as.cons.cdr, chainc);
+            ++ arr_ref(ht, HT_SIZE)->as.num;
+        }
     } else {
-        init_cons(secd, hashchain, val, SECD_NIL);
+        /* fill new bucket */
+        init_cons(secd, bucket, kv, SECD_NIL);
+        ++ arr_ref(ht, HT_SIZE)->as.num;
     }
 
-    ++ arr_ref(ht, HT_SIZE)->as.num;
-
+    drop_cell(secd, kv);
     return SECD_NIL;
 }
 
@@ -1078,6 +1118,8 @@ static cell_t *secdht_rebalance(secd_t *secd, cell_t *ht) {
 
     size_t newcap = oldcap * 2;
     cell_t *newarr = new_array(secd, newcap);
+
+    init_number(arr_ref(ht, 0), 0);
 
     size_t i;
     for (i = 0; i < oldcap; ++i) {
@@ -1113,28 +1155,21 @@ cell_t *secdht_insert(secd_t *secd, cell_t *ht, cell_t *key, cell_t *val) {
     }
 
     secdht_put(secd, ht, hasharr, key, val);
-
     return ht;
 }
 
 bool secdht_lookup(secd_t *secd, cell_t *ht, cell_t *key, cell_t **val) {
     cell_t *hasharr = arr_ref(ht, HT_ARR);
     size_t htcap = arr_size(secd, hasharr);
-
     hash_t hash = secdht_hash(secd, ht, key);
-
     cell_t *bucket = arr_ref(hasharr, hash % htcap);
+    cell_t *kv = SECD_NIL;
 
-    while (not_nil(bucket)) {
-        cell_t *kv = get_car(bucket);
-        if (secdht_eq(secd, ht, get_car(kv), key)) {
-            if (val) *val = get_cdr(kv);
-            return true;
-        }
+    if (!secdht_lookup_bucket(secd, ht, bucket, key, &kv))
+        return false;
 
-        bucket = get_cdr(bucket);
-    }
-    return false;
+    if (val) *val = get_cdr(kv);
+    return true;
 }
 
 /*

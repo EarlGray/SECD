@@ -181,11 +181,14 @@ void init_mem(secd_t *secd, cell_t *heap, size_t size);
  *    Hashtables
  */
 
+bool secdht_is(secd_t *secd, cell_t *obj);
+
 cell_t *secdht_new(secd_t *secd, int initcap, cell_t *eqfun, cell_t *hashfun);
 
 cell_t *secdht_insert(secd_t *secd, cell_t *ht, cell_t *key, cell_t *val);
 
 bool secdht_lookup(secd_t *secd, cell_t *ht, cell_t *key, cell_t **val);
+
 /*
  *    UTF-8
  */

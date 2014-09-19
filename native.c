@@ -862,6 +862,70 @@ cell_t *secdf_str2bv(secd_t *secd, cell_t *args) {
     return bv;
 }
 
+/*
+ *   Hashtables
+ */
+cell_t *secdf_mkht(secd_t *secd, cell_t *args) {
+    int cap = 0;
+    const cell_t *eqf = SECD_NIL;
+    const cell_t *hshf = SECD_NIL;
+
+    if (not_nil(args)) {
+        eqf = get_car(args);
+
+        args = get_cdr(args);
+        assert(not_nil(args), "make-hashtable: hashfun expected");
+        hshf = get_car(args);
+
+        args = get_cdr(args);
+        if (not_nil(args)) {
+            cell_t *arg = get_car(args);
+            assert(is_number(arg), "make-hashtable: not a number");
+            cap = numval(arg);
+        }
+    }
+
+    return secdht_new(secd, cap, eqf, hshf);
+}
+
+cell_t *secdf_htref(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "ht-ref: no arguments");
+
+    cell_t *ht = get_car(args);
+    assert(secdht_is(secd, ht), "ht-ref: not a hashtable");
+
+    args = get_cdr(args);
+    assert(not_nil(args), "ht-ref: key expected");
+
+    cell_t *key = get_car(args);
+
+    cell_t *val;
+    if (secdht_lookup(secd, ht, key, &val)) {
+        return new_cons(secd, val, SECD_NIL);
+    }
+    return SECD_NIL;
+}
+
+cell_t *secdf_htset(secd_t *secd, cell_t *args) {
+    assert(not_nil(args), "ht-set: no arguments");
+
+    cell_t *ht = get_car(args);
+    assert(secdht_is(secd, ht), "ht-set: hashtable expected");
+
+    args = get_cdr(args);
+    assert(not_nil(args), "ht-set: key expected");
+
+    cell_t *key = get_car(args);
+
+    args = get_cdr(args);
+    assert(not_nil(args), "ht-set: val expected");
+
+    cell_t *val = get_car(args);
+
+    secdht_insert(secd, ht, key, val);
+    return SECD_NIL;
+}
+
 
 /*
  *    I/O ports
@@ -1042,7 +1106,6 @@ cell_t *secdf_testf(secd_t *secd, cell_t *args) {
     return secd_execute(secd, get_car(args), get_cdr(args));
 }
 
-
 /*
  *    Native function mapping table
  */
@@ -1093,6 +1156,10 @@ const cell_t bvref_fun  = INIT_FUNC(secdf_bvref);
 const cell_t bvset_fun  = INIT_FUNC(secdf_bvset);
 const cell_t bv2str_fun = INIT_FUNC(secdf_bv2str);
 const cell_t str2bv_fun = INIT_FUNC(secdf_str2bv);
+/* hashtables */
+const cell_t mkht_fun   = INIT_FUNC(secdf_mkht);
+const cell_t htref_fun  = INIT_FUNC(secdf_htref);
+const cell_t htset_fun  = INIT_FUNC(secdf_htset);
 /* i/o ports */
 const cell_t displ_fun  = INIT_FUNC(secdf_display);
 const cell_t fiopen_fun = INIT_FUNC(secdf_ifopen);
@@ -1136,6 +1203,10 @@ native_functions[] = {
     { "bytevector-u8-set!", &bvset_fun, "b i i b!" },
     { "utf8->string",       &bv2str_fun, "b S"  },
     { "string->utf8",       &str2bv_fun, "S b"  },
+
+    { "ht-make",        &mkht_fun   },
+    { "ht-ref",         &htref_fun  },
+    { "ht-set!",        &htset_fun  },
 
     { "make-vector",    &vmake_func, "i i? vA" },
     { "vector-length",  &vlen_func,  "vA i"  },
