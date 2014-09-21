@@ -6,16 +6,18 @@ Tasks Pending:
 | T7    | audit for refcounting correctness
 | T8    | Scheme parser in Scheme
 | T9    | Scheme language testing framework + tests
-| T11   | static check for TCO during function compilation
+| T11   | static check for TCO during function compilation, APTR?
 | T12   | fast environment lookup: self-bal. tree? Static analysis for free variables? -> LDV index
 | T13   | inline `let` lambdas: ST opcode
 | T14   | static analysis: rewrite simple tail-call iterations into loops
 | T16   | change #.OP syntax to be compatible with other interpreters; eliminate compile_control_path() ? Scheme enum type?
 | T19   | `letrec*`, `let*`; analyses for dependencies in large `letrec*`s
 | T20   | numbers: floating point, libgmp?
-| T21   | `eval` does not use the supplied environment
 | T22   | unquote-splicing
-| T23   | native hashtables
+| T24   | `dynamic-wind`, fix exceptions
+| T25   | `eq?`, `eqv?`, `equal?` according to R7RS
+| T26   | abstract away ad-hoc `assert`-typing for native functions
+| T27   | CELL_CLOS for closures, <= T16, T13, T14, T11
 | F3    | FEATURE: non-blocking I/O, green threads + mailboxes + messaging
 | F5    | FEATURE: small FFI, native modules as .so
 | F6    | FEATURE: LLVM-backend
@@ -35,6 +37,7 @@ Tasks Done:
 | T15   | exception handling; dynamic environment?
 | T17   | arity checks for function calls
 | T18   | or/and macros
+| T23   | native hashtables
 | F1    | FEATURE: fast symbol lookup
 | F2    | FEATURE: alternative garbade collection - (secd 'gc), mark & sweep
 
@@ -44,6 +47,7 @@ Defects Pending:
 |-------|--------------------
 | D5    | Crash on `(list->vector (read-file (open-input-file "repl.scm")))` (large lists?)
 | D6    | the Yin-Yang call/cc puzzle does not work as expected
+| D9    | `eval` does not use the supplied environment
 
 Defects Fixed:
 =============
