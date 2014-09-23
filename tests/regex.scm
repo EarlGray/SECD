@@ -59,11 +59,12 @@
 ;;           | ( <expr> )
 ;;           | [ <set> ]
 ;;    ;; pipable expression
-;;    <pexpr> = <aexpr>*
+;;    <rexpr> = <aexpr>*
 ;;            | <aexpr>?
 ;;            | <aexpr>+
-;;            | <aexpr><pexpr>
 ;;            | <aexpr>
+;;    <pexpr> = <rexpr><pexpr>
+;;            | <pexpr>
 ;;    ;; top-level expression
 ;;    <expr> = <pexpr> | <expr>
 ;;           | <pexpr>
@@ -84,23 +85,26 @@
               (else '()))))))
     ;((eq? #\. (car str))
     ;((eq? #\[ (car str))
+    ((memq (car str) '(#\) #\[ #\* #\? #\+ #\|))
+      '())
     (else
       (let ((start (nfa 'new-node))
             (end (nfa 'new-node))
-            (node-val (char->integer (car str))))
+            (chr (if (eq? (car str) #\\) (cadr str) (car str))))
+      (let ((node-val (char->integer chr)))
         (nfa 'new-edge start end (if (<= #x80 node-val) #x80 node-val))
-        (cons (cdr str) (cons start end))))))
+        (cons (cdr str) (cons start end)))))))
 
-(define (re-parse-pexpr nfa str)
-  ;; returns (str . (start . end))
+(define (re-parse-rexpr nfa str)
   (let ((a1 (re-parse-aexpr nfa str)))
-    (if (null? a1) '()  ;; parsing failed
+    (if (null? a1) '()
       (let ((str1 (car a1)) (start1 (cadr a1)) (end1 (cddr a1)))
         (cond
           ((null? str1) a1)  ;; eof
           ((eq? (car str1) #\*)
             (begin
               (nfa 'new-edge end1 start1 EPSILON)
+              (nfa 'new-edge start1 end1 EPSILON)
               (cons (cdr str1) (cons start1 end1))))
           ((eq? (car str1) #\?)
             (let ((end (nfa 'new-node)))
@@ -108,13 +112,20 @@
               (nfa 'new-edge end1 end EPSILON)
               (cons (cdr str1) (cons start1 end))))
           ; TODO: ((eq? (car str1) #\+
-          (else
+          (else a1))))))
+
+(define (re-parse-pexpr nfa str)
+  ;; returns (str . (start . end))
+  (let ((r1 (re-parse-rexpr nfa str)))
+    (if (null? r1) '()  ;; parsing failed
+      (let ((str1 (car r1)) (start1 (cadr r1)) (end1 (cddr r1)))
+        (if (null? str1) r1  ;; eof
             (let ((p2 (re-parse-pexpr nfa str1)))
               (if (null? p2)
-                p1   ;; back track
+                r1   ;; back track
                 (let ((str2 (car p2)) (start2 (cadr p2)) (end2 (cddr p2)))
                   (nfa 'new-edge end1 start2 EPSILON)
-                  (cons str2 (cons start1 end2)))))))))))
+                  (cons str2 (cons start1 end2))))))))))
 
 (define (re-parse-expr nfa str)
   ;; returns (str . (start . end))
@@ -127,7 +138,7 @@
           ((eq? (car str1) #\|) ;; pipe
             (let ((e2 (re-parse-expr nfa (cdr str1))))
               (if (null? e2) '()
-                (let ((str2 (car e2)) (start2 (cadr e3)) (end2 (cddr e2)))
+                (let ((str2 (car e2)) (start2 (cadr e2)) (end2 (cddr e2)))
                 (let ((start (nfa 'new-node)) (end (nfa 'new-node)))
                   (begin
                     (nfa 'new-edge start start1 EPSILON)
@@ -140,8 +151,11 @@
 ;; regex string => NFA
 (define (re-parse str)
   (let ((nfa (make-nfa)))
-    (cons (nfa 'get) (re-parse-expr nfa (string->list str)))))
+  (let ((result (re-parse-expr nfa (string->list str))))
+    (cons (nfa 'get) result))))
 
+;(define (re-nfa-to-dfa nfa)
+;  )
 
 ; TODO: regex-parsing => NFA => DFA
 ;(define (re-compile regexp)
