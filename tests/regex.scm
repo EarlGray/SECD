@@ -154,11 +154,147 @@
   (let ((result (re-parse-expr nfa (string->list str))))
     (cons (nfa 'get) result))))
 
-;(define (re-nfa-to-dfa nfa)
-;  )
+
+(define (reverse-vect-fold/index vect state fun)
+  ;; folds vector in reverse order calling `fun` as
+  ;;    (fun <index> <value at index> <accumulator>
+  (letrec
+     ((fold (lambda (index state)
+        (cond
+          ((<= 0 index)
+            (fold
+              (- index 1)
+              (fun index (vector-ref vect index) state)))
+          (else state)))))
+    (fold (- (vector-length vect) 1) state)))
+
+(define (epsilon-closure nfa vertset)
+  ;; takes nfa array, index of a vertex
+  ;; returns epsilon-closure of the vertex as a list of vertices
+  (let ((marks (make-vector (vector-length nfa) #f)))
+    (letrec
+      ((mark-epsilon-neighbours (lambda (i)
+         (cond
+           ((vector-ref marks i) #f)
+           (else
+             (vector-set! marks i #t)
+             (for-each
+               (lambda (neighb)
+                 (let ((j (car neighb)) (val (cdr neighb)))
+                   (if (eq? val EPSILON)
+                       (mark-epsilon-neighbours j)
+                       #f)))
+               (vector-ref nfa i)))))))
+      (begin
+        (for-each
+          (lambda (index) (mark-epsilon-neighbours index))
+          vertset)
+        (reverse-vect-fold/index
+          marks '()
+          (lambda (ind val acc)
+            (if val (cons ind acc) acc)))))))
+
+(define (moveset nfa fromset val)
+  ;; takes nfa array, list of vertices `fromset', character code `val'
+  ;; returns list of verices accesible from `fromset' with `val'
+  (let ((marks (make-vector (vector-length nfa) #f)))
+    (letrec
+      ((mark-neighbours (lambda (i)
+        (for-each
+          (lambda (neighb)
+            (let ((j (car neighb)) (v (cdr neighb)))
+              (if (eq? v val)
+                  (vector-set! marks j #t)
+                  #f)))
+          (vector-ref nfa i)))))
+      (begin
+        (for-each
+          (lambda (i) (mark-neighbours i))
+          fromset)
+        (reverse-vect-fold/index
+          marks '()
+          (lambda (ind val acc)
+            (if val (cons ind acc) acc)))))))
+
+(define (nfa-alphabet nfa)
+  ;; takes nfa array, returns list of character codes
+  (let ((charset (make-vector #x81 #f)))
+    (reverse-vect-fold/index nfa #f
+      (lambda (ind val _)
+        (cond
+          ((pair? val)
+            (for-each
+              (lambda (edge)
+                (let ((v (cdr edge)))
+                  (cond
+                    ((<= v 0) #f)
+                    ((<= #x81 v) #f)
+                    (else (vector-set! charset v #t)))))
+              val))
+          (else #f))))
+    (reverse-vect-fold/index charset '()
+      (lambda (ind val acc)
+        (if val (cons ind acc) acc)))))
+
+(define (re-nfa-to-dfa nfa start end)
+  ;; the state is:
+  ;;    table of filled rows: a list indexed [ curr-1 .. 0 ] where curr is (curr-index)
+  ;;    table of raw rows: a list indexed [ curr, curr+1, ...]
+  (let ((TABLE-IND 0) (RAW-TABLE 1) (CURRENT-IND 2)
+        (state (vector '() '() 0)))
+  (let ((curr-index (lambda () (vector-ref state CURRENT-IND)))
+        (table      (lambda () (vector-ref state TABLE-IND)))
+        (raw-table  (lambda () (vector-ref state RAW-TABLE))))
+  (let ((prepend-row (lambda (row)
+          (vector-set! state TABLE-IND (cons row (table)))
+          (vector-set! state CURRENT-IND (+ 1 (curr-index)))))
+        (append-raw-row (lambda (row)
+          (vector-set! state RAW-TABLE (append (raw-table) (list row)))
+          (+ (length (raw-table)) (- (curr-index) 1))))
+        (drop-raw-row (lambda ()
+          (vector-set! state RAW-TABLE (cdr (raw-table))))))
+  (let ((search-set (lambda (set)
+    ;; returns index of the set if found or #f
+    (letrec ((search-list/rev-index (lambda (l i step)
+       (if (null? l) #f
+           (let ((row (car l)))
+              (if (equal? (car row) set)
+                  i
+                  (search-list/rev-index (cdr l) (+ i step) step)))))))
+      (let ((li (search-list/rev-index (raw-table) (curr-index) 1)))
+        (if li li
+            (search-list/rev-index (table) (- (curr-index) 1) -1)))))))
+  (let ((abc (nfa-alphabet nfa)))
+  (let ((make-mvsets (lambda (set)
+          (map (lambda (chr) (epsilon-closure nfa (moveset nfa set chr))) abc))))
+  (let ((fill-row (lambda ()
+      (let ((set (car (car (raw-table)))))
+      (let ((mvsets
+              (map
+                (lambda (mvset)
+                  (if (null? mvset) -1
+                    (let ((i (search-set mvset)))
+                      (if i i (append-raw-row (list mvset))))))
+                (make-mvsets set))))
+        (drop-raw-row)
+        (prepend-row (cons set mvsets)))))))
+  (begin
+    (append-raw-row (list (epsilon-closure nfa (list start))))
+    (let loop ()
+      (if (null? (raw-table))
+          (reverse (map cdr (table)))  ;; return
+          (begin
+            ;(newline) (display (curr-index)) (newline)
+            ;(display (table)) (newline) (display (raw-table)) (newline)
+            (fill-row) (loop)))))))))))))
 
 ; TODO: regex-parsing => NFA => DFA
 ;(define (re-compile regexp)
+;  (let ((r (re-parse regexp))) ; parse result
+;  (let ((nfa (car r)) (tmp (cdr r)))
+;  (let ((re-rest (car tmp)) (start (cadr tmp)) (end (cddr tmp)))
+;  (let ((nfa-abc (list->vector (nfa-alphabet nfa))))
+
 
 (define (final-state? re state)
   (not (eq? STUCK (vector-ref (vector-ref re state) FINAL_INDEX))))
