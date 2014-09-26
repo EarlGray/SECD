@@ -666,7 +666,7 @@ cell_t *symstore_add(secd_t *secd, const char *str) {
         hashcap = arr_size(secd, arr);
     }
 
-    off_t bufptr;
+    ptrdiff_t bufptr;
     cell_t *buflist = share_cell(secd, symstore_get(secd, SYMSTORE_BUFLIST));
     cell_t *bufbvect;
 
@@ -694,7 +694,7 @@ cell_t *symstore_add(secd_t *secd, const char *str) {
 
     /* write the symbol into the buffer */
     hash_t hash = strhash(str);
-    off_t symoffset = bufptr + sizeof(hash_t);
+    ptrdiff_t symoffset = bufptr + sizeof(hash_t);
 
     char *bytes = (void *)strmem(bufbvect);
     *(hash_t *)(bytes + bufptr) = hash;

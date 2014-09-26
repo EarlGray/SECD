@@ -197,13 +197,13 @@ struct error {
 
 struct string {
     char *data;
-    off_t offset; // bytes
+    ptrdiff_t offset; // bytes
     size_t size;  // bytes
 };
 
 struct array {
     cell_t *data; // array
-    off_t offset; // cells
+    ptrdiff_t offset; // cells
 };
 
 extern cell_t secd_out_of_memory;
