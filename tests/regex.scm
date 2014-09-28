@@ -8,48 +8,63 @@
 
 (define FINAL_INDEX   0)
 
-(define (vector-copy! v1 v2 . args)
-  (if (null? args)
-    (vector-copy! v1 v2 0 0)
-    (let ((i1 (car args)) (i2 (cadr args)))
+(define (make-dynamic-vector)
+  (let ((FREE_INDEX 0)
+        (VAL_INDEX 1)
+        (obj (vector 0 #(#f))))
+  (let ((dv-endptr (lambda () (vector-ref obj FREE_INDEX)))
+        (dv-vect   (lambda () (vector-ref obj VAL_INDEX))))
+  (letrec
+    ((least-2power-more-than (lambda (x acc)
+       (if (< x acc) acc (least-2power-more-than x (+ acc acc)))))
+     (vector-copy! (lambda (v1 v2 . args)
+      (if (null? args)
+        (vector-copy! v1 v2 0 0)
+        (let ((i1 (car args)) (i2 (cadr args)))
+          (cond
+            ((<= (vector-length v1) i1) v1)
+            ((<= (vector-length v2) i2) v1)
+            (else
+              (begin
+                (vector-set! v1 i1 (vector-ref v2 i2))
+                (vector-copy! v1 v2 (+ 1 i1) (+ 1 i2)))))))))
+
+      (dv-append (lambda (val)
+        (let ((capacity (vector-length (dv-vect)))
+              (index (dv-endptr)))
+           (cond
+             ((<= capacity index)
+               (let ((new-vect (make-vector (least-2power-more-than capacity 1))))
+                 (vector-copy! new-vect (dv-vect))
+                 (vector-set! obj VAL_INDEX new-vect))))
+           (vector-set! (dv-vect) index val)
+           (vector-set! obj FREE_INDEX (+ 1 index))
+           index)))
+      (dv-shrink (lambda ()
+        (let ((newvect (make-vector (dv-endptr))))
+          (vector-copy! newvect (dv-vect))
+          (vector-set! obj VAL_INDEX newvect)))))
+    (lambda (msg . args)
       (cond
-        ((<= (vector-length v1) i1) v1)
-        ((<= (vector-length v2) i2) v1)
-        (else
-          (begin
-            (vector-set! v1 i1 (vector-ref v2 i2))
-            (vector-copy! v1 v2 (+ 1 i1) (+ 1 i2))))))))
+        ((eq? msg 'append) (dv-append (car args)))
+        ((eq? msg 'get)    (dv-vect))
+        ((eq? msg 'size)   (dv-endptr))
+        ((eq? msg 'at)     (vector-ref (dv-vect) (car args)))
+        ((eq? msg 'set)    (vector-set! (dv-vect) (car args) (cadr args)))
+        ((eq? msg 'shrink) (dv-shrink))
+        (else 'do-not-understand)))))))
 
 (define (make-nfa)
-  (let ((FREE_INDEX 0)
-        (NODESV     1)
-        (obj (vector 0 #(#f) )))
-    (let ((my-endptr (lambda () (vector-ref obj FREE_INDEX)))
-          (my-nodes  (lambda () (vector-ref obj NODESV)))
-          (my-capacity (lambda () (vector-length (vector-ref obj NODESV)))))
-      (letrec
-        ((add-node (lambda ()
-          (let ((index (my-endptr)))
-            (cond
-              ((<= (my-capacity) index)
-                ;; expand arr
-                (let ((newnodesv (make-vector  (* 2 (my-capacity)))))
-                  (vector-copy! newnodesv (my-nodes))
-                  (vector-set! obj NODESV newnodesv))))
-            ; init with an empty alist:
-            (vector-set! (vector-ref obj NODESV) index '())
-            (vector-set! obj FREE_INDEX (+ 1 index))
-            index)))
-         (add-edge (lambda (from to val)
-           (let ((edges (vector-ref (my-nodes) from)))
-             (vector-set! (my-nodes) from (cons (cons to val) edges))))))
-       (lambda (msg . args)
-         (cond
-           ((eq? msg 'get)      (my-nodes))
-           ((eq? msg 'size)     (my-endptr))
-           ((eq? msg 'new-node) (add-node))
-           ((eq? msg 'new-edge) (add-edge (car args) (cadr args) (caddr args)))
-           (else 'do-not-understand)))))))
+  (let ((dv (make-dynamic-vector)))
+    (lambda (msg . args)
+      (cond
+        ((eq? msg 'get)      (dv 'get))
+        ((eq? msg 'size)     (dv 'size))
+        ((eq? msg 'new-node) (dv 'append '() ))
+        ((eq? msg 'new-edge)
+          (let ((from (car args)) (to (cadr args)) (val (caddr args)))
+            (dv 'set from (cons (cons to val) (dv 'at from)))))
+        (else 'do-not-understand)))))
 
 ;; regex parsing
 ;; Grammar:
@@ -237,82 +252,79 @@
         (if val (cons ind acc) acc)))))
 
 (define (re-nfa-to-dfa nfa start end)
-  ;; the state is:
-  ;;    table of filled rows: a list indexed [ curr-1 .. 0 ] where curr is (curr-index)
-  ;;    table of raw rows: a list indexed [ curr, curr+1, ...]
-  (let ((TABLE-IND 0) (RAW-TABLE 1) (CURRENT-IND 2)
-        (state (vector '() '() 0)))
-  (let ((curr-index (lambda () (vector-ref state CURRENT-IND)))
-        (table      (lambda () (vector-ref state TABLE-IND)))
-        (raw-table  (lambda () (vector-ref state RAW-TABLE))))
-  (let ((prepend-row (lambda (row)
-          (vector-set! state TABLE-IND (cons row (table)))
-          (vector-set! state CURRENT-IND (+ 1 (curr-index)))))
-        (append-raw-row (lambda (row)
-          (vector-set! state RAW-TABLE (append (raw-table) (list row)))
-          (+ (length (raw-table)) (- (curr-index) 1))))
-        (drop-raw-row (lambda ()
-          (vector-set! state RAW-TABLE (cdr (raw-table))))))
+  (let ((CURRENT-IND 0)
+        (state (vector 0))
+        (table (make-dynamic-vector)))
+  (let ((curr-index (lambda () (vector-ref state CURRENT-IND))))
+  (let ((inc-curr-index (lambda ()
+          (vector-set! state CURRENT-IND (+ 1 (curr-index))))))
   (let ((search-set (lambda (set)
     ;; returns index of the set if found or #f
-    (letrec ((search-list/rev-index (lambda (l i step)
-       (if (null? l) #f
-           (let ((row (car l)))
-              (if (equal? (car row) set)
-                  i
-                  (search-list/rev-index (cdr l) (+ i step) step)))))))
-      (let ((li (search-list/rev-index (raw-table) (curr-index) 1)))
-        (if li li
-            (search-list/rev-index (table) (- (curr-index) 1) -1)))))))
+    (letrec
+      ((vector-index-for (lambda (vct ind pred)
+        (cond
+          ((< ind 0) #f)
+          ((pred (vector-ref vct ind)) ind)
+          (else (vector-index-for vct (- ind 1) pred))))))
+      (vector-index-for (table 'get) (- (table 'size) 1)
+        (lambda (row) (equal? (car row) set)))))))
   (let ((abc (nfa-alphabet nfa)))
   (let ((make-mvsets (lambda (set)
-          (map (lambda (chr) (epsilon-closure nfa (moveset nfa set chr))) abc))))
+          (map (lambda (chr) (epsilon-closure nfa (moveset nfa set chr))) abc)))
+        (set-to-index (lambda (set)
+          (if (null? set) -1
+              (let ((i (search-set set)))
+                (if i i (table 'append (list set))))))))
   (let ((fill-row (lambda ()
-      (let ((set (car (car (raw-table)))))
-      (let ((mvsets
-              (map
-                (lambda (mvset)
-                  (if (null? mvset) -1
-                    (let ((i (search-set mvset)))
-                      (if i i (append-raw-row (list mvset))))))
-                (make-mvsets set))))
-        (drop-raw-row)
-        (prepend-row (cons set mvsets)))))))
+      (let ((set (car (vector-ref (table 'get) (curr-index)))))
+      (let ((mvsets (map set-to-index (make-mvsets set))))
+        (table 'set (curr-index) (cons set mvsets))
+        (inc-curr-index))))))
   (begin
-    (append-raw-row (list (epsilon-closure nfa (list start))))
+    (table 'append (list (epsilon-closure nfa (list start))))
     (let loop ()
-      (if (null? (raw-table))
-          (reverse (map cdr (table)))  ;; return
+      (if (<= (table 'size) (curr-index))
+          (begin
+            (table 'shrink)
+            (table 'get))
           (begin
             ;(newline) (display (curr-index)) (newline)
-            ;(display (table)) (newline) (display (raw-table)) (newline)
+            ;(display (table 'get)) (newline)
             (fill-row) (loop)))))))))))))
 
+(define (is-final-dfa-row dfa end r)
+  (if (memq end (car r)) #t #f))
+
 ; TODO: regex-parsing => NFA => DFA
-;(define (re-compile regexp)
-;  (let ((r (re-parse regexp))) ; parse result
-;  (let ((nfa (car r)) (tmp (cdr r)))
-;  (let ((re-rest (car tmp)) (start (cadr tmp)) (end (cddr tmp)))
-;  (let ((nfa-abc (list->vector (nfa-alphabet nfa))))
-
-
-(define (final-state? re state)
-  (not (eq? STUCK (vector-ref (vector-ref re state) FINAL_INDEX))))
-(define (next-state-for re state c)
-  (vector-ref (vector-ref re state) c))
+(define (re-compile regexp)
+  (let ((vector-map (if (defined? 'vector-map)
+                        vector-map
+                        (lambda (f v) (list->vector (map f (vector->list v)))))))
+  (let ((r (re-parse regexp))) ; parse result
+  (let ((nfa (car r)) (tmp (cdr r)))
+  (let ((re-rest (car tmp)) (start (cadr tmp)) (end (cddr tmp)))
+    (if (null? re-rest)
+      (let ((dfa (re-nfa-to-dfa nfa start end)))
+        (list (nfa-alphabet nfa)
+              (vector-map (lambda (r) (is-final-dfa-row dfa end r)) dfa)
+              (vector-map cdr dfa)))))))))
 
 (define (re-match re str)
+  (let ((abc (car re))
+        (final-states (cadr re))
+        (dfa (caddr re)))
   (let loop ((state 0)
-             (s (map char->integer (string->list str))))
-    (if (null? s)
-      (list (final-state? re state) s)
-      (let ((c (car s)))
-        (let ((next-state (next-state-for re state (if (<= #x80 c) #x80 c))))
-          (cond
-            ((eq? next-state STUCK)
-              (list (final-state? re state) s))
-            (else (loop next-state (cdr s)))))))))
-
+             (s (string->list str)))
+    (cond
+      ((null? s)
+        (list (vector-ref final-states state) s))
+      (else
+        (let ((i (list-index abc (char->integer (car s)))))
+          ;(newline) (display (car s)) (newline) (display state) (newline)
+          (if i
+            (let ((n (list-ref (vector-ref dfa state) i)))
+              (if (<= 0 n) (loop n (cdr s)) (list #f s)))
+            (list #f s))))))))
 
 ;;
 ;;  Tests
