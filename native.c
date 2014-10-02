@@ -345,7 +345,7 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
             secd_printf(secd, ";;  Fixed cells: %zd free\n", secd->stat.free_cells);
             return secd_mem_info(secd);
         } else if (str_eq(symname(arg1), "env")) {
-            print_env(secd);
+            secd_print_env(secd);
         } else if (str_eq(symname(arg1), "dump")) {
             secd->postop = SECDPOST_MACHINE_DUMP;
             secd_printf(secd, ";; Dump of the machine written to secdstate.dump\n");
@@ -469,7 +469,8 @@ cell_t *secdf_readlex(secd_t *secd, cell_t *args) {
         assert(cell_type(scc) == CELL_CHAR, "(read-lexeme: a char expected");
         startchar = scc->as.num;
         if (not_nil(get_cdr(args)))
-            get_two_nums(secd, args, &line, &pos, "(read-lexeme)");
+            get_two_nums(secd, args, (size_t*)&line, 
+                                     (size_t*)&pos, "(read-lexeme)");
     }
     cell_t *res = sexp_lexeme(secd, line, pos, startchar);
     return res;
@@ -572,7 +573,10 @@ cell_t *secdv_ref(secd_t *secd, cell_t *args) {
 
     assert(ind < (int)arr_size(secd, arr), "secdv_ref: index is out of range");
 
-    return new_clone(secd, arr_ref(arr, ind));
+    cell_t *ref = arr_ref(arr, ind);
+    if (cell_type(ref) == CELL_REF)
+        return ref->as.ref;
+    return new_clone(secd, ref);
 }
 
 cell_t *secdv_set(secd_t *secd, cell_t *args) {
@@ -867,8 +871,8 @@ cell_t *secdf_str2bv(secd_t *secd, cell_t *args) {
  */
 cell_t *secdf_mkht(secd_t *secd, cell_t *args) {
     int cap = 0;
-    const cell_t *eqf = SECD_NIL;
-    const cell_t *hshf = SECD_NIL;
+    cell_t *eqf = SECD_NIL;
+    cell_t *hshf = SECD_NIL;
 
     if (not_nil(args)) {
         eqf = get_car(args);
@@ -973,9 +977,10 @@ cell_t *secdf_ifopen(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "secdf_open: no arguments");
 
     cell_t *filename = get_car(args);
-    assert(cell_type(filename) == CELL_STR, "secdf_open: a filename string expected");
+    assert(cell_type(filename) == CELL_STR,
+           "secdf_open: a filename string expected");
 
-    return secd_fopen(secd, strval(filename), "r");
+    return secd_newport(secd, "r", "file", filename);
 }
 
 cell_t *secdf_siopen(secd_t *secd, cell_t *args) {
@@ -984,7 +989,7 @@ cell_t *secdf_siopen(secd_t *secd, cell_t *args) {
     cell_t *str = get_car(args);
     assert(cell_type(str) == CELL_STR, "secdf_siopen: a string is expected");
 
-    return new_strport(secd, str, "r");
+    return secd_newport(secd, "r", "str", str);
 }
 
 cell_t *secdf_readstring(secd_t *secd, cell_t *args) {
@@ -999,17 +1004,19 @@ cell_t *secdf_readstring(secd_t *secd, cell_t *args) {
     cell_t *port = SECD_NIL;
     if (not_nil(args)) {
         port = get_car(args);
-        assert(cell_type(port) == CELL_PORT, "(read-char <port>): port expected");
+        assert(cell_type(port) == CELL_PORT,
+                         "(read-char <port>): port expected");
     } else { // second argument is optional
         port = secd->input_port;
     }
 
     /* TODO: caveat: k is length of a UTF-8 sequence */
     cell_t *res = new_string_of_size(secd, size);
-    assert_cellf(res, "(read-string): failed to allocate string of size %ld", size);
+    assert_cellf(res,
+                 "(read-string): failed to allocate string of size %ld", size);
 
     char *mem = strmem(res);
-    if (secd_fread(secd, port, mem, size) > 0)
+    if (secd_pread(secd, port, mem, size) > 0)
         return res;
     return new_error(secd, SECD_NIL, "(read-string): failed to get data");
 }
@@ -1023,7 +1030,7 @@ cell_t *secdf_readchar(secd_t *secd, cell_t *args) {
         port = secd->input_port;
     }
 
-    int b = secd_getc(secd, port);
+    int b = secd_pgetc(secd, port);
     if (b == SECD_EOF)
         return new_symbol(secd, EOF_OBJ);
 
@@ -1037,7 +1044,7 @@ cell_t *secdf_readchar(secd_t *secd, cell_t *args) {
         return new_error(secd, SECD_NIL, "(read-char): not a UTF-8 sequence head");
     }
     while (--nbytes > 0) {
-        b = secd_getc(secd, port);
+        b = secd_pgetc(secd, port);
         if (b == SECD_EOF)
             return new_symbol(secd, EOF_OBJ);
         if ((0xC0 & b) != 0x80) {
@@ -1058,7 +1065,7 @@ cell_t *secdf_readu8(secd_t *secd, cell_t *args) {
         port = secd->input_port;
     }
 
-    int b = secd_getc(secd, port);
+    int b = secd_pgetc(secd, port);
     if (b == SECD_EOF)
         return new_symbol(secd, EOF_OBJ);
     return new_number(secd, b);
@@ -1084,8 +1091,9 @@ cell_t *secdf_pinfo(secd_t *secd, cell_t *args) {
                                   to_bool(secd, port->as.port.output));
     cell_t *binp = new_cons(secd, new_symbol(secd, "txt"),
                                     secd->truth_value);
-    cell_t *filep = new_cons(secd, new_symbol(secd, "file"),
-                                   to_bool(secd, port->as.port.file));
+    cell_t *filep = new_cons(secd, new_symbol(secd, "type"),
+                      new_symbol(secd, secd_porttyname(secd, port->as.port.type)));
+
     cell_t *info =
         new_cons(secd, inp,
           new_cons(secd, outp,
@@ -1200,68 +1208,68 @@ const cell_t *secd_default_hash_fun(void) {
 
 const native_binding_t
 native_functions[] = {
-    { "string-length",  &strlen_fun, "S i"  },
-    { "string-ref",     &strref_fun, "S i c" },
-    { "symbol->string", &symstr_fun, "s S"  },
-    { "string->symbol", &strsym_fun, "S s"  },
-    { "string->list",   &strlst_fun, "S lc" },
-    { "list->string",   &lststr_fun, "lc S" },
+    { "string-length",  &strlen_fun },
+    { "string-ref",     &strref_fun },
+    { "symbol->string", &symstr_fun },
+    { "string->symbol", &strsym_fun },
+    { "string->list",   &strlst_fun },
+    { "list->string",   &lststr_fun },
     //{ "string->number", &strnum_fun },
     //{ "number->string", &numstr_fun },
-    { "test-ap",        &test_fun},
+    { "test-ap",        &test_fun   },
 
-    { "int-xor",        &xorint_fun, "i i i" },
-    { "int-or",         &orint_fun,  "i i i" },
+    { "int-xor",        &xorint_fun },
+    { "int-or",         &orint_fun  },
 
-    { "char->integer",  &chrint_fun, "c i" },
-    { "integer->char",  &intchr_fun, "i c" },
+    { "char->integer",  &chrint_fun },
+    { "integer->char",  &intchr_fun },
 
-    { "make-bytevector",    &mkbv_fun,  "i i? b" },
-    { "bytevector-length",  &bvlen_fun, "b i"   },
+    { "make-bytevector",    &mkbv_fun  },
+    { "bytevector-length",  &bvlen_fun },
     //{ "bytevector-copy!",   &bvcopy_fun },
-    { "bytevector-u8-ref",  &bvref_fun, "b i A"  },
-    { "bytevector-u8-set!", &bvset_fun, "b i i b!" },
-    { "utf8->string",       &bv2str_fun, "b S"  },
-    { "string->utf8",       &str2bv_fun, "S b"  },
+    { "bytevector-u8-ref",  &bvref_fun },
+    { "bytevector-u8-set!", &bvset_fun },
+    { "utf8->string",       &bv2str_fun},
+    { "string->utf8",       &str2bv_fun},
 
     { "ht-make",        &mkht_fun   },
     { "ht-ref",         &htref_fun  },
     { "ht-set!",        &htset_fun  },
     { "ht-fold",        &htfold_fun },
 
-    { "make-vector",    &vmake_func, "i i? vA" },
-    { "vector-length",  &vlen_func,  "vA i"  },
-    { "vector-ref",     &vref_func,  "vA i A"  },
-    { "vector-set!",    &vset_func,  "v i A v!" },
-    { "vector->list",   &vlist_func, "vA lA" },
-    { "list->vector",   &l2v_func,   "lA vA" },
+    { "make-vector",    &vmake_func },
+    { "vector-length",  &vlen_func  },
+    { "vector-ref",     &vref_func  },
+    { "vector-set!",    &vset_func  },
+    { "vector->list",   &vlist_func },
+    { "list->vector",   &l2v_func   },
 
-    { "display",            &displ_fun,  "A l_" },
+    { "display",            &displ_fun  },
     { "read-lexeme",        &readlex_fun},
-    { "open-input-file",    &fiopen_fun, "S p"  },
-    { "open-input-string",  &siopen_fun, "S p"  },
-    { "read-char",          &fgetc_fun,  "p? c" },
-    { "read-u8",            &freadb_fun, "p? i" },
-    { "read-string",        &fread_fun,  "p? S" },
+    { "open-input-file",    &fiopen_fun },
+    { "open-input-string",  &siopen_fun },
+    { "read-char",          &fgetc_fun  },
+    { "read-u8",            &freadb_fun },
+    { "read-string",        &fread_fun  },
     //{ "read-line",          &readln_fun },
-    { "secd-port-info",     &pinfo_fun,  "p l:sA" },
-    { "close-port",         &pclose_fun, "p p!" },
+    { "secd-port-info",     &pinfo_fun  },
+    { "close-port",         &pclose_fun },
 
-    { "raise",              &raise_fun,  "A A" },
-    { "raise-continuable",  &raisec_fun, "A A" },
+    { "raise",              &raise_fun  },
+    { "raise-continuable",  &raisec_fun },
 
     // misc native functions
-    { "list",           &list_func,  "A* lA"  },
-    { "append",         &appnd_func, "lA* lA" },
-    { "eof-object?",    &eofp_func,  "A s"    },
-    { "symbolptr-leq",  &symleq_fun, "s s s"  },
-    { "secd-hash",      &hash_func,  "s i"    },
-    { "secd",           &debug_func, "s u"    },
-    { "defined?",       &defp_func,  "s s"    },
-    { "equal?",         &equal_func},
-    { "secd-bind!",     &bind_func,  "s A s!" },
-    { "interaction-environment", &getenv_fun, "lF" },
+    { "list",           &list_func  },
+    { "append",         &appnd_func },
+    { "eof-object?",    &eofp_func  },
+    { "symbolptr-leq",  &symleq_fun },
+    { "secd-hash",      &hash_func  },
+    { "secd",           &debug_func },
+    { "defined?",       &defp_func  },
+    { "equal?",         &equal_func },
+    { "secd-bind!",     &bind_func  },
+    { "interaction-environment", &getenv_fun },
 
-    { NULL,       NULL,     NULL } // must be last
+    { NULL,       NULL } // must be last
 };
 

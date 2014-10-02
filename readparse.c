@@ -177,6 +177,7 @@ void sexp_pprint(secd_t* secd, cell_t *port, const cell_t *cell) {
       case CELL_BYTES:  sexp_print_bytes(secd, port, strval(cell), mem_size(cell)); break;
       case CELL_ERROR:  secd_pprintf(secd, port, "#!\"%s\"", errmsg(cell)); break;
       case CELL_PORT:   sexp_pprint_port(secd, port, cell); break;
+      case CELL_REF:    sexp_pprint(secd, port, cell->as.ref);  break;
       default: errorf("sexp_print: unknown cell type %d", (int)cell_type(cell));
     }
 }
@@ -260,7 +261,7 @@ secd_parser_t *init_parser(secd_t *secd, secd_parser_t *p) {
 
 inline static int nextchar(secd_parser_t *p) {
     secd_t *secd = p->secd;
-    p->lc = secd_getc(secd, secd->input_port);
+    p->lc = secd_pgetc(secd, secd->input_port);
     if (p->lc == '\n') {
         ++p->line;
         p->pos = 0;

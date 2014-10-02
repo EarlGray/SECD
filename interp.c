@@ -179,6 +179,13 @@ cell_t *secd_raise(secd_t *secd, cell_t *exc) {
     assert(is_cons(exchandlers), "raise: not a cons");
     cell_t *handler = get_car(exchandlers);
 
+    symc = NULL;
+    cell_t *ret = lookup_env(secd, SECD_EXC_BACKTRACE, &symc);
+    if (symc) {
+        if (secd_bool(secd, ret))
+            secd_print_env(secd);
+    }
+
     cell_t *func = get_car(handler);
     cell_t *eargs = get_car(func);
     cell_t *ectrl = get_car(get_cdr(func));
@@ -655,7 +662,7 @@ cell_t *secd_ap(secd_t *secd) {
     assign_cell(secd, &secd->env, new_cons(secd, frame, newenv));
     set_control(secd, &func->as.cons.cdr->as.cons.car);
 
-    if (ENVDEBUG) print_env(secd);
+    if (ENVDEBUG) secd_print_env(secd);
     drop_cell(secd, closure); drop_cell(secd, argvals);
     return SECD_NIL;
 }

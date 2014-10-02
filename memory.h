@@ -26,8 +26,7 @@ cell_t *new_bytevector_of_size(secd_t *secd, size_t size);
 cell_t *new_ref(secd_t *secd, cell_t *to);
 cell_t *new_op(secd_t *secd, opindex_t opind);
 
-cell_t *new_fileport(secd_t *secd, void *f, const char *mode);
-cell_t *new_strport(secd_t *secd, cell_t *str, const char *mode);
+cell_t *new_port(secd_t *secd, int pty);
 
 cell_t *new_const_clone(secd_t *secd, const cell_t *from);
 cell_t *new_clone(secd_t *secd, cell_t *from);
@@ -93,7 +92,7 @@ inline static cell_t *assign_cell(secd_t *secd, cell_t **cell, cell_t *what) {
 }
 
 cell_t *secd_referers_for(secd_t *secd, cell_t *cell);
-void secd_owned_cell_for(cell_t *cell, cell_t **ref1, cell_t **ref2, cell_t **ref3);
+void secd_owned_cell_for(secd_t *secd, cell_t *cell, cell_t **ref1, cell_t **ref2, cell_t **ref3);
 
 /*
  *    Array routines
@@ -175,7 +174,7 @@ cell_t *fill_array(secd_t *secd, cell_t *arr, cell_t *with);
 
 void secd_mark_and_sweep_gc(secd_t *secd);
 
-void init_mem(secd_t *secd, cell_t *heap, size_t size);
+void secd_init_mem(secd_t *secd, cell_t *heap, size_t size);
 
 /*
  *    Hashtables

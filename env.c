@@ -13,7 +13,7 @@ static hash_t stddbghash;
  *  Environment
  */
 
-void print_env(secd_t *secd) {
+void secd_print_env(secd_t *secd) {
     cell_t *env = secd->env;
     int i = 0;
     secd_printf(secd, ";;Environment:\n");
@@ -65,7 +65,7 @@ cell_t *make_native_frame(secd_t *secd,
     return new_frame(secd, symlist, vallist);
 }
 
-void init_env(secd_t *secd) {
+void secd_init_env(secd_t *secd) {
     /* initialize global values */
     stdinhash = strhash(SECD_FAKEVAR_STDIN);
     stdouthash = strhash(SECD_FAKEVAR_STDOUT);
@@ -123,7 +123,6 @@ cell_t *lookup_env(secd_t *secd, const char *symbol, cell_t **symc) {
                     if (symc != NULL) *symc = symlist;
                     return vallist;
                 }
-                env = list_next(secd, env);
                 break;
             }
 

@@ -502,53 +502,13 @@ cell_t *new_bytevector_of_size(secd_t *secd, size_t size) {
 /*
  *  Port allocation
  */
-static cell_t *init_port_mode(secd_t *secd, cell_t *cell, const char *mode) {
-    switch (mode[0]) {
-      case 'r':
-        cell->as.port.input = true;
-        if (mode[1] == '+') {
-            cell->as.port.output = true;
-            ++mode;
-        } else
-            cell->as.port.output = false;
-        if (mode[1] == '\0')
-            return cell;
-        break;
-
-      case 'w': case 'a':
-        cell->as.port.output = true;
-        if (mode[1] == '+') {
-            cell->as.port.input = true;
-            ++mode;
-        } else
-            cell->as.port.input = false;
-        if (mode[1] == '\0')
-            return cell;
-    }
-    // otherwise fail:
-    drop_cell(secd, cell);
-    errorf("new_fileport: failed to parse mode\n");
-    return new_error(secd, SECD_NIL, "new_port: failed to parse mode");
-}
-
-cell_t *new_strport(secd_t *secd, cell_t *str, const char *mode) {
+cell_t *new_port(secd_t *secd, int pty) {
     cell_t *cell = pop_free(secd);
     assert_cell(cell, "new_fileport: allocation failed");
 
     cell->type = CELL_PORT;
-    cell->as.port.file = false;
-    cell->as.port.as.str = share_cell(secd, str);
-    return init_port_mode(secd, cell, mode);
-}
-
-cell_t *new_fileport(secd_t *secd, void *f, const char *mode) {
-    cell_t *cell = pop_free(secd);
-    assert_cell(cell, "new_fileport: allocation failed");
-
-    cell->type = CELL_PORT;
-    cell->as.port.file = true;
-    cell->as.port.as.file = f;
-    return init_port_mode(secd, cell, mode);
+    cell->as.port.type = pty;
+    return cell;
 }
 
 /*
@@ -1178,7 +1138,7 @@ cell_t *secdht_fold(secd_t *secd, cell_t *ht, cell_t *val, cell_t *iter) {
 
     share_cell(secd, val);
 
-    for (i = 0; i < arr_size(secd, hasharr); ++i) {
+    for (i = 0; i < (int)arr_size(secd, hasharr); ++i) {
         cell_t *bucket = arr_ref(hasharr, i);
         if (!is_cons(bucket)) continue;
 
@@ -1275,7 +1235,7 @@ cell_t *secd_rest(secd_t *secd, cell_t *stream) {
 /*
  *   Machine-wide operations
  */
-void secd_owned_cell_for(cell_t *cell,
+void secd_owned_cell_for(secd_t *secd, cell_t *cell,
         cell_t **ref1, cell_t **ref2, cell_t **ref3)
 {
     *ref1 = *ref2 = *ref3 = SECD_NIL;
@@ -1298,8 +1258,7 @@ void secd_owned_cell_for(cell_t *cell,
           *ref1 = arr_meta(arr_mem(cell));
           break;
       case CELL_PORT:
-          if (!cell->as.port.file)
-              *ref1 = cell->as.port.as.str;
+          secd_port_owns(secd, cell, ref1, ref2, ref3);
           break;
       case CELL_REF:
           *ref1 = cell->as.ref;
@@ -1327,7 +1286,7 @@ cell_t *secd_referers_for(secd_t *secd, cell_t *cell) {
     cell_t *ith;
     for (ith = secd->begin; ith < secd->fixedptr; ++ith) {
         cell_t *ref1, *ref2, *ref3;
-        secd_owned_cell_for(ith, &ref1, &ref2, &ref3);
+        secd_owned_cell_for(secd, ith, &ref1, &ref2, &ref3);
         if (ref1 == cell) result = prepend_index(secd, ith, result);
         if (ref2 == cell) result = prepend_index(secd, ith, result);
         if (ref3 == cell) result = prepend_index(secd, ith, result);
@@ -1351,7 +1310,7 @@ static void increment_nref_for_owned(secd_t *secd, cell_t *cell) {
         }
     } else {
         cell_t *ref1, *ref2, *ref3;
-        secd_owned_cell_for(cell, &ref1, &ref2, &ref3);
+        secd_owned_cell_for(secd, cell, &ref1, &ref2, &ref3);
         if (not_nil(ref1)) increment_nref_for_owned(secd, ref1);
         if (not_nil(ref2)) increment_nref_for_owned(secd, ref2);
         if (not_nil(ref3)) increment_nref_for_owned(secd, ref3);
@@ -1423,7 +1382,7 @@ void secd_mark_and_sweep_gc(secd_t *secd) {
     }
 }
 
-void init_mem(secd_t *secd, cell_t *heap, size_t size) {
+void secd_init_mem(secd_t *secd, cell_t *heap, size_t size) {
     secd->begin = heap;
     secd->end = heap + size;
 

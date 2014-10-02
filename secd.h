@@ -180,13 +180,10 @@ struct metacons {
 };
 
 struct port {
-    union {
-        cell_t *str;    // owns
-        void *file;     // owns
-    } as;
-    bool file:1;
+    unsigned char type:3;
     bool input:1;
     bool output:1;
+    long data[2];
 };
 
 struct error {
@@ -235,6 +232,9 @@ struct cell {
     } as;
 };
 
+#define SECD_PORTTYPES_MAX  8
+
+typedef  struct portops  portops_t;
 
 typedef enum {
     SECD_NOPOST = 0,
@@ -281,6 +281,7 @@ struct secd {
     cell_t *input_port;
     cell_t *output_port;
     cell_t *debug_port;
+    portops_t* portops[SECD_PORTTYPES_MAX];
 
     /* booleans */
     cell_t *truth_value;

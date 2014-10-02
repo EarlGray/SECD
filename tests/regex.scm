@@ -2,11 +2,7 @@
 ;; regular expressions
 ;;
 
-(define END-OF-STREAM #x00)
-(define EPSILON       #xFE)
-(define STUCK         #xFF)
-
-(define FINAL_INDEX   0)
+(define EPSILON #xFF)
 
 (define (make-dynamic-vector)
   (let ((FREE_INDEX 0)
@@ -98,8 +94,8 @@
               ((eq? (car str1) #\) )
                 (cons (cdr str1) startend1))
               (else '()))))))
-    ;((eq? #\. (car str))
-    ;((eq? #\[ (car str))
+    ;((eq? #\. (car str)) ; TODO
+    ;((eq? #\[ (car str)) ; TODO
     ((memq (car str) '(#\) #\[ #\* #\? #\+ #\|))
       '())
     (else
@@ -234,6 +230,7 @@
 (define (nfa-alphabet nfa)
   ;; takes nfa array, returns list of character codes
   (let ((charset (make-vector #x81 #f)))
+    ;(display ";") (display nfa) (newline)
     (reverse-vect-fold/index nfa #f
       (lambda (ind val _)
         (cond
@@ -295,7 +292,6 @@
 (define (is-final-dfa-row dfa end r)
   (if (memq end (car r)) #t #f))
 
-; TODO: regex-parsing => NFA => DFA
 (define (re-compile regexp)
   (let ((vector-map (if (defined? 'vector-map)
                         vector-map
@@ -307,7 +303,8 @@
       (let ((dfa (re-nfa-to-dfa nfa start end)))
         (list (nfa-alphabet nfa)
               (vector-map (lambda (r) (is-final-dfa-row dfa end r)) dfa)
-              (vector-map cdr dfa)))))))))
+              (vector-map cdr dfa)))
+      (raise 'error:_re-compile_failed_to_parse)))))))
 
 (define (re-match re str)
   (let ((abc (car re))
@@ -338,16 +335,4 @@
 (define re-test2 "(ba*c)*")
 (define re-test3 "lol(what|whut)")
 (define re-test4 "[01234567]+")
-
-(define re-dfa-ex1  ;; "ab*c"
-  (let ((re (vector (make-vector #x81 STUCK)
-                    (make-vector #x81 STUCK)
-                    (make-vector #x81 STUCK))))
-    (begin
-      (vector-set! (vector-ref re 2) FINAL_INDEX #t)
-
-      (vector-set! (vector-ref re 0) (char->integer #\a) 1)
-      (vector-set! (vector-ref re 1) (char->integer #\b) 1)
-      (vector-set! (vector-ref re 1) (char->integer #\c) 2)
-      re)))
 

@@ -8,7 +8,7 @@
 # include <sys/time.h>
 #endif
 
-int secd_dump_state(secd_t *secd, const char *fname);
+int secd_dump_state(secd_t *secd, cell_t *fname);
 
 /*
  * SECD machine
@@ -19,19 +19,17 @@ secd_t * init_secd(secd_t *secd, cell_t *heap, size_t ncells) {
     secd->stack = secd->dump =
         secd->control = secd->env = SECD_NIL;
 
-    init_mem(secd, heap, ncells);
+    secd->tick = 0;
+    secd->postop = SECD_NOPOST;
+
+    secd_init_mem(secd, heap, ncells);
 
     secd->truth_value = share_cell(secd, new_symbol(secd, SECD_TRUE));
     secd->false_value = share_cell(secd, new_symbol(secd, SECD_FALSE));
 
-    secd->input_port = share_cell(secd, secd_stdin(secd));
-    secd->output_port = share_cell(secd, secd_stdout(secd));
-    secd->debug_port = SECD_NIL;
+    secd_init_ports(secd);
+    secd_init_env(secd);
 
-    init_env(secd);
-
-    secd->tick = 0;
-    secd->postop = SECD_NOPOST;
     return secd;
 }
 
@@ -41,19 +39,23 @@ static bool handle_exception(secd_t *secd, cell_t *exc) {
 
 static cell_t *fatal_exception(secd_t *secd, cell_t *exc, index_t opind) {
     errorf("****************\n");
-    print_env(secd);
+    secd_print_env(secd);
     errorf("****************\n");
     errorf("FATAL EXCEPTION: %s failed\n", opcode_table[ opind ].name);
     return exc;
 }
 
 static void run_postop(secd_t *secd) {
+    cell_t *tmp;
     switch (secd->postop) {
       case SECDPOST_GC:
           secd_mark_and_sweep_gc(secd);
           break;
       case SECDPOST_MACHINE_DUMP:
-          secd_dump_state(secd, "secdstate.dump");
+          tmp = new_string(secd, "secdstate.dump"); 
+          share_cell(secd, tmp);
+          secd_dump_state(secd, tmp);
+          drop_cell(secd, tmp);
           break;
       case SECD_NOPOST:
           break;
@@ -190,14 +192,9 @@ cell_t *serialize_cell(secd_t *secd, cell_t *cell) {
             cell_t *cdrc = chain_index(secd, get_cdr(cell), SECD_NIL);
             opt = chain_index(secd, get_car(cell), cdrc);
         } break;
-      case CELL_PORT: {
-          if (cell->as.port.file) {
-              opt = chain_sym(secd, "file", SECD_NIL);
-          } else {
-              cell_t *strc = chain_index(secd, (cell_t*)strval(cell->as.port.as.str), SECD_NIL);
-              opt = chain_sym(secd, "str", strc);
-          }
-        } break;
+      case CELL_PORT:
+          opt = secd_pserialize(secd, cell);
+          break;
       case CELL_SYM:
           opt = new_cons(secd, cell, SECD_NIL);
           break;
@@ -257,8 +254,8 @@ cell_t *secd_mem_info(secd_t *secd) {
     return new_cons(secd, new_number(secd, secd->end - secd->begin), freec);
 }
 
-int secd_dump_state(secd_t *secd, const char *fname) {
-    cell_t *p = secd_fopen(secd, fname, "w");
+int secd_dump_state(secd_t *secd, cell_t *fname) {
+    cell_t *p = secd_newport(secd, "w", "file", fname);
     secd_pprintf(secd, p,
             ";; secd->fixedptr = %ld\n", cell_index(secd, secd->fixedptr));
     secd_pprintf(secd, p,

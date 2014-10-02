@@ -1,7 +1,7 @@
-objs 	:= interp.o machine.o env.o memory.o native.o readparse.o
+objs 	:= interp.o machine.o env.o memory.o native.o readparse.o ports.o
 
 # posix:
-objs 	+= posix-io.o secd.o
+objs 	+= secd.o
 
 CFLAGS 	:= -O0 -g -m32 -Wall -Wextra
 VM 		:= ./secd
