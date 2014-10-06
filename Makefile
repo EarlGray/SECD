@@ -1,20 +1,19 @@
-objs 	:= interp.o machine.o env.o memory.o native.o readparse.o ports.o
-
-# posix:
-objs 	+= secd.o
-
-CFLAGS 	:= -O0 -g -m32 -Wall -Wextra
 VM 		:= ./secd
-SECDCC 	:= scm2secd.secd
 REPL 	:= repl.secd
+SECDCC 	:= scm2secd.secd
+CFLAGS 	+= -O0 -g -Wall -Wextra
+
+objs 	:= interp.o machine.o env.o memory.o native.o readparse.o ports.o
+# posix:
+posixobjs 	:= $(objs) secd.o
 
 secdscheme: $(VM) $(REPL)
 
 $(REPL): repl.scm
 
-$(VM): $(objs)
+$(VM): $(posixobjs)
 	@echo "  LD $@"
-	@$(CC) $(CFLAGS) $(objs) -o $@
+	@$(CC) $(CFLAGS) $(posixobjs) -o $@
 
 .depend:
 	@echo "  MKDEPEND"
@@ -37,7 +36,7 @@ sos: $(objs) sos.o repl.o
 
 libsecd: $(objs) repl.o
 	@echo "  AR libsecd.a"
-	@ar -r libsecd.a $(objs) repl.o
+	@$(AR) -r libsecd.a $(objs) repl.o
 
 .PHONY: clean
 clean:
@@ -46,4 +45,4 @@ clean:
 	@echo "  rm libsecd*"
 	@rm libsecd* 2>/dev/null || true
 
-include .depend
+

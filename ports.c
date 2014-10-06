@@ -91,20 +91,36 @@ cell_t *secd_newport_by_name(secd_t *secd, const char *mode, const char *ty, con
     return p;
 }
 
+static cell_t * search_stdport(secd_t *secd, enum secd_portstd stdno) {
+    int i = 0;
+    for (i = 0; i < SECD_PORTTYPES_MAX; ++i) {
+        portops_t *ops = secd->portops[i];
+        if (!ops) continue;
+
+        portstd_func_t pstd = ops->pstd;
+        if (!pstd) continue;
+
+        cell_t *stdp = pstd(secd, stdno);
+        if (not_nil(stdp))
+            return stdp;
+    }
+    return SECD_NIL;
+}
+
 cell_t *secd_stdin(secd_t *secd) {
-    return secd_newport_by_name(secd, "r", "file", "stdin");
+    return search_stdport(secd, SECD_STDIN);
 }
 
 cell_t *secd_stdout(secd_t *secd) {
-    return secd_newport_by_name(secd, "w", "file", "stdout");
+    return search_stdport(secd, SECD_STDOUT);
 }
 
 cell_t *secd_stderr(secd_t *secd) {
-    return secd_newport_by_name(secd, "w", "file", "stderr");
+    return search_stdport(secd, SECD_STDERR);
 }
 
 cell_t *secd_stddbg(secd_t __unused *secd) {
-    return SECD_NIL;
+    return search_stdport(secd, SECD_STDDBG);
 }
 
 cell_t *secd_set_dbg(secd_t *secd, cell_t *dbgport) {
@@ -192,7 +208,7 @@ int secd_vpprintf(secd_t *secd, cell_t *port, const char *format, va_list ap) {
 
 inline int 
 secd_pprintf(secd_t *secd, cell_t *port, const char *format, ...) {
-    va_list ap = NULL;
+    va_list ap;
 
     va_start(ap, format);
     int ret = secd_vpprintf(secd, port, format, ap);
@@ -202,7 +218,7 @@ secd_pprintf(secd_t *secd, cell_t *port, const char *format, ...) {
 }
 
 int secd_printf(secd_t *secd, const char *format, ...) {
-    va_list ap = NULL;
+    va_list ap;
 
     va_start(ap, format);
     int ret = secd_vpprintf(secd, secd->output_port, format, ap);
@@ -370,6 +386,7 @@ portops_t strops = {
     .psize = strport_size,
     .pclose = strport_close,
     .powns = strport_owns,
+    .pstd = NULL,
 };
 
 portops_t * secd_strportops() {
@@ -466,6 +483,20 @@ static long fileport_size(secd_t __unused *secd, cell_t *p) {
     return endpos;
 }
 
+static cell_t *fileport_std(secd_t *secd, enum secd_portstd stdno) {
+    switch (stdno) {
+      case SECD_STDIN:
+        return secd_newport_by_name(secd, "r", "file", "stdin");
+      case SECD_STDOUT:
+        return secd_newport_by_name(secd, "w", "file", "stdout");
+      case SECD_STDERR:
+        return secd_newport_by_name(secd, "w", "file", "stderr");
+      //case SECD_STDDBG:
+      default:
+        return SECD_NIL;
+    }
+}
+
 portops_t fileops = {
     .pinfo = fileport_info,
     .popen = fileport_open,
@@ -474,6 +505,7 @@ portops_t fileops = {
     .pvprintf = fileport_vprintf,
     .psize = fileport_size,
     .pclose = fileport_close,
+    .pstd = fileport_std,
 };
 
 portops_t * secd_fileportops() {

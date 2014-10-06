@@ -6,6 +6,13 @@
 #define SECD_EOF    (-1)
 #define EOF_OBJ     "#<eof>"
 
+enum secd_portstd {
+    SECD_STDIN,
+    SECD_STDOUT,
+    SECD_STDERR,
+    SECD_STDDBG,
+};
+
 typedef const char * (*portinfo_func_t)(secd_t *, cell_t *, cell_t **);
 typedef int (*portopen_func_t)(secd_t *, cell_t *, const char *mode, cell_t *params);
 typedef int (*portgetc_func_t)(secd_t *, cell_t *);
@@ -14,6 +21,7 @@ typedef int (*portvprintf_func_t)(secd_t *, cell_t *, const char *, va_list);
 typedef size_t (*portread_func_t)(secd_t *, cell_t *, size_t, char *);
 typedef int (*portclose_func_t)(secd_t *, cell_t *);
 typedef cell_t *(*portowns_func_t)(secd_t*, cell_t *,cell_t **, cell_t **, cell_t **);
+typedef cell_t *(*portstd_func_t)(secd_t*, enum secd_portstd);
 
 struct portops {
     portinfo_func_t pinfo;
@@ -24,6 +32,7 @@ struct portops {
     portsize_func_t psize;
     portclose_func_t pclose;
     portowns_func_t powns;
+    portstd_func_t pstd;
 };
 
 
