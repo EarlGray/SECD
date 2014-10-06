@@ -235,7 +235,7 @@ struct secd_parser {
     char symtok[MAX_LEXEME_SIZE];
     char issymbc[UCHAR_MAX + 1];
 
-    char *strtok;
+    cell_t *strtok;
 
     int nested;
 };
@@ -321,9 +321,14 @@ inline static token_t lexsymbol(secd_parser_t *p) {
 }
 
 inline static token_t lexstring(secd_parser_t *p) {
-    size_t bufsize = 256;      /* initial size since string size is not limited */
+    size_t bufsize = 32;      /* initial size since string size is not limited */
     size_t read_count = 0;
-    char *buf = malloc(bufsize); /* to be freed after p->strtok is consumed */
+
+    /* to be freed after p->strtok is consumed: */
+    cell_t *strbuf = new_string_of_size(p->secd, bufsize);
+    share_cell(p->secd, strbuf);
+    char *buf = strmem(strbuf);
+
     while (1) {
         nextchar(p);
         switch (p->lc) {
@@ -363,24 +368,33 @@ inline static token_t lexstring(secd_parser_t *p) {
           case '"':
             nextchar(p);
             buf[read_count] = '\0';
-            p->strtok = buf;    /* don't forget to free */
+            p->strtok = strbuf;    /* don't forget to free */
             return (p->token = TOK_STR);
           default:
             buf[read_count] = p->lc;
             ++read_count;
-            if (read_count + 4 >= bufsize) { // +4 because of utf8cpy
-                /* reallocate */
-                bufsize *= 2;
-                buf = realloc(buf, bufsize);
-                if (!buf) {
-                    errorf("lexstring: not enough memory for a string\n");
-                    return TOK_ERR;
-                }
+        }
+
+        if (read_count + 4 >= bufsize) { // +4 because of utf8cpy
+            /* reallocate */
+            size_t newbufsize = 2 * bufsize;
+            cell_t *newstrbuf = new_string_of_size(p->secd, newbufsize);
+            if (is_error(newstrbuf)) {
+                errorf("lexstring: not enough memory for a string\n");
+                goto cleanup_and_exit;
             }
+
+            //errorf(";# reallocating string to %lu", newbufsize);
+            char *newbuf = strmem(newstrbuf);
+            memcpy(newbuf, buf, bufsize);
+
+            assign_cell(p->secd, &strbuf, newstrbuf);
+            buf = newbuf;
+            bufsize = newbufsize;
         }
     }
 cleanup_and_exit:
-    free(buf);
+    drop_cell(p->secd, strbuf);
     return (p->token = TOK_ERR);
 }
 
@@ -593,8 +607,8 @@ static cell_t *read_token(secd_t *secd, secd_parser_t *p) {
       case TOK_SYM:
         return new_symbol(secd, p->symtok);
       case TOK_STR:
-        inp = new_string(secd, p->strtok);
-        free(p->strtok);
+        inp = new_string(secd, strmem(p->strtok));
+        drop_cell(secd, p->strtok);
         return inp;
       case TOK_EOF:
         return new_symbol(secd, EOF_OBJ);
@@ -757,8 +771,8 @@ cell_t *sexp_lexeme(secd_t *secd, int line, int pos, int prevchar) {
         result = new_lexeme(secd, "int", new_number(secd, p.numtok));
         break;
       case TOK_STR:
-        result = new_lexeme(secd, "str", new_string(secd, p.strtok));
-        free(p.strtok);
+        result = new_lexeme(secd, "str", new_string(secd, strmem(p.strtok)));
+        drop_cell(secd, p.strtok);
         break;
       case TOK_CHAR:
         result = new_lexeme(secd, "char", new_char(secd, p.numtok));
