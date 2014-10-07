@@ -371,6 +371,9 @@
       (cond
         ((null? obj) #f)
         ((eq? (secd-type (car obj)) 'kont) #t)
+        ((null? (cdr obj)) #f)
+        ((null? (car obj)) #f)
+        ((null? (cdr (car obj))) #f)
         ; TODO: (procedure? (cons 1 2)) crashes
         ((not (eq? (secd-type (car (cdr obj))) 'frame)) #f)
         ((not (eq? (secd-type (car(car(cdr(car obj))))) 'op)) #f)
