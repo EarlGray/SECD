@@ -43,6 +43,15 @@
     ((eq? (caar alist) obj) (car alist))
     (else (assq obj (cdr alist))))))
 
+(list-index (lambda (lst obj)
+  (letrec ((loop
+    (lambda (l i)
+      (cond
+        ((null? l) #f)
+        ((eq? (car l) obj) i)
+        (else (loop (cdr l) (+ i 1)))))))
+    (loop lst 0))))
+
 (list-fold (lambda (func val lst)
   (cond
     ((null? lst) val)
@@ -374,7 +383,7 @@
         ((null? (cdr obj)) #f)
         ((null? (car obj)) #f)
         ((null? (cdr (car obj))) #f)
-        ; TODO: (procedure? (cons 1 2)) crashes
+        ; TODO: (procedure? (cons (1) 2)) crashes
         ((not (eq? (secd-type (car (cdr obj))) 'frame)) #f)
         ((not (eq? (secd-type (car(car(cdr(car obj))))) 'op)) #f)
         (else
