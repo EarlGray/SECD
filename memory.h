@@ -105,7 +105,6 @@ static inline size_t arrmeta_size(secd_t *secd, const cell_t *metacons) {
 
 static inline cell_t *arr_meta(cell_t *mem) {
     if (cell_type(mem - 1) != CELL_ARRMETA) {
-        errorf("arr_meta: not a meta\n");
         return SECD_NIL;
     }
     return mem - 1;
@@ -113,7 +112,6 @@ static inline cell_t *arr_meta(cell_t *mem) {
 
 static inline cell_t *meta_mem(cell_t *meta) {
     if (cell_type(meta) != CELL_ARRMETA) {
-       errorf("meta_mem: not a CELL_ARRMETA\n");
        return SECD_NIL;
     }
     return meta + 1;
@@ -121,7 +119,6 @@ static inline cell_t *meta_mem(cell_t *meta) {
 
 static inline cell_t *arr_mem(const cell_t *arr) {
     if (cell_type(arr) != CELL_ARRAY) {
-        errorf("arr_mem: not a CELL_ARRAY\n");
         return SECD_NIL;
     }
     return arr->as.arr.data;
@@ -130,7 +127,7 @@ static inline cell_t *arr_mem(const cell_t *arr) {
 static inline size_t mem_size(const cell_t *str) {
     switch (cell_type(str)) {
       case CELL_STR: case CELL_BYTES: break;
-      default: errorf("mem_size: not a byte vector\n"); return -1;
+      default: return -1;
     }
     return str->as.str.size;
 }
@@ -138,7 +135,6 @@ static inline size_t mem_size(const cell_t *str) {
 static inline const cell_t *
 arr_val(const cell_t *arr, size_t index) {
     if (cell_type(arr) != CELL_ARRAY) {
-        errorf("arr_val: not a CELL_ARRAY\n");
         return SECD_NIL;
     }
     return arr->as.arr.data + index;

@@ -40,7 +40,7 @@ cell_t *secd_stdin(secd_t *secd);
 cell_t *secd_stdout(secd_t *secd);
 cell_t *secd_stderr(secd_t *secd);
 cell_t *secd_stddbg(secd_t *secd);
-cell_t *secd_set_dbg(secd_t *secd, cell_t *dbgport);
+cell_t *secd_setport(secd_t *secd, enum secd_portstd std, cell_t *dbgport);
 
 int secd_popen(secd_t *secd, cell_t *p, const char *mode, cell_t *info);
 long secd_portsize(secd_t *secd, cell_t *port);
@@ -50,6 +50,7 @@ int secd_pgetc(secd_t *secd, cell_t *port);
 size_t secd_pread(secd_t *secd, cell_t *port, char *s, int size);
 
 int secd_printf(secd_t *secd, const char *format, ...);
+int secd_errorf(secd_t *secd, const char *format, ...);
 int secd_pprintf(secd_t *secd, cell_t *port, const char *format, ...);
 int secd_vpprintf(secd_t *secd, cell_t *port, const char *format, va_list ap);
 

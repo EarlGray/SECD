@@ -11,7 +11,7 @@
 # define __unused __attribute__((unused))
 #endif
 
-#define errorf(...) fprintf(stderr, __VA_ARGS__)
+#define errorf(...) secd_errorf(secd, __VA_ARGS__)
 
 /*
  *  Macros that check input not to be SECD_NIL or CELL_ERROR:
@@ -203,9 +203,6 @@ struct array {
     ptrdiff_t offset; // cells
 };
 
-extern cell_t secd_out_of_memory;
-extern cell_t secd_failure;
-extern cell_t secd_nil_failure;
 
 cell_t *new_error(secd_t *, cell_t *info, const char *fmt, ...);
 cell_t *new_errorv(secd_t *secd, cell_t *info, const char *fmt, va_list va);
@@ -280,6 +277,7 @@ struct secd {
     /**** I/O ****/
     cell_t *input_port;
     cell_t *output_port;
+    cell_t *error_port;
     cell_t *debug_port;
     portops_t* portops[SECD_PORTTYPES_MAX];
 
@@ -301,6 +299,7 @@ struct secd {
 /*
  *  Cell accessors
  */
+extern int secd_errorf(secd_t *, const char *, ...);
 
 inline static enum cell_type cell_type(const cell_t *c) {
     if (!c) return CELL_CONS;
@@ -322,14 +321,12 @@ inline static long cell_index(secd_t *secd, const cell_t *cons) {
 
 inline static const char * symname(const cell_t *c) {
     if (cell_type(c) != CELL_SYM) {
-        errorf("symname: not a symbol");
         return NULL;
     }
     return c->as.sym.data;
 }
 inline static hash_t symhash(const cell_t *c) {
     if (cell_type(c) != CELL_SYM) {
-        errorf("symhash: not a symbol");
         return 0;
     }
     return ((hash_t *)c->as.sym.data)[-1];
@@ -341,14 +338,14 @@ inline static int numval(const cell_t *c) {
 inline static const char *strval(const cell_t *c) {
     switch (cell_type(c)) {
       case CELL_STR: case CELL_BYTES: break;
-      default: errorf("strmem: not a byte vector\n"); return NULL;
+      default: return NULL;
     }
     return c->as.str.data;
 }
 inline static char *strmem(cell_t *c) {
     switch (cell_type(c)) {
       case CELL_STR: case CELL_BYTES: break;
-      default: errorf("strmem: not a byte vector\n"); return NULL;
+      default: return NULL;
     }
     return c->as.str.data;
 }

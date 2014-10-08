@@ -123,9 +123,16 @@ cell_t *secd_stddbg(secd_t __unused *secd) {
     return search_stdport(secd, SECD_STDDBG);
 }
 
-cell_t *secd_set_dbg(secd_t *secd, cell_t *dbgport) {
-    secd->debug_port = share_cell(secd, dbgport);
-    return secd->debug_port;
+cell_t *secd_setport(secd_t *secd, enum secd_portstd std, cell_t *port) {
+    cell_t **stdp = SECD_NIL;
+    switch (std) {
+      case SECD_STDIN:  stdp = &secd->input_port;  break;
+      case SECD_STDOUT: stdp = &secd->output_port; break;
+      case SECD_STDERR: stdp = &secd->error_port;  break;
+      case SECD_STDDBG: stdp = &secd->debug_port;  break;
+      default: return SECD_NIL;
+    }
+    return assign_cell(secd, stdp, port);
 }
 
 
@@ -227,6 +234,16 @@ int secd_printf(secd_t *secd, const char *format, ...) {
     return ret;
 }
 
+int secd_errorf(secd_t *secd, const char *format, ...) {
+    va_list ap;
+
+    va_start(ap, format);
+    int ret = secd_vpprintf(secd, secd->error_port, format, ap);
+    va_end(ap);
+
+    return ret;
+}
+
 /* print port description into port */
 void sexp_pprint_port(secd_t *secd, cell_t *outp, const cell_t *port) {
     secd_pprintf(secd, outp, "##port%s%s@%ld",
@@ -270,6 +287,7 @@ void secd_init_ports(secd_t *secd) {
 
     secd->input_port = share_cell(secd, secd_stdin(secd));
     secd->output_port = share_cell(secd, secd_stdout(secd));
+    secd->error_port = share_cell(secd, secd_stderr(secd));
     secd->debug_port = SECD_NIL;
 }
 

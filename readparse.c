@@ -303,7 +303,7 @@ inline static token_t lexsymbol(secd_parser_t *p) {
         nextchar(p);
         if (++read_count >= MAX_LEXEME_SIZE) {
             *s = '\0';
-            errorf("lexnext: lexeme is too large: %s\n", p->symtok);
+            secd_errorf(p->secd, "lexnext: lexeme is too large: %s\n", p->symtok);
             return (p->token = TOK_ERR);
         }
     } while (p->issymbc[(unsigned char)p->lc]);
@@ -380,7 +380,7 @@ inline static token_t lexstring(secd_parser_t *p) {
             size_t newbufsize = 2 * bufsize;
             cell_t *newstrbuf = new_string_of_size(p->secd, newbufsize);
             if (is_error(newstrbuf)) {
-                errorf("lexstring: not enough memory for a string\n");
+                secd_errorf(p->secd, "lexstring: not enough memory for a string\n");
                 goto cleanup_and_exit;
             }
 
