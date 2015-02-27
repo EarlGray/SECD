@@ -449,8 +449,7 @@ cell_t *secd_raise(secd_t *secd, cell_t *exc);
 /*
  * utilities
  */
-hash_t memhash(const char*, size_t);
-hash_t strhash(const char *strz);
+hash_t secd_strhash(const char *strz);
 
 const cell_t *secd_default_equal_fun(void);
 const cell_t *secd_default_hash_fun(void);

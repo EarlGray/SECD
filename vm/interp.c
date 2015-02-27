@@ -46,7 +46,7 @@ cell_t *compile_control_path(secd_t *secd, cell_t *control) {
             return new_error(secd, SECD_NIL, "compile_control_path: symbol expected");
         }
 
-        index_t opind = secdop_by_name( symname(opcode) );
+        int opind = secdop_by_name( symname(opcode) );
         assert(opind >= 0, "Opcode not found: %s", symname(opcode))
 
         cell_t *new_cmd = new_op(secd, opind);
@@ -833,7 +833,7 @@ const opcode_t opcode_table[] = {
     [SECD_LAST] = { NULL,         NULL,      0,  0}
 };
 
-index_t optable_len = 0;
+int optable_len = 0;
 
 inline size_t opcode_count(void) {
     if (optable_len == 0)
@@ -841,12 +841,12 @@ inline size_t opcode_count(void) {
     return optable_len;
 }
 
-index_t secdop_by_name(const char *name) {
-    index_t a = 0;
-    index_t b = opcode_count();
+int secdop_by_name(const char *name) {
+    int a = 0;
+    int b = opcode_count();
 
     while (a != b) {
-        index_t c = (a + b) / 2;
+        int c = (a + b) / 2;
         int ord = str_cmp( name, opcode_table[c].name);
         if (ord == 0) return c;
         if (ord < 0) b = c;

@@ -67,9 +67,9 @@ cell_t *make_native_frame(secd_t *secd,
 
 void secd_init_env(secd_t *secd) {
     /* initialize global values */
-    stdinhash = strhash(SECD_FAKEVAR_STDIN);
-    stdouthash = strhash(SECD_FAKEVAR_STDOUT);
-    stddbghash = strhash(SECD_FAKEVAR_STDDBG);
+    stdinhash = secd_strhash(SECD_FAKEVAR_STDIN);
+    stdouthash = secd_strhash(SECD_FAKEVAR_STDOUT);
+    stddbghash = secd_strhash(SECD_FAKEVAR_STDDBG);
 
     /* initialize the first frame */
     cell_t *frame = make_native_frame(secd, native_functions);
@@ -85,7 +85,7 @@ void secd_init_env(secd_t *secd) {
 }
 
 static cell_t *lookup_fake_variables(secd_t *secd, const char *sym) {
-    hash_t symh = strhash(sym);
+    hash_t symh = secd_strhash(sym);
     if ((symh == stdinhash) && str_eq(sym, SECD_FAKEVAR_STDIN))
         return secd->input_port;
     if ((symh == stdouthash) && str_eq(sym, SECD_FAKEVAR_STDOUT))
@@ -104,7 +104,7 @@ cell_t *lookup_env(secd_t *secd, const char *symbol, cell_t **symc) {
     if (not_nil(res))
         return res;
 
-    hash_t symh = strhash(symbol);
+    hash_t symh = secd_strhash(symbol);
 
     while (not_nil(env)) {       // walk through frames
         cell_t *frame = get_car(env);

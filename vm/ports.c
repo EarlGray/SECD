@@ -292,7 +292,9 @@ void secd_init_ports(secd_t *secd) {
 }
 
 cell_t *secd_pserialize(secd_t *secd, cell_t *port) {
-    /* TODO */
+    (void)secd;
+    (void)port;
+#warning "TODO: secd_pserialize"
     return SECD_NIL;
 }
 

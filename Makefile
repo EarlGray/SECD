@@ -13,6 +13,9 @@ objs    := $(addprefix $(BUILD_DIR)/,$(objs))
 posixobjs 	:= $(addprefix $(BUILD_DIR)/,secd.o)
 posixobjs   += $(objs)
 
+.PHONY: clean libsecd
+
+
 secdscheme: $(VM) $(REPL)
 
 $(REPL): repl.scm
@@ -33,19 +36,21 @@ $(BUILD_DIR)/%.o : $(SRC_DIR)/%.c
 	@echo "  CC $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
-%.o : %.secd
-	@echo "LD  $<"
-	@$(LD) $(LDFLAGS) -r -b binary -o $@ $<
+TMP_C	:= $(BUILD_DIR)/temp.c
+repl.o : repl.secd
+	xxd -i $< > $(TMP_C)
+	$(CC) $(CFLAGS) -c $(TMP_C) -o $@
 
 %.secd: %.scm $(VM)
 	@echo "  SECDCC $@"
 	@$(VM) scm2secd.secd < $< > tmp.secd && mv tmp.secd $@
 
-libsecd: $(objs) repl.o
+libsecd: libsecd.a
+
+libsecd.a: $(objs) repl.o
 	@echo "  AR libsecd.a"
 	@$(AR) -r libsecd.a $(objs) repl.o
 
-.PHONY: clean
 clean:
 	@echo "  rm *.o"
 	@rm -r $(BUILD_DIR) || true

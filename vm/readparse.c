@@ -637,7 +637,7 @@ static cell_t *read_token(secd_t *secd, secd_parser_t *p) {
             }
           case TOK_SYM: {
               if (p->symtok[0] == '.') {
-                index_t op = secdop_by_name(p->symtok + 1);
+                int op = secdop_by_name(p->symtok + 1);
                 if (op < 0)
                     goto error_exit;
 

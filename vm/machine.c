@@ -37,7 +37,7 @@ static bool handle_exception(secd_t *secd, cell_t *exc) {
     return !is_error(secd_raise(secd, exc));
 }
 
-static cell_t *fatal_exception(secd_t *secd, cell_t *exc, index_t opind) {
+static cell_t *fatal_exception(secd_t *secd, cell_t *exc, int opind) {
     errorf("****************\n");
     secd_print_env(secd);
     errorf("****************\n");
@@ -63,7 +63,7 @@ static void run_postop(secd_t *secd) {
     secd->postop = SECD_NOPOST;
 }
 
-static bool about_to_halt(secd_t *secd, index_t opind, cell_t **ret) {
+static bool about_to_halt(secd_t *secd, int opind, cell_t **ret) {
     switch (opind) {
       case SECD_STOP:
           *ret = SECD_NIL;

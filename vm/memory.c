@@ -54,21 +54,7 @@ inline static size_t bytes_to_cell(size_t bytes) {
 }
 
 /* http://en.wikipedia.org/wiki/Jenkins_hash_function */
-static hash_t jenkins_hash(const char *key, size_t len) {
-    uint32_t hash, i;
-    for(hash = i = 0; i < len; ++i)
-    {
-        hash += key[i];
-        hash += (hash << 10);
-        hash ^= (hash >> 6);
-    }
-    hash += (hash << 3);
-    hash ^= (hash >> 11);
-    hash += (hash << 15);
-    return hash;
-}
-
-hash_t strhash(const char *strz) {
+hash_t secd_strhash(const char *strz) {
     uint32_t hash = 0;
     while (*strz) {
         hash += *strz;
@@ -80,10 +66,6 @@ hash_t strhash(const char *strz) {
     hash ^= (hash >> 11);
     hash += (hash << 15);
     return hash;
-}
-
-hash_t memhash(const char *key, size_t len) {
-    return jenkins_hash(key, len);
 }
 
 /*
@@ -540,7 +522,7 @@ symstore_get(secd_t *secd, int index) {
 
 cell_t *symstore_lookup(secd_t *secd, const char *str)
 {
-    hash_t hash = strhash(str);
+    hash_t hash = secd_strhash(str);
 
     cell_t *arr = share_cell(secd, symstore_get(secd, SYMSTORE_HASHARR));
     size_t hashcap = arr_size(secd, arr);
@@ -653,7 +635,7 @@ cell_t *symstore_add(secd_t *secd, const char *str) {
     }
 
     /* write the symbol into the buffer */
-    hash_t hash = strhash(str);
+    hash_t hash = secd_strhash(str);
     ptrdiff_t symoffset = bufptr + sizeof(hash_t);
 
     char *bytes = (void *)strmem(bufbvect);
