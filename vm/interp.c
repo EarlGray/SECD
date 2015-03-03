@@ -400,7 +400,7 @@ cell_t *secd_eq(secd_t *secd) {
     return SECD_NIL;
 }
 
-static cell_t *arithm_op(secd_t *secd, int op(int, int)) {
+static cell_t *arithm_op(secd_t *secd, int (*op)(int, int)) {
     cell_t *a = pop_stack(secd);
     assert_cell(a, "secd_arithm: pop_stack(a) failed")
     assert(is_number(a), "secd_arithm: a is not int");

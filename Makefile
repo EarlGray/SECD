@@ -1,16 +1,16 @@
-VM 		:= ./secd
-REPL 	:= repl.secd
-SECDCC 	:= scm2secd.secd
-CFLAGS 	+= -O0 -g -Wall -Wextra
+VM      := ./secd
+REPL    := repl.secd
+SECDCC  := scm2secd.secd
+CFLAGS  += -Os -Wall
 
 BUILD_DIR := build
 SRC_DIR   := vm
 
-objs 	:= interp.o machine.o env.o memory.o native.o readparse.o ports.o
+objs    := interp.o machine.o env.o memory.o native.o readparse.o ports.o
 objs    := $(addprefix $(BUILD_DIR)/,$(objs))
 
 # posix:
-posixobjs 	:= $(addprefix $(BUILD_DIR)/,secd.o)
+posixobjs   := $(addprefix $(BUILD_DIR)/,secd.o)
 posixobjs   += $(objs)
 
 .PHONY: clean libsecd

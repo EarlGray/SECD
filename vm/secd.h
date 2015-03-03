@@ -244,6 +244,7 @@ typedef struct secd_stat {
     size_t used_control;
     size_t used_dump;
     size_t free_cells;
+    size_t n_alloc;
 } secd_stat_t;
 
 struct secd {

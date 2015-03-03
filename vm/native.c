@@ -343,6 +343,7 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
             secd_printf(secd, ";;  arrayptr = %zd (%zd)\n",
                          secd->arrayptr - secd->begin, secd->arrayptr - secd->end);
             secd_printf(secd, ";;  Fixed cells: %zd free\n", secd->stat.free_cells);
+            secd_printf(secd, ";;  Allocated cells: %zd total\n", secd->stat.n_alloc);
             return secd_mem_info(secd);
         } else if (str_eq(symname(arg1), "env")) {
             secd_print_env(secd);

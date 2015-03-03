@@ -147,6 +147,7 @@ cell_t *pop_free(secd_t *secd) {
 
     cell->type = CELL_UNDEF;
     cell->nref = 0;
+    ++secd->stat.n_alloc;
     return cell;
 }
 
@@ -1376,6 +1377,7 @@ void secd_init_mem(secd_t *secd, cell_t *heap, size_t size) {
     secd->stat.used_dump = 0;
     secd->stat.used_control = 0;
     secd->stat.free_cells = 0;
+    secd->stat.n_alloc = 0;
 
     /* init array management */
     secd->arrlist = secd->arrayptr;
