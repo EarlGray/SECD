@@ -1,6 +1,7 @@
 #ifndef __SECD_IO_H_
 #define __SECD_IO_H_
 
+#include <stdarg.h>
 #include "secd.h"
 
 #define SECD_EOF    (-1)

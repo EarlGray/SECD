@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdarg.h>
 
 #ifndef __unused
 # define __unused __attribute__((unused))
