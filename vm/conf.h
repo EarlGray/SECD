@@ -23,7 +23,5 @@
 #define ENVDEBUG    0
 #define TIMING      0
 
-typedef enum { false, true } bool;
-
 #endif //__SECD_CONF_H___
 

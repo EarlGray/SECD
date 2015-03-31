@@ -5,6 +5,7 @@
 
 #include <stddef.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifndef __unused

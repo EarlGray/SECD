@@ -186,7 +186,7 @@ static cell_t *chain_sym(secd_t *secd, const char *str, cell_t *prev) {
 }
 
 cell_t *serialize_cell(secd_t *secd, cell_t *cell) {
-    cell_t *opt;
+    cell_t *opt = SECD_NIL;
     switch (cell_type(cell)) {
       case CELL_CONS: {
             cell_t *cdrc = chain_index(secd, get_cdr(cell), SECD_NIL);
