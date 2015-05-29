@@ -170,7 +170,7 @@ void sexp_pprint(secd_t* secd, cell_t *port, const cell_t *cell) {
                                 "##frame@%ld ", cell_index(secd, cell)); break;
       case CELL_KONT:   secd_pprintf(secd, port,
                                 "##kont@%ld ", cell_index(secd, cell)); break;
-      case CELL_CONS:   sexp_print_list(secd, port, cell); break; break;
+      case CELL_CONS:   sexp_print_list(secd, port, cell); break;
       case CELL_ARRAY:  sexp_print_array(secd, port, cell); break;
       case CELL_STR:    secd_pprintf(secd, port, "\"%s\"", strval(cell) + cell->as.str.offset); break;
       case CELL_SYM:    secd_pprintf(secd, port, "%s", symname(cell)); break;

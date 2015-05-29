@@ -673,10 +673,9 @@ static cell_t *string_to_list(secd_t *secd, const char *cstr) {
     cell_t *res = SECD_NIL;
     cell_t *cur;
 
-    unichar_t codepoint;
     while (1) {
         const char *cnxt = cstr;
-        codepoint = utf8get(cstr, &cnxt);
+        unichar_t codepoint = utf8get(cstr, &cnxt);
 
         if (cnxt == NULL) {
             free_cell(secd, res);

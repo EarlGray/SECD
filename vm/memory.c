@@ -606,7 +606,6 @@ cell_t *symstore_add(secd_t *secd, const char *str) {
 
         drop_cell(secd, arr);
         arr = share_cell(secd, symstore_get(secd, SYMSTORE_HASHARR));
-        hashcap = arr_size(secd, arr);
     }
 
     ptrdiff_t bufptr;
