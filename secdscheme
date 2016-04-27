@@ -12,17 +12,12 @@ die () {
 }
 
 interp () {
-    # is there compiled REPL code?
-    [ -r "$REPL" ] || $SECDVM $COMPILER <$REPLSRC >$REPL
-
     RLWRAP="`which rlwrap`"
     [ "$RLWRAP" ] && RLWRAP="$RLWRAP -r -q \"\\\"\" "
     exec $RLWRAP $SECDVM $REPL
 }
 
 compile () {
-    [ -r "$COMPILER" ] || die "Error: $COMPILER not found"
-
     case "$1" in
       *.scm) ;;
       *) die "Error: file $1 must have .scm extension" ;;
@@ -38,8 +33,13 @@ compile () {
     exit 0
 }
 
+test -f "$REPL" || {
+    export REPL="$DIR/../share/secdscheme/secd/repl.secd"
+    test -f "$REPL" || die "repl.secd not found"
+}
+
 # is there the secd interpreter?
-[ -x $SECDVM ] || make $SECDVM
+[ -x $SECDVM ] || die "$SECDVM not found"
 
 if [ "$1" = '-c' ] ; then
     echo ";; compiling..."

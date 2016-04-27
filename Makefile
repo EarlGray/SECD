@@ -14,7 +14,7 @@ posixobjs   := $(addprefix $(BUILD_DIR)/,secd.o)
 posixobjs   += $(objs)
 
 .PHONY: clean libsecd
-
+.PHONY: install uninstall
 
 secdscheme: $(VM) $(REPL)
 
@@ -50,6 +50,17 @@ libsecd: libsecd.a
 libsecd.a: $(objs) repl.o
 	@echo "  AR libsecd.a"
 	@$(AR) -r libsecd.a $(objs) repl.o
+
+install:
+	@mkdir -p $(INSTALL_DIR)/bin $(INSTALL_DIR)/share/secdscheme/{secd,std}
+	@cp $(VM) secdscheme $(INSTALL_DIR)/bin/
+	@cp $(REPL) $(SECDCC) $(INSTALL_DIR)/share/secdscheme/secd/
+	@cp repl.scm scm2secd.scm std/* $(INSTALL_DIR)/share/secdscheme/std/
+
+uninstall:
+	@test "$(INSTALL_DIR)"
+	@rm -r $(INSTALL_DIR)/bin/{secd,secdscheme} && rmdir $(INSTALL_DIR)/bin || true
+	@rm -r $(INSTALL_DIR)/share/secdscheme/ && rmdir -p $(INSTALL_DIR)/share/secdscheme || true
 
 clean:
 	@echo "  rm *.o"
