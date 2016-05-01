@@ -18,4 +18,5 @@
     LD append AP 
     PRINT 
     RTN)) 
-RAP)
+RAP
+STOP)
