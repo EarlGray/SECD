@@ -38,7 +38,7 @@ bye
 $
 ```
 
-Running bare SECD opcodes:
+Running bare [SECD opcodes](docs/SECD.md):
 ```
 $ echo "(STOP)" | ./secd
 $ echo "(LDC 2  LDC 2  ADD  PRINT  STOP)" | ./secd
