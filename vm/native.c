@@ -4,6 +4,7 @@
 #include "env.h"
 
 #include <string.h>
+#include <dlfcn.h>
 
 void print_array_layout(secd_t *secd);
 
@@ -315,6 +316,134 @@ cell_t *secdf_hash(secd_t *secd, cell_t *args) {
     return secd->false_value;
 }
 
+#define SECD_THROW(...) \
+    return secd_raise(secd, new_error(secd, SECD_NIL, __VA_ARGS__));
+
+#define SECD_ERRMSG(...) \
+    do { secd_pprintf(secd, secd->error_port, __VA_ARGS__); } while (0)
+
+static void *cell_to_ctype(secd_t *secd, cell_t *arg) {
+    if (!arg)
+        return NULL;
+    switch (cell_type(arg)) {
+    case CELL_INT: case CELL_CHAR:
+        return (void *)(intptr_t)numval(arg);
+    case CELL_STR:
+        return (void *)strval(arg);
+    case CELL_SYM:
+        return (void *)symname(arg);
+    default:
+        SECD_THROW("secd-ffi: the first argument type cannot be passed");
+    }
+}
+
+cell_t *secdf_ffi(secd_t *secd, cell_t *args) {
+    ctrldebugf("secdf_ffi\n");
+    assert(not_nil(args), "secdf_ffi: no arguments");
+
+    cell_t *cmd = list_head(args);
+    if (!is_symbol(cmd))
+        SECD_THROW("secd-ffi: a symbol expected as a command");
+
+    if (str_eq(symname(cmd), "help")) {
+        SECD_ERRMSG(";; Usage:\n");
+        SECD_ERRMSG(";;  (secd-ffi 'call '(<retty> <dlsym> [<arg1>]))\n");
+        SECD_ERRMSG(";;     where\n");
+        SECD_ERRMSG(";;     <retty> ::= cstr | int\n");
+        SECD_ERRMSG(";;     <arg1> ::= '() => NULL | <num/char> => <int> | <str>/<sym> => <cstr>\n");
+        SECD_ERRMSG(";;  (secd-ffi 'help') - shows this message\n");
+    } else if (str_eq(symname(cmd), "call")) {
+        args = list_next(secd, args);
+        if (!args)
+            SECD_THROW("secd-ffi: failed to parse call");
+
+        cell_t *call = list_head(args);
+        if (!call || cell_type(call) != CELL_CONS)
+            SECD_THROW("secd-ffi: (<type> <name> (<ty> <arg>)...) expected");
+
+        cell_t *rettysym = list_head(call);
+        if (!rettysym || !is_symbol(rettysym))
+            SECD_THROW("secd-ffi: return type must be a symbol");
+
+        call = list_next(secd, call);
+        cell_t *cfunsym = list_head(call);
+        if (!cfunsym || !is_symbol(cfunsym))
+            SECD_THROW("secd-ffi: a symbol expected");
+
+        typedef void * (fun0_t)(void);
+        typedef void * (fun1_t)(void *);
+        typedef void * (fun2_t)(void *, void *);
+        typedef void * (fun3_t)(void *, void *, void *);
+        void *handle, *fun, *arg1, *arg2, *arg3, *ret;
+        handle = dlopen(NULL, RTLD_LAZY);
+        if (!handle)
+            SECD_THROW("secd-ffi: failed to dlopen()");
+
+        fun = dlsym(handle, symname(cfunsym));
+        if (!fun)
+            SECD_THROW("secd-ffi: symbol '%s' not found", symname(cfunsym));
+
+        /*
+        secd_pprintf(secd, secd->error_port, "secd-ffi: found '%s' at *%p\n",
+                     symname(cfunsym), fun);
+        */
+        dlclose(handle);
+
+        call = list_next(secd, call);
+        if (!call) {
+            fun0_t* f = fun;
+            ret = f();
+        } else {
+            if (!is_cons(call))
+                SECD_THROW("secd-ffi: a first argument expected");
+
+            cell_t *argc = list_head(call);
+            arg1 = cell_to_ctype(secd, argc);
+
+            call = list_next(secd, call);
+            if (!call) {
+                fun1_t* f = fun;
+                ret = f(arg1);
+            } else {
+                if (!is_cons(call))
+                    SECD_THROW("secd-ffi: the second argument expected");
+                argc = list_head(call);
+                arg2 = cell_to_ctype(secd, argc);
+
+                call = list_next(secd, call);
+                if (!call) {
+                    fun2_t *f = fun;
+                    ret = f(arg1, arg2);
+                } else {
+                    if (!is_cons(call))
+                        SECD_THROW("secd-ffi: the third argument expected");
+                    argc = list_head(call);
+                    arg3 = cell_to_ctype(secd, argc);
+
+                    call = list_next(secd, call);
+                    if (!call) {
+                        fun3_t *f = fun;
+                        ret = f(arg1, arg2, arg3);
+                    } else
+                        SECD_THROW("secd-ffi: more than 3 arguments are not supported");
+                }
+            }
+        }
+
+        if (str_eq(symname(rettysym), "cstr")) {
+            return new_string(secd, (const char *)ret);
+        } else if (str_eq(symname(rettysym), "int")) {
+            return new_number(secd, (intptr_t)ret);
+        } else {
+            SECD_THROW("secd-ffi: unknown return type %s", symname(rettysym));
+        }
+
+    } else {
+        return new_symbol(secd, "TODO");
+    }
+    return new_symbol(secd, "ok");
+}
+
 cell_t *secdf_symleq(secd_t *secd, cell_t *args) {
     assert(not_nil(args), "(symbolptr-leq: no arguments");
 
@@ -406,7 +535,7 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
             secd_printf(secd, ";; env   = %ld\n", cell_index(secd, secd->env));
             secd_printf(secd, ";; ctrl  = %ld\n", cell_index(secd, secd->control));
             secd_printf(secd, ";; dump  = %ld\n\n", cell_index(secd, secd->dump));
-            secd_printf(secd, ";; %s = %ld\n", 
+            secd_printf(secd, ";; %s = %ld\n",
                     SECD_TRUE,  cell_index(secd, secd->truth_value));
             secd_printf(secd, ";; %s = %ld\n\n",
                     SECD_FALSE, cell_index(secd, secd->false_value));
@@ -470,7 +599,7 @@ cell_t *secdf_readlex(secd_t *secd, cell_t *args) {
         assert(cell_type(scc) == CELL_CHAR, "(read-lexeme: a char expected");
         startchar = scc->as.num;
         if (not_nil(get_cdr(args)))
-            get_two_nums(secd, args, (size_t*)&line, 
+            get_two_nums(secd, args, (size_t*)&line,
                                      (size_t*)&pos, "(read-lexeme)");
     }
     cell_t *res = sexp_lexeme(secd, line, pos, startchar);
@@ -1144,6 +1273,7 @@ const cell_t getenv_fun = INIT_FUNC(secdf_getenv);
 const cell_t equal_func = INIT_FUNC(secdf_equal);
 const cell_t bind_func  = INIT_FUNC(secdf_bind);
 const cell_t hash_func  = INIT_FUNC(secdf_hash);
+const cell_t ffi_func   = INIT_FUNC(secdf_ffi);
 const cell_t symleq_fun = INIT_FUNC(secdf_symleq);
 const cell_t test_fun   = INIT_FUNC(secdf_testf);
 const cell_t readlex_fun = INIT_FUNC(secdf_readlex);
@@ -1264,6 +1394,7 @@ native_functions[] = {
     { "eof-object?",    &eofp_func  },
     { "symbolptr-leq",  &symleq_fun },
     { "secd-hash",      &hash_func  },
+    { "secd-ffi",       &ffi_func   },
     { "secd",           &debug_func },
     { "defined?",       &defp_func  },
     { "equal?",         &equal_func },

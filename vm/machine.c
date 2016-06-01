@@ -52,7 +52,7 @@ static void run_postop(secd_t *secd) {
           secd_mark_and_sweep_gc(secd);
           break;
       case SECDPOST_MACHINE_DUMP:
-          tmp = new_string(secd, "secdstate.dump"); 
+          tmp = new_string(secd, "secdstate.dump");
           share_cell(secd, tmp);
           secd_dump_state(secd, tmp);
           drop_cell(secd, tmp);
