@@ -509,6 +509,11 @@ token_t lexnext(secd_parser_t *p) {
             case '|':
                 lex_mltln_comment(p);
                 return lexnext(p);
+            case '!':
+                do {
+                    nextchar(p);
+                } while (p->lc != '\n');
+                return lexnext(p);
             /* chars */
             case '\\': nextchar(p); return lexchar(p);
             /* numbers */
