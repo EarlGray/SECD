@@ -15,14 +15,6 @@ int main(int argc, char *argv[]) {
     secd_setport(&secd, SECD_STDDBG, secd_fopen(&secd, "secd.log", "w"));
 #endif
 
-    if (isatty(STDIN_FILENO)) {
-        const char *mytty = ttyname(STDIN_FILENO);
-        secd_errorf(&secd, ";;;   Welcome to SECD   \n");
-        secd_errorf(&secd, ";;;     sizeof(cell_t) is %zd\n", sizeof(cell_t));
-        secd_errorf(&secd, ";;;     tty = %s\n", mytty);
-        secd_errorf(&secd, ";;;   Type (secd) to get some help.\n");
-    }
-
     cell_t *cmdport = SECD_NIL;
     if (argc == 2)
         cmdport = secd_fopen(&secd, argv[1], "r");

@@ -502,6 +502,9 @@ cell_t *secdf_ctl(secd_t *secd, cell_t *args) {
                 goto help;
             cell_t *numc = get_car(list_next(secd, args));
             if (! is_number(numc)) {
+                if (is_symbol(numc) && (str_eq(symname(numc), "size"))) {
+                    return new_number(secd, sizeof(cell_t));
+                }
                 secd_printf(secd, ";; cell number must be int\n");
                 return SECD_NIL;
             }
