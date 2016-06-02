@@ -448,4 +448,11 @@
         (lambda (sym val) (list 'vector-set! sym 0 val)))
       (cons 'box-ref
         (lambda (sym) (list 'vector-ref sym 0)))))
+  (display ";;;   Welcome to SECDScheme\n")
+  (display ";;;     sizeof(cell_t) = ")(display (secd 'cell 'size))(newline)
+  (if (defined? 'secd-ffi)
+    (let ((tty (secd-ffi 'call '(cstr ttyname 0))))
+      (begin (display ";;;     tty = ")(display tty)(newline)))
+    'else-pass)
+  (display ";;;   Type (secd) to get some help.\n")
   (repl)))
