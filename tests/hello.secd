@@ -1,0 +1,2 @@
+#!/usr/bin/env secd
+(LDC ("Hello world!\n") LD display AP STOP)
