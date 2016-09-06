@@ -50,3 +50,4 @@ The design is mostly inspired by detailed description in _Functional programming
 
 Here is [a series of my blog posts about SECD machine](http://dmytrish.wordpress.com/2013/08/09/secd-about)
 
+Join a [Gitter chat](https://gitter.im/EarlGray/SECD) if you want to discuss the project or need help with it.
