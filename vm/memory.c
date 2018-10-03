@@ -1,6 +1,7 @@
-#include "memory.h"
-#include "secd_io.h"
+#include "secd/secd_io.h"
+
 #include "secdops.h"
+#include "memory.h"
 
 #include <string.h>
 #include <stdarg.h>
@@ -442,6 +443,11 @@ cell_t *new_array(secd_t *secd, size_t size) {
     return new_array_for(secd, mem);
 }
 
+cell_t *clear_array(secd_t *secd, cell_t *arr, size_t len) {
+    memset((char *)arr_ref(arr, 0), CELL_UNDEF, sizeof(cell_t) * len);
+    return arr;
+}
+
 /*
  *  String allocation
  */
@@ -571,6 +577,7 @@ void symstorage_ht_rebalance(secd_t *secd) {
 
     //errorf(";; symstorage_ht_rebalance to %lu\n", 2 * hashcap);
     cell_t *newarr = share_cell(secd, new_array(secd, newhashcap));
+    clear_array(secd, newarr, newhashcap);
 
     size_t i;
     for (i = 0; i < hashcap; ++i) {
@@ -1060,6 +1067,7 @@ static cell_t *secdht_rebalance(secd_t *secd, cell_t *ht) {
 
     size_t newcap = oldcap * 2;
     cell_t *newarr = new_array(secd, newcap);
+    clear_array(secd, newarr, newcap);
 
     init_number(arr_ref(ht, 0), 0);
 

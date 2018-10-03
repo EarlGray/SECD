@@ -1,10 +1,10 @@
-#include "secd.h"
-#include "secd_io.h"
+#include "secd/secd.h"
+#include "secd/secd_io.h"
 
 #include <unistd.h>
 #include <stdlib.h>
 
-#define N_CELLS     256 * 1024
+#define N_CELLS     64 * 1024
 
 int main(int argc, char *argv[]) {
     secd_t secd;

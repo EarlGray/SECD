@@ -1,8 +1,8 @@
 #ifndef __SECD_MEM_H__
 #define __SECD_MEM_H__
 
-#include "secd.h"
-#include "secd_io.h"
+#include "secd/secd.h"
+#include "secd/secd_io.h"
 
 /*
  *   Allocation
@@ -15,7 +15,6 @@ cell_t *new_char(secd_t *secd, int chr);
 cell_t *new_symbol(secd_t *secd, const char *sym);
 
 cell_t *new_array(secd_t *secd, size_t size);
-cell_t *new_array_for(secd_t *secd, cell_t *mem);
 
 cell_t *new_string(secd_t *secd, const char *str);
 cell_t *new_string_of_size(secd_t *secd, size_t size);
@@ -163,6 +162,7 @@ static inline size_t arr_size(secd_t *secd, const cell_t *arr) {
 }
 
 cell_t *fill_array(secd_t *secd, cell_t *arr, cell_t *with);
+cell_t *clear_array(secd_t *secd, cell_t *arr, size_t len);
 
 /*
  *    Global machine operations

@@ -1,7 +1,7 @@
-#include "secd.h"
+#include "secd/secd.h"
+#include "secd/secd_io.h"
 
 #include "secdops.h"
-#include "secd_io.h"
 #include "memory.h"
 
 #include <stdlib.h>

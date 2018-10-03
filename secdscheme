@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 DIR=`dirname $0`
 SECDVM=$DIR/secd
@@ -42,8 +42,10 @@ test -f "$REPL" || {
 [ -x $SECDVM ] || die "$SECDVM not found"
 
 if [ "$1" = '-c' ] ; then
-    echo ";; compiling..."
-    shift; compile "$@"
+	shift
+    echo ";; compiling $@..." >&2
+    compile "$@"
+else
+	interp
 fi
 
-interp

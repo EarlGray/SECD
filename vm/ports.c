@@ -1,5 +1,6 @@
-#include "secd.h"
-#include "secd_io.h"
+#include "secd/secd.h"
+#include "secd/secd_io.h"
+
 #include "memory.h"
 
 #include <string.h>

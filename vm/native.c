@@ -1,5 +1,6 @@
-#include "secd.h"
-#include "secd_io.h"
+#include "secd/secd.h"
+#include "secd/secd_io.h"
+
 #include "memory.h"
 #include "env.h"
 
@@ -543,14 +544,11 @@ cell_t *secdv_make(secd_t *secd, cell_t *args) {
     size_t len = numval(num);
     cell_t *arr = new_array(secd, len);
 
-    if (not_nil(list_next(secd, args))) {
-        cell_t *fill = get_car(list_next(secd, args));
-        return fill_array(secd, arr, fill);
-    } else
-        /* make it CELL_UNDEF */
-        memset((char *)arr_ref(arr, 0), CELL_UNDEF, sizeof(cell_t) * len);
+    if (is_nil(list_next(secd, args)))
+        return clear_array(secd, arr, len);
 
-    return arr;
+    cell_t *fill = get_car(list_next(secd, args));
+    return fill_array(secd, arr, fill);
 }
 
 cell_t *secdv_len(secd_t *secd, cell_t *args) {

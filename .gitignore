@@ -1,4 +1,7 @@
 *.o
+*.a
+*~
+libsecd.c
 .*.swp
 .depend
 repl.secd
