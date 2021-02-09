@@ -1,6 +1,8 @@
 SECDScheme
 ==========
 
+[![Join the chat at https://gitter.im/EarlGray/SECD](https://badges.gitter.im/EarlGray/SECD.svg)](https://gitter.im/EarlGray/SECD?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 This is a loose implementation of [SECD machine](http://en.wikipedia.org/wiki/SECD) and a simple self-hosted Scheme-to-SECD compiler/interpreter.
 
 Running Scheme:
